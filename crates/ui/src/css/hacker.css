@@ -1,0 +1,37 @@
+/* Shared flourishes for both hacker styles (green/red) — the token
+   files (tokens.hacker-green.css, tokens.hacker-red.css) only set
+   colors; this is the rest of what makes it read as a terminal rather
+   than just "the regular UI with green text": a monospace typeface
+   throughout, and a subtle text-shadow glow on the highest-emphasis
+   text (app name, own-message bubbles, the active nav item) — real CRT
+   phosphor glow is way stronger than this, but a strong glow on *every*
+   line of chat text quickly becomes unreadable, so it's kept narrow to
+   the handful of places a genuine accent already existed in the
+   regular theme. */
+
+.app-shell[data-theme="hacker-green"],
+.app-shell[data-theme="hacker-red"] {
+  font-family: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+.app-shell[data-theme="hacker-green"] .bubble.own,
+.app-shell[data-theme="hacker-green"] .custom-titlebar-title,
+.app-shell[data-theme="hacker-green"] .settings-header h2 {
+  text-shadow: 0 0 6px rgba(57, 255, 20, 0.45);
+}
+
+.app-shell[data-theme="hacker-red"] .bubble.own,
+.app-shell[data-theme="hacker-red"] .custom-titlebar-title,
+.app-shell[data-theme="hacker-red"] .settings-header h2 {
+  text-shadow: 0 0 6px rgba(255, 20, 20, 0.45);
+}
+
+/* Message bubbles read closer to terminal output with square-ish
+   corners than the regular theme's fully-rounded ones — still bubbles
+   (see this app's own reasoning for keeping that structure rather than
+   rebuilding the chat log as raw `<user> text [time]` lines), just
+   less soft about it. */
+.app-shell[data-theme="hacker-green"] .bubble,
+.app-shell[data-theme="hacker-red"] .bubble {
+  border-radius: 4px;
+}

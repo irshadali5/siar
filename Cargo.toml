@@ -1,0 +1,35 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/core",
+    "crates/ui",
+    "crates/desktop",
+    "crates/android",
+]
+
+# Keep the desktop/webview path as the default supported build on Linux and
+# Windows. The native renderer is still available as an explicit opt-in, but
+# it is intentionally not the default because its transitive Stylo/Blitz stack
+# currently hits upstream trait-solver overflow errors in this environment.
+default-members = [
+    "crates/core",
+    "crates/ui",
+    "crates/desktop",
+]
+
+[workspace.metadata]
+android-target = "aarch64-linux-android"
+desktop-target = "x86_64-unknown-linux-gnu"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+# Smaller, slightly faster binary: no unwinding machinery to generate or
+# carry around. Carried over unchanged from the original single-crate
+# Cargo.toml — still safe since neither any crate's own code nor
+# `siar-core`'s FFI boundaries (cpal's audio callbacks, opus's
+# libopus calls) rely on catching a panic and continuing across an FFI
+# boundary.
+panic = "abort"
+strip = true

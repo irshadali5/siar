@@ -1,0 +1,26 @@
+<!--
+    Not a full manifest — dx generates the real one from dioxus.toml's
+    [bundle.android] / [bundle.android.permissions] (already carried over
+    unchanged into this workspace's Dioxus.toml). This is only the
+    additions dx has no way to know about on its own: the <service>
+    declarations for CallForegroundService and RelayForegroundService
+    (with the typed foregroundServiceType Android 14 requires for each),
+    and the <receiver> for BootCompletedReceiver. Merge these into
+    whatever <application> element dx's generated manifest produces.
+-->
+<service
+    android:name="dev.irshad.siar.CallForegroundService"
+    android:exported="false"
+    android:foregroundServiceType="microphone|camera" />
+<service
+    android:name="dev.irshad.siar.RelayForegroundService"
+    android:exported="false"
+    android:foregroundServiceType="dataSync" />
+<receiver
+    android:name="dev.irshad.siar.BootCompletedReceiver"
+    android:exported="true"
+    android:enabled="true">
+    <intent-filter>
+        <action android:name="android.intent.action.BOOT_COMPLETED" />
+    </intent-filter>
+</receiver>

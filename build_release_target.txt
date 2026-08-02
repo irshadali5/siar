@@ -1,0 +1,11 @@
+total 39944
+drwxr-xr-x 1 irshad irshad      122 Jul 31 16:29 .
+drwxr-xr-x 1 irshad irshad       86 Jul 31 15:53 ..
+drwxr-xr-x 1 irshad irshad    12716 Jul 31 15:53 build
+-rw-r--r-- 1 irshad irshad        0 Jul 31 15:53 .cargo-lock
+drwxr-xr-x 1 irshad irshad   154052 Jul 31 16:29 deps
+drwxr-xr-x 1 irshad irshad        0 Jul 31 15:53 examples
+drwxr-xr-x 1 irshad irshad    56004 Jul 31 15:53 .fingerprint
+drwxr-xr-x 1 irshad irshad        0 Jul 31 15:53 incremental
+-rwxr-xr-x 2 irshad irshad 40901184 Jul 31 16:29 siar
+-rw-r--r-- 1 irshad irshad     3278 Jul 31 16:30 siar.d

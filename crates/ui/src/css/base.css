@@ -1,0 +1,91 @@
+* { box-sizing: border-box; }
+html, body, #main { margin: 0; width: 100%; height: 100%; overflow: hidden; }
+body, .app-shell {
+    margin: 0; height: 100vh; height: 100dvh; background: var(--bg); color: var(--text);
+    /* `system-ui` resolves to the OS's actual configured UI font in
+       both webview backends this app used to ship on — Cantarell/Ubuntu
+       on GNOME, Segoe UI Variable on Windows 11. Kept as the font stack
+       under the native/Blitz renderer too: Blitz resolves system fonts
+       the same way, so this still avoids hand-picking a name per
+       platform. */
+    font-family: system-ui, -apple-system, "Segoe UI", Cantarell, Ubuntu, sans-serif;
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    /* Native apps don't let you accidentally select their own chrome
+       (title bar text, tab labels, buttons…) — text selection stays
+       opt-in, applied explicitly only to actual message/input content. */
+    user-select: none;
+}
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+    background: rgba(127,127,127,0.35); border-radius: 8px; border: 2px solid transparent;
+    background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(127,127,127,0.55); background-clip: content-box; }
+input, textarea { user-select: text; }
+
+.app-shell { display: flex; flex-direction: column; width: 100%; overflow: hidden; }
+.main-layout { flex: 1; display: flex; min-height: 0; }
+
+button {
+    border: none; border-radius: 10px; padding: 10px 16px; cursor: pointer;
+    background: var(--accent); color: white; font-weight: 600;
+    min-height: 44px; display: inline-flex; align-items: center; justify-content: center;
+    touch-action: manipulation; transition: background 0.15s ease, transform 0.1s ease;
+}
+button:active {
+    transform: scale(0.97);
+}
+button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
+    outline: 2px solid var(--accent-strong);
+    outline-offset: 2px;
+}
+button.secondary { background: var(--surface); color: var(--text); }
+button.secondary:hover { background: var(--surface-hover); }
+button.icon { background: transparent; color: var(--text-muted); padding: 8px; min-width: 44px; min-height: 44px; }
+button:disabled { opacity: 0.5; cursor: default; transform: none; }
+
+.empty-state {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    color: var(--text-muted); flex-direction: column; gap: 8px; text-align: center; padding: 24px;
+}
+.empty-state strong { color: var(--text); font-size: 15px; }
+.empty-state-icon {
+    width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--surface); color: var(--accent-strong); font-size: 24px; margin-bottom: 4px;
+}
+
+.bottom-nav {
+    display: flex; flex-shrink: 0; border-top: 1px solid var(--border);
+    background: var(--bg-elevated); min-height: 58px; z-index: 10;
+}
+.bottom-nav-item {
+    flex: 1; min-width: 0; min-height: 58px; padding: 7px 2px 6px; gap: 1px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    border-radius: 0; border: 0; background: transparent; color: var(--text-muted);
+    font-size: 10px; font-weight: 600;
+}
+.bottom-nav-item:hover { background: var(--surface-hover); }
+.bottom-nav-item.active { color: var(--accent-strong); }
+.bottom-nav-icon { font-size: 19px; line-height: 1; filter: grayscale(1); }
+.bottom-nav-item.active .bottom-nav-icon { filter: none; transform: translateY(-1px); }
+.bottom-nav-label { overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+
+.modal-backdrop {
+    position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center;
+    padding: 20px; background: rgba(0,0,0,0.52); backdrop-filter: blur(3px);
+}
+
+/* Right-click context menu (bubbles, sidebar rows) — see ContextMenu
+   in lib.rs. */
+.context-menu-item {
+    padding: 8px 12px;
+    font-size: 13px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text);
+}
+.context-menu-item:hover { background: var(--surface-hover); }
+.context-menu-item.danger { color: var(--danger); }

@@ -1,0 +1,49 @@
+[package]
+name = "siar"
+version = "0.4.0"
+edition = "2021"
+rust-version = "1.95"
+description = "Android platform crate for siar."
+license = "MIT OR Apache-2.0"
+
+[[bin]]
+name = "siar"
+path = "src/main.rs"
+
+[dependencies]
+siar-core = { path = "../core" }
+siar-ui = { path = "../ui" }
+
+dioxus = { version = "0.7" }
+dioxus-native = { version = "0.7", optional = true }
+
+[target.'cfg(target_os = "android")'.dependencies]
+# Standard Android log sink — routes `log`/`tracing`-facade output to
+# logcat instead of a stdout that Android apps don't have. Low-risk,
+# well-established pattern, unlike the bootstrap glue called out below.
+android_logger = "0.15"
+log = "0.4"
+
+[features]
+# Same reasoning as siar-desktop's Cargo.toml: `native` (Blitz/WGPU) is
+# blocked on a stylo build failure with no quick fix available, so
+# `webview` (Dioxus's `mobile` feature — wry hosted by a generated
+# MainActivity.kt) is the default. This has a second benefit on Android
+# specifically: it resolves the "Android JNI/native-activity bootstrap
+# glue" item on this crate's uncertainty list (see README.md and
+# src/main.rs) for the default build — `dx build --platform android`
+# under the webview `mobile` feature is the long-established path with a
+# real generated MainActivity.kt to check kotlin/'s two files against,
+# not a guess. That bootstrap question only comes back if/when `native`
+# becomes the enabled feature instead.
+default = ["webview"]
+webview = ["dioxus/mobile"]
+native = ["dep:dioxus-native"]
+
+# NOTE ON crate-type: intentionally left as a plain [[bin]], not also a
+# [lib] crate-type = ["cdylib"]. Under `webview`, `dx` owns generating
+# whatever entry point MainActivity.kt needs; under `native`, whatever
+# `dx build --platform android --features native` needs as the actual
+# .so entry point is the bootstrap-glue uncertainty flagged in
+# src/main.rs — adding a guessed cdylib target/symbol here would just be
+# a second, silent guess at that unverified thing.

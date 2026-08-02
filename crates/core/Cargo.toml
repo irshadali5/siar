@@ -1,0 +1,142 @@
+[package]
+name = "siar-core"
+version = "0.4.0"
+edition = "2021"
+rust-version = "1.95"
+description = "Platform-agnostic P2P core for siar: identity, transport, protocol, storage, media."
+license = "MIT OR Apache-2.0"
+
+[lib]
+name = "siar_core"
+path = "src/lib.rs"
+
+[dependencies]
+# --- encrypted backup (backup.rs): a user-chosen backup passphrase (not
+# the identity/seed itself — see backup.rs's module doc for why that
+# would be circular) is stretched via Argon2id (memory-hard, the current
+# standard choice for password-based key derivation, unlike the
+# HKDF-from-an-already-high-entropy-secret used everywhere else in this
+# codebase — a human-chosen passphrase needs the brute-force resistance
+# Argon2id specifically provides, HKDF alone doesn't) into a key for
+# XChaCha20-Poly1305 (RustCrypto, audited, the standard modern
+# general-purpose AEAD choice — same "zero-overhead, technically
+# superior Rust crate" preference this codebase already follows
+# throughout).
+argon2 = "0.5"
+chacha20poly1305 = { version = "0.10", features = ["getrandom"] }
+rand_core = { version = "0.6", features = ["getrandom"] }
+# --- P2P networking ---
+iroh = "1"
+iroh-gossip = "0.101"
+iroh-docs = "0.101"
+iroh-blobs = "0.103"
+
+# --- async runtime ---
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std", "signal", "sync", "time", "fs"] }
+n0-future = "0.3"
+
+# --- identity: seed phrase + deterministic key derivation ---
+bip39 = { version = "2", features = ["std", "rand", "unicode-normalization"] }
+hkdf = "0.13"
+sha2 = "0.11"
+
+# --- serialization / wire format ---
+serde = { version = "1", features = ["derive"] }
+postcard = { version = "1", features = ["use-std"] }
+data-encoding = "2"
+blake3 = "1"
+zstd = "0.13"
+
+# --- image codecs (profile pictures, status images) ---
+# See media.rs module doc for the jxl-oxide decode-only rationale — that
+# reasoning didn't change by moving crates, only where the file lives.
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif"] }
+jxl-oxide = "0.12"
+
+# --- storage ---
+rusqlite = { version = "0.40", features = ["bundled-sqlcipher-vendored-openssl"] }
+
+# --- platform / misc used by core (data dirs, settings persistence) ---
+directories = "6"
+toml = "1.1"
+anyhow = "1"
+tracing = "0.1"
+
+# --- offline mesh (net::mesh): store-and-forward relay used when the
+# public relay/internet path is unreachable. See net/mesh/mod.rs for the
+# envelope/flood design shared by both transports below.
+#
+# `lan` deliberately uses plain UDP *broadcast* (std/tokio, already a
+# dependency) rather than mDNS/multicast: broadcast needs no extra
+# crate and — unlike multicast — Android doesn't require holding a
+# `WifiManager.MulticastLock` to receive it, so it stays a pure-Rust,
+# no-Kotlin-bridge-needed path on every target this workspace builds
+# for. `uuid`/`async-trait` are the only additions this feature needs.
+#
+# `if-addrs` (pure Rust, wraps each platform's own interface-listing
+# syscall — `getifaddrs` on Linux/Android/macOS, the IP Helper API on
+# Windows) lets `lan` compute each local interface's actual subnet
+# broadcast address (e.g. 192.168.1.255), not just the global
+# 255.255.255.255 — some Wi-Fi drivers/access points filter the global
+# broadcast address, so sending to both is meaningfully more reliable,
+# not just belt-and-suspenders.
+uuid = { version = "1", features = ["v4"] }
+async-trait = "0.1"
+futures-util = "0.3"
+if-addrs = "0.13"
+
+# --- local audio file → status voice clip (net::calls::audio::
+# decode_and_encode_audio_file) ---
+# Feature set matches symphonia's own documented Cargo.toml usage
+# exactly (mp3/aac/flac/wav) — the ones actually verified rather than
+# guessed at; symphonia supports more (ogg/vorbis, alac, ...) that could
+# be added later the same way once each feature name is checked against
+# a real build rather than assumed.
+symphonia = { version = "0.5", features = ["mp3", "aac", "flac", "wav"] }
+
+# CPAL selects AAudio on Android and the native host backend on desktop;
+# libopus is platform-neutral C and cross-compiles with the Android NDK.
+# Keeping one audio pipeline on every target avoids a mobile-only protocol
+# stub and guarantees voice/status clips use the same Opus wire format.
+cpal = "0.18"
+opus = "0.3"
+
+# --- desktop-only native integration used by net::calls (voice/video),
+# plus net::mesh::ble's BLE transport. One shared target table (TOML
+# rejects the same `[target.'cfg(...)'.dependencies]` key declared
+# twice). Camera/video and BLE integrations remain desktop-scoped; audio
+# is cross-platform above through CPAL's Android AAudio backend.
+#
+# btleplug specifically: its Android backend needs a JVM/JNIEnv handle
+# and an already-granted BLUETOOTH_SCAN/CONNECT/ADVERTISE permission set
+# obtained from an Activity — the same "needs a real Kotlin bootstrap to
+# wire, not a guess" situation already flagged for the native/Blitz
+# renderer's JNI entry point elsewhere in this workspace. Rather than
+# add an unverified Android BLE code path, `net::mesh::ble` is cfg-gated
+# to desktop here; see that module's doc comment for exactly what
+# Android needs before it can be enabled there too.
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+nokhwa = { version = "0.10", features = ["input-native", "input-avfoundation", "input-msmf", "decoding"] }
+rav1e = "0.8"
+dav1d = "0.11"
+btleplug = "0.12"
+
+# BLE peripheral/advertiser role, Linux only — see net/mesh/ble.rs's
+# module doc for why this is scoped to Linux specifically: `bluer` wraps
+# BlueZ's own D-Bus API, which is Linux-specific by nature (there's no
+# BlueZ on Windows/macOS to wrap). `bluetoothd` is the feature that
+# actually needs a running Bluetooth daemon (true for the Advertisement
+# API this uses) as opposed to `bluer`'s lower-level, daemon-free
+# HCI-socket features this doesn't need.
+[target.'cfg(target_os = "linux")'.dependencies]
+bluer = { version = "0.17", features = ["bluetoothd"] }
+
+# Hardware H.264/H.265 (net::calls::mediacodec) via the NDK's
+# AMediaCodec C API — see that module's doc for why this is the highest
+# real-risk file in this workspace (raw FFI, no compiler available in
+# this environment to check any of it against) and why `ndk-sys`
+# specifically: its struct/function bindings are generated from the
+# real NDK headers, not hand-declared `extern "C"` signatures retyped
+# from memory.
+[target.'cfg(target_os = "android")'.dependencies]
+ndk-sys = "0.6"

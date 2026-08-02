@@ -1,0 +1,77 @@
+[package]
+name = "siar-ui"
+version = "0.4.0"
+edition = "2021"
+rust-version = "1.95"
+description = "Shared Dioxus UI for siar — one component tree for desktop and Android, GPU-rendered via dioxus-native/Blitz."
+license = "MIT OR Apache-2.0"
+
+[lib]
+name = "siar_ui"
+path = "src/lib.rs"
+
+[dependencies]
+siar-core = { path = "../core" }
+
+# --- UI ---
+# No renderer feature (`desktop`/`mobile`/`native`) declared here on
+# purpose: rsx!, hooks, and signals — everything this crate's component
+# tree actually uses — don't need one to compile; only the platform
+# crates' `launch` call needs a specific renderer backend. That's also
+# what makes this one crate buildable against either backend without
+# an edit here: see `siar-desktop`/`siar-android`'s Cargo.toml for the
+# `webview` (default, proven — Dioxus's wry/tao-based `desktop`/`mobile`
+# features) vs `native` (GPU via Blitz/WGPU, opt-in, currently blocked —
+# see the accompanying message: stylo 0.8.0, a transitive dependency of
+# blitz, fails to compile with a trait-solver overflow on two different
+# rustc versions and has no newer 0.8.x patch release to update to)
+# feature toggle.
+dioxus = { version = "0.7" }
+
+iroh = "1"
+iroh-docs = "0.101"
+iroh-blobs = "0.103"
+qrcode = "0.14"
+rqrr = "0.10.1"
+chrono = "0.4"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+tracing = "0.1"
+anyhow = "1"
+data-encoding = "2"
+
+# Same feature set as siar-core's `image` dependency — this crate's own
+# status-image/GIF/voice-clip-thumbnail code (not just core's) encodes
+# and decodes these formats directly. Missed in the initial crate split
+# (these calls compiled fine when everything was one crate); caught by
+# an actual `cargo build`, not by review — see the accompanying message.
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif"] }
+
+# --- desktop-only native integration invoked from inside this crate's
+# `#[cfg(target_os = ...)]` branches (clipboard, notifications, file
+# dialogs) — unchanged in kind from the original single-crate Cargo.toml,
+# just relocated to the crate that actually contains those branches now.
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+rfd = "0.17"
+notify-rust = "4"
+
+[target.'cfg(any(target_os = "windows", target_os = "macos"))'.dependencies]
+arboard = "3.6"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+wl-clipboard-rs = "0.9"
+
+[features]
+# Gates the custom title bar in `lib.rs` (drag region, minimize/
+# maximize/close buttons) — that code calls `dioxus::desktop::window()`,
+# which only exists in this build when `dioxus/desktop` itself is
+# actually enabled. Cargo feature unification means `dioxus/desktop`
+# being on *anywhere* in the build makes the module physically present,
+# but siar-ui doesn't select dioxus's renderer feature itself (see the
+# `dioxus = { version = "0.7" }` dependency above) — so without this,
+# there'd be no reliable way for this crate's own `#[cfg(feature =
+# "desktop-chrome")]` gates to know whether that module exists in the
+# specific build currently happening. Enabled by siar-desktop's
+# `webview` feature (which is also what enables `dioxus/desktop`
+# itself); never by `native` (Blitz's window API is a different,
+# not-yet-integrated story) or by siar-android under either feature.
+desktop-chrome = ["dioxus/desktop"]

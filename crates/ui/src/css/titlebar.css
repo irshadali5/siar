@@ -1,0 +1,66 @@
+/* `.titlebar` below is the in-content strip further down the app (relay
+   status pill, etc.) — unrelated to `.custom-titlebar` above it, which
+   *is* now real OS window chrome: see `siar-ui`'s `TitleBar` component
+   and `siar-desktop/src/main.rs`'s `with_decorations(false)`. Kept as
+   two separate, differently-named blocks rather than merged, since
+   `.titlebar` predates this pass and nothing about adding real window
+   chrome required touching it. */
+.custom-titlebar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 32px;
+    padding-left: 12px;
+    background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border);
+    /* Lets the OS treat this whole bar as the window's drag region on
+       platforms that honor it natively (Windows, some Linux compositors)
+       in addition to the explicit `onmousedown` → `window.drag()` handler
+       that makes it work everywhere else this app targets. Belt and
+       suspenders, not a replacement for the Rust-side handler. */
+    -webkit-app-region: drag;
+    user-select: none;
+}
+.custom-titlebar-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+.custom-titlebar-buttons {
+    display: flex;
+    height: 100%;
+    -webkit-app-region: no-drag;
+}
+.custom-titlebar-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 100%;
+    border-radius: 0;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 400;
+    padding: 0;
+}
+.custom-titlebar-btn:hover { background: var(--surface-hover); color: var(--text); }
+.custom-titlebar-btn.close:hover { background: var(--danger); color: white; }
+
+.titlebar {
+    display: flex; align-items: center; justify-content: space-between;
+    min-height: 58px; padding: 8px 14px; background: var(--bg-elevated); border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+.profile-trigger { display:flex; align-items:center; gap:10px; cursor:pointer; min-width:0; }
+.profile-trigger-copy { display:flex; flex-direction:column; min-width:0; line-height:1.15; }
+.profile-trigger-copy strong { font-size:15px; color:var(--text); }
+.profile-trigger-copy span { color:var(--text-muted); font-size:11px; overflow:hidden; text-overflow:ellipsis; }
+.profile-settings-icon { color:var(--text-muted); font-size:14px; }
+.relay-pill {
+    font-size: 11px; padding: 5px 9px; border-radius: 999px; background: var(--surface);
+    color: var(--text-muted);
+}
+.relay-pill::before { content:""; display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--accent-strong); margin-right:5px; }
+.relay-pill.degraded { color: var(--warning); }
+.relay-pill.degraded::before { background:var(--warning); }

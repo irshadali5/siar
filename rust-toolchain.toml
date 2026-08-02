@@ -1,0 +1,20 @@
+# 1.95.0: the real driver now is `libsqlite3-sys` 0.38.1's build script,
+# which uses the `cfg_select!` macro unconditionally — that stabilized
+# in Rust 1.95.0 (April 2026; tracking issue rust-lang/rust#115585,
+# stabilization PR #149783), not before. rustc 1.91.0 (this file's
+# previous pin, correct for iroh 1.0.3's own floor) predates that by
+# several releases, hence: `error: use of unstable library feature
+# cfg_select`. 1.95.0 is comfortably above iroh's 1.91 floor too, so
+# this one pin covers both.
+#
+# Earlier history, in case this comes up again: a prior pass first
+# pinned 1.89.0 reasoning from blitz's declared MSRV (wrong — that's
+# blitz's minimum supported compiler, not evidence about a stylo build
+# failure), then 1.91.0 for iroh's floor. Both hit the identical stylo
+# E0275 trait-solver overflow, which is why the renderer became a Cargo
+# feature (`webview` default, `native` opt-in — see
+# siar-desktop/Cargo.toml) instead of a third toolchain guess. This pin
+# bump is unrelated to that: `native`/stylo were never involved here,
+# it's the default `webview` build's own sqlite dependency.
+[toolchain]
+channel = "1.95.0"

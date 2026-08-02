@@ -1,0 +1,197 @@
+/* Settings panel: modal container, segmented tab bar, profile card,
+   and the sliding switch used by SettingsToggle. Split out on its own
+   file (rather than staying inline in lib.rs) once the panel grew a
+   real visual language of its own instead of ad-hoc inline styles —
+   same reasoning as every other file in this directory. */
+
+.settings-modal {
+  background: var(--bg-elevated);
+  border-radius: 16px;
+  width: 440px;
+  max-width: 92vw;
+  max-height: 85vh;
+  overflow-y: auto;
+  color: var(--text);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border);
+}
+
+.conv-info-modal { max-height:85vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,.35); }
+
+.settings-header {
+  padding: 22px 24px 0 24px;
+}
+
+.settings-header h2 {
+  margin: 0 0 8px 0;
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.settings-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0 0 18px 0;
+  padding: 3px 10px 3px 8px;
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+.settings-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.settings-status-dot.ok { background: var(--accent-strong); }
+.settings-status-dot.degraded { background: var(--warning); }
+
+/* Segmented pill tab bar, replaces the old flat button-row-with-square-
+   corners look. Horizontally scrollable (no wrap) so eight tabs never
+   collide on a narrow window — the row scrolls instead of stacking. */
+.settings-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  background: var(--surface);
+  border-radius: 11px;
+  margin-bottom: 18px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.settings-tabs::-webkit-scrollbar { display: none; }
+
+.settings-tab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 7px 13px;
+  border-radius: 8px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.settings-tab:hover { color: var(--text); background: var(--surface-hover); }
+.settings-tab.active {
+  background: var(--bg-elevated);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.settings-body { padding: 0 24px 26px 24px; }
+
+/* Profile tab */
+.profile-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 6px 0 18px 0;
+}
+
+.profile-card .avatar-ring {
+  padding: 3px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  margin-bottom: 12px;
+}
+.profile-card .avatar-ring > * { display: block; border-radius: 50%; border: 3px solid var(--bg-elevated); }
+
+.profile-card .username { font-size: 17px; font-weight: 600; margin: 0 0 2px 0; }
+
+.ticket-card {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin: 14px 0;
+  box-sizing: border-box;
+}
+
+.ticket-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10.5px;
+  color: var(--text-muted);
+  word-break: break-all;
+  line-height: 1.5;
+  margin: 10px 0 0 0;
+  text-align: left;
+}
+
+/* Section label used above groups of related settings (e.g. above the
+   theme picker, above the two Network toggles). Small, uppercase,
+   muted — a lighter-weight heading than an <h3> for a modal this
+   compact. */
+.settings-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 10px 0;
+}
+
+/* Sliding switch, replaces the old "On"/"Off" text button. Plain div +
+   span (not <input type="checkbox">) so the click handler stays the
+   simple `EventHandler<bool>` SettingsToggle already had — this only
+   changes how it looks, not how it's wired. */
+.switch-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.switch-row:last-child { border-bottom: none; }
+
+.switch-row .switch-label { font-size: 13.5px; font-weight: 500; }
+.switch-row .switch-desc { font-size: 11.5px; color: var(--text-muted); margin: 3px 0 0 0; line-height: 1.5; }
+
+.switch {
+  flex-shrink: 0;
+  width: 42px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--border);
+  position: relative;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+.switch.on { background: var(--accent); }
+
+.switch .knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: transform 150ms ease;
+}
+.switch.on .knob { transform: translateX(18px); }
+
+/* Network tab's live status readout */
+.mesh-status-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 16px;
+}
+.mesh-status-card {
+  background: var(--surface);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.mesh-status-card .mesh-status-label { font-size: 10.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+.mesh-status-card .mesh-status-value { font-size: 14px; font-weight: 600; margin-top: 2px; }
+.mesh-status-value.active { color: var(--accent-strong); }

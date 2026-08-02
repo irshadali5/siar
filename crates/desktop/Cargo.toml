@@ -1,0 +1,42 @@
+[package]
+name = "siar-desktop"
+version = "0.4.0"
+edition = "2021"
+rust-version = "1.95"
+description = "Linux/Windows desktop platform crate for siar."
+license = "MIT OR Apache-2.0"
+
+[[bin]]
+name = "siar"
+path = "src/main.rs"
+
+[dependencies]
+siar-core = { path = "../core" }
+siar-ui = { path = "../ui" }
+
+dioxus = { version = "0.7" }
+dioxus-native = { version = "0.7", optional = true }
+clap = { version = "4", features = ["derive"] }
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Advisory file locking for the single-instance check in `main.rs` — see
+# that file's comment. Desktop-only: no equivalent hazard on Android.
+fs2 = "0.4"
+
+[features]
+# Default to the proven webview (tao/wry) renderer, not the GPU one —
+# see MIGRATION_v0.4.md's build-notes update: stylo 0.8.0 (a transitive
+# dependency of blitz, which `native` is built on) fails with a
+# trait-solver overflow on two different rustc pins (1.89.0, 1.91.0),
+# and there's no newer 0.8.x patch release to update to (checked against
+# crates.io's index directly — only 0.8.0 was ever published in that
+# line; next is 0.9.0, a breaking jump). That's not a "your machine"
+# problem to keep working around with rustc pins — it's this specific
+# dependency combination not building right now. `native` stays
+# available as an explicit opt-in (`cargo build --no-default-features
+# --features native`) for once it does.
+default = ["webview"]
+webview = ["dioxus/desktop", "siar-ui/desktop-chrome"]
+native = ["dep:dioxus-native"]

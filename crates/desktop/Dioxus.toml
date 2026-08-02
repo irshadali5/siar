@@ -1,0 +1,6 @@
+[application]
+name = "Siar"
+default_platform = "desktop"
+
+[bundle]
+icon = ["../../assets/app-icon-1024.png"]

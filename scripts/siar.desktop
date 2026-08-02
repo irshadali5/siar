@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Siar
+GenericName=Peer-to-peer messenger
+Comment=Secure peer-to-peer chat app
+Exec=/usr/local/bin/siar
+Icon=siar
+Terminal=false
+Type=Application
+Categories=Network;Communication;Utility;
+StartupWMClass=Siar
