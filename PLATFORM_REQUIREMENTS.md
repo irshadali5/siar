@@ -5,14 +5,9 @@ particular attention to voice calling (`net::calls`), since microphone
 access is the one thing here that genuinely needs OS-level permission
 handling rather than just a library dependency.
 
-## Desktop (the only platform this app currently builds for)
+## Desktop & Android Supported Targets
 
-This project is a `dioxus-desktop` app (a native window + embedded
-webview), built with plain `cargo build`/`cargo run`. There is currently
-**no Android or iOS target wired up** — no `AndroidManifest.xml`, no
-Gradle project, no NDK toolchain configuration, nothing under a `mobile/`
-directory. See "Android" below for what actually adding that would take;
-it's a real gap, not just a missing permissions file.
+This project builds for desktop (`dioxus-desktop` / Wry webview) via plain `cargo run` and for Android via `crates/android` and `scripts/build-android.sh`.
 
 ### Build dependencies
 
@@ -54,14 +49,9 @@ the OS decides to grant):
   microphone" needs to be on. WASAPI will otherwise just fail to open
   the input device.
 
-None of this is something the app can bypass or need to "request" in
-code the way a mobile app does — see Android below for the contrast.
+## Android
 
-## Android (not yet a real build target — here's what's actually missing)
-
-Dioxus does have a mobile story, but it's a materially different build
-pipeline from the desktop one this project currently uses — not a config
-flag. Getting this app running on Android would need, roughly:
+Android support is implemented under `crates/android` using Dioxus mobile features, native Kotlin services (`CallForegroundService`, `RelayForegroundService`), and built via `scripts/build-android.sh`.
 
 1. **Project scaffolding**: `dx create` or equivalent to generate the
    Android wrapper project (Gradle build, `AndroidManifest.xml`, NDK

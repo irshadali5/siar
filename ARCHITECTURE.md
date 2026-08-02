@@ -1,9 +1,9 @@
-# siar v2 — Architecture
+# Siar (v0.5.0) — Architecture
 
 A serverless, cross-platform (Linux/macOS/Windows — Dioxus desktop renders on all
-three from one codebase) P2P messenger on iroh. This document is the design
-record for the v2 rewrite: seed-phrase identity, unique usernames, a
-request/accept contact model, compressed messages, file transfer, and a
+three from one codebase, plus Android via `crates/android`) P2P messenger on iroh. This document is the design
+record for the v0.5.0 architecture: seed-phrase identity, unique usernames, a
+request/accept contact model, compressed messages, file transfer, real-time calls, offline mesh networking, and a
 Signal/WhatsApp-style UI. Calls (audio/video) are fully implemented — see §8.
 Mesh networking (LAN/BLE) is also fully implemented for offline proximity messaging.
 
@@ -56,7 +56,7 @@ Mesh networking (LAN/BLE) is also fully implemented for offline proximity messag
 
 **Multi-device note:** because the identity key is derived and portable,
 the *same person* can run the app on two machines with two different
-`EndpointId`s only if you choose to (e.g. per-device sub-keys) — v2 keeps
+`EndpointId`s only if you choose to (e.g. per-device sub-keys) — v0.5.0 keeps
 it simple: one seed = one `EndpointId`, usable on one active device at a
 time (like a wallet, not like multi-device Signal's separate linked-device
 protocol). Multi-device-simultaneous is a real follow-on project (Signal's
@@ -203,7 +203,7 @@ settings:      key/value — theme, notify, "seed_backup_confirmed" flag,
 
 **Storage engine choice stays `rusqlite`, deliberately, not `redb`.** This
 document's technology table above and the standing project spec both
-default to `redb` for local persistence; v2 uses `rusqlite` (bundled
+default to `redb` for local persistence; v0.5.0 uses `rusqlite` (bundled
 sqlite) instead, per explicit direction. `rusqlite`'s SQL query surface
 (the `WHERE`/`ORDER BY`/`GROUP BY` composition `store.rs` already leans on
 for `list_contacts_where`, `recent_messages`, `distinct_rooms`) is a better
@@ -356,7 +356,7 @@ messages and files, `iroh-docs` for DM and group metadata.
 * Every message write stays a single local sqlite insert — no doc-merge
   overhead, no growing-forever CRDT history to hold on every device, no
   change to the message-ordering approach already in place
-  (`(sent_at_ms, sender, seq)`-style sort, spec §7). This keeps v2's
+  (`(sent_at_ms, sender, seq)`-style sort, spec §7). This keeps v0.5.0's
   existing performance characteristics (§12's budgets) intact rather than
   introducing a new write path on the hot "send a message" flow.
 * What's *actually* durable-and-offline-syncing now is the thing that
