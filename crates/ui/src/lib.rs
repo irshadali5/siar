@@ -833,6 +833,8 @@ fn MainShell(ui: UiState) -> Element {
                 avatar_hash: ui.my_avatar_hash.cloned(),
                 images: ui.avatar_images,
                 on_change_avatar: move |_| spawn_change_avatar(ui),
+                on_avatar_bytes: move |bytes: Vec<u8>| spawn_set_avatar(ui, bytes),
+                on_media_error: move |message: String| push_toast(ui, message, true),
             }
         }
         if ui.show_conv_info.cloned() {
@@ -1005,6 +1007,8 @@ fn MainShell(ui: UiState) -> Element {
                                 compose: ui.compose,
                                 on_send: move |_| send_to_active(ui),
                                 on_attach_file: move |_| spawn_attach_file(ui),
+                                on_attach_bytes: move |(name, bytes): (String, Vec<u8>)| spawn_attach_file_bytes(ui, name, bytes),
+                                on_attach_error: move |message: String| push_toast(ui, message, true),
                                 on_back: move |_| ui.active.clone().set(None),
                                 on_typing: move |_| maybe_send_typing(ui, key_for_typing.clone()),
                                 on_download_file: move |hash: String| spawn_download_file(ui, key_for_download.clone(), hash),
@@ -1057,7 +1061,6 @@ fn MainShell(ui: UiState) -> Element {
                     statuses: ui.statuses.cloned(),
                     my_id: ui.core.read().as_ref().map(|c| c.my_id),
                     compose: ui.status_compose,
-                    ttl_hours: ui.status_ttl_hours,
                     status_image: ui.status_image,
                     status_images: ui.avatar_images,
                     status_video_pending: ui.status_video_pending,
@@ -1068,9 +1071,12 @@ fn MainShell(ui: UiState) -> Element {
                     own_story_viewer: ui.own_story_viewer,
                     on_post: move |_| spawn_post_status(ui),
                     on_attach_image: move |_| spawn_attach_status_image(ui),
+                    on_attach_image_bytes: move |bytes: Vec<u8>| spawn_set_status_image(ui, bytes),
                     on_record_video: move |_| spawn_record_status_video(ui),
                     on_record_audio: move |_| spawn_record_status_audio(ui),
                     on_attach_audio: move |_| spawn_attach_status_audio(ui),
+                    on_attach_audio_bytes: move |(name, bytes): (String, Vec<u8>)| spawn_set_status_audio(ui, bytes, Some(name)),
+                    on_media_error: move |message: String| push_toast(ui, message, true),
                 }
             },
         }
@@ -1178,7 +1184,6 @@ fn StatusView(
     statuses: Vec<StatusEntry>,
     my_id: Option<EndpointId>,
     compose: Signal<String>,
-    ttl_hours: Signal<String>,
     status_image: Signal<Option<Vec<u8>>>,
     status_images: Signal<HashMap<String, String>>,
     status_video_pending: Signal<Option<Vec<image::RgbImage>>>,
@@ -1189,10 +1194,14 @@ fn StatusView(
     own_story_viewer: Signal<bool>,
     on_post: EventHandler<()>,
     on_attach_image: EventHandler<()>,
+    on_attach_image_bytes: EventHandler<Vec<u8>>,
     on_record_video: EventHandler<()>,
     on_record_audio: EventHandler<()>,
     on_attach_audio: EventHandler<()>,
+    on_attach_audio_bytes: EventHandler<(String, Vec<u8>)>,
+    on_media_error: EventHandler<String>,
 ) -> Element {
+    let mut compose_open = use_signal(|| false);
     let my_id_hex = my_id.map(app::hex);
     let (mine, theirs): (Vec<_>, Vec<_>) = statuses
         .into_iter()
@@ -1206,10 +1215,11 @@ fn StatusView(
     });
 
     rsx! {
-        div { class: "sidebar-list", style: "flex:1; overflow-y:auto; padding:12px; position:relative;",
+        div { class: "status-view sidebar-list",
             // "My status" — avatar/preview on the left, everything you'd
             // do with it stacked vertically to its right, as one section.
             div {
+                class: "status-own-card",
                 style: "display:flex; gap:14px; align-items:flex-start; background: var(--bg-secondary, rgba(255,255,255,0.04)); \
                         border:1px solid var(--border); border-radius:10px; padding:12px; margin-bottom:16px;",
                 div {
@@ -1244,23 +1254,31 @@ fn StatusView(
                     }
                 }
                 div { style: "flex:1; display:flex; flex-direction:column; gap:8px;",
-                    div { style: "font-weight:600;", "My status" }
+                    div { class: "status-compose-heading",
+                        div {
+                            div { style: "font-weight:600;", "My status" }
+                            div { class: "status-compose-hint", if has_own_status { "Tap your photo to view" } else { "Share a photo, voice note, or update" } }
+                        }
+                        button {
+                            class: "status-compose-toggle",
+                            aria_label: if compose_open() { "Close status composer" } else { "Create status" },
+                            onclick: move |_| compose_open.toggle(),
+                            if compose_open() { "×" } else { "+" }
+                        }
+                    }
                     if let Some(entry) = mine.first() {
-                        div { style: "color:var(--text-muted); font-size:13px;",
+                        div { class: "status-current-summary",
                             if entry.text.is_empty() { "Currently posted · expires {relative_time(entry.expires_at_ms)}" }
                             else { "Currently: \"{entry.text}\" · expires {relative_time(entry.expires_at_ms)}" }
                         }
-                        if entry.video_hash.is_some() {
-                            div { style: "font-size:12px; color:var(--text-muted);", "🎥 includes a video clip" }
-                        }
-                        if entry.audio_hash.is_some() {
-                            div { style: "font-size:12px; color:var(--text-muted);", "🎤 includes a voice clip" }
-                        }
                     }
+                    if compose_open() {
+                    div { class: "status-editor",
                     textarea {
+                        class: "status-text-input",
                         style: "width:100%; min-height:60px; background:var(--surface); border:1px solid var(--border); \
                                 color:var(--text); border-radius:8px; padding:8px; resize:vertical;",
-                        placeholder: "What's on your mind?",
+                        placeholder: "Type a status…",
                         value: "{compose}",
                         oninput: move |e| compose.set(e.value()),
                     }
@@ -1284,37 +1302,74 @@ fn StatusView(
                             button { class: "secondary", onclick: move |_| status_audio_pending.clone().set(None), "Remove voice clip" }
                         }
                     }
-                    div { style: "display:flex; gap:8px; align-items:center; flex-wrap:wrap;",
-                        button { class: "secondary", onclick: move |_| on_attach_image.call(()), "📷 Attach image" }
-                        if status_recording.cloned() {
-                            button { class: "secondary", disabled: true, "🎥 Recording…" }
+                    div { class: "status-tools",
+                        if cfg!(any(target_os = "android", target_os = "ios")) {
+                            label { class: "status-tool", r#for: "status-camera-input", "📷", span { "Camera" } }
+                            input {
+                                id: "status-camera-input", class: "visually-hidden-file", r#type: "file", accept: "image/*", capture: "environment",
+                                onchange: move |event| {
+                                    let Some(file) = event.files().into_iter().next() else { return };
+                                    if file.size() > 20 * 1024 * 1024 { on_media_error.call("Status image is too large (20 MB maximum)".to_string()); return; }
+                                    spawn(async move { match file.read_bytes().await {
+                                        Ok(bytes) => on_attach_image_bytes.call(bytes.to_vec()),
+                                        Err(error) => on_media_error.call(format!("couldn't read camera image: {error}")),
+                                    }});
+                                },
+                            }
+                            label { class: "status-tool", r#for: "status-gallery-input", "▧", span { "Gallery" } }
+                            input {
+                                id: "status-gallery-input", class: "visually-hidden-file", r#type: "file", accept: "image/*",
+                                onchange: move |event| {
+                                    let Some(file) = event.files().into_iter().next() else { return };
+                                    if file.size() > 20 * 1024 * 1024 { on_media_error.call("Status image is too large (20 MB maximum)".to_string()); return; }
+                                    spawn(async move { match file.read_bytes().await {
+                                        Ok(bytes) => on_attach_image_bytes.call(bytes.to_vec()),
+                                        Err(error) => on_media_error.call(format!("couldn't read gallery image: {error}")),
+                                    }});
+                                },
+                            }
                         } else {
-                            button { class: "secondary", onclick: move |_| on_record_video.call(()), "🎥 Record video ({STATUS_VIDEO_RECORD_SECS}s)" }
+                            button { class: "status-tool", onclick: move |_| on_attach_image.call(()), "📷", span { "Photo" } }
+                        }
+                        if cfg!(not(any(target_os = "android", target_os = "ios"))) {
+                            if status_recording.cloned() {
+                                button { class: "status-tool", disabled: true, "🎥", span { "Recording…" } }
+                            } else {
+                                button { class: "status-tool", onclick: move |_| on_record_video.call(()), "🎥", span { "Video" } }
+                            }
                         }
                         if status_recording_audio.cloned() {
-                            button { class: "secondary", disabled: true, "🎤 Recording…" }
+                            button { class: "status-tool", disabled: true, "🎤", span { "Recording…" } }
                         } else {
-                            button { class: "secondary", onclick: move |_| on_record_audio.call(()), "🎤 Record voice ({STATUS_AUDIO_RECORD_SECS}s)" }
+                            button { class: "status-tool", onclick: move |_| on_record_audio.call(()), "🎤", span { "Voice" } }
                         }
-                        button { class: "secondary", onclick: move |_| on_attach_audio.call(()), "🎵 Attach audio file" }
-                        span { style: "font-size:12px; color:var(--text-muted);", "Visible for:" }
-                        input {
-                            r#type: "number",
-                            min: "1",
-                            max: "168",
-                            placeholder: "24h default",
-                            style: "width:90px; background:var(--surface); border:1px solid var(--border); \
-                                    color:var(--text); border-radius:8px; padding:4px 8px;",
-                            value: "{ttl_hours}",
-                            oninput: move |e| ttl_hours.set(e.value()),
+                        if cfg!(any(target_os = "android", target_os = "ios")) {
+                            label { class: "status-tool", r#for: "status-audio-input", "♫", span { "Audio" } }
+                            input {
+                                id: "status-audio-input", class: "visually-hidden-file", r#type: "file", accept: "audio/*",
+                                onchange: move |event| {
+                                    let Some(file) = event.files().into_iter().next() else { return };
+                                    if file.size() > 32 * 1024 * 1024 { on_media_error.call("Audio file is too large (32 MB maximum)".to_string()); return; }
+                                    let name = file.name();
+                                    spawn(async move { match file.read_bytes().await {
+                                        Ok(bytes) => on_attach_audio_bytes.call((name, bytes.to_vec())),
+                                        Err(error) => on_media_error.call(format!("couldn't read audio file: {error}")),
+                                    }});
+                                },
+                            }
+                        } else {
+                            button { class: "status-tool", onclick: move |_| on_attach_audio.call(()), "♫", span { "Audio" } }
                         }
-                        span { style: "font-size:12px; color:var(--text-muted);", "hours (max 168)" }
-                        div { style: "flex:1;" }
-                        button { onclick: move |_| on_post.call(()), "Post" }
+                    }
+                    div { class: "status-editor-footer",
+                        span { "Disappears after 24 hours" }
+                        button { onclick: move |_| { on_post.call(()); compose_open.set(false); }, "Send status" }
+                    }
+                    }
                     }
                 }
             }
-            div { style: "font-weight:600; margin-bottom:8px; color:var(--text-muted); font-size:13px;", "Recent updates" }
+            div { class: "status-section-label", "Recent updates" }
             if theirs.is_empty() {
                 div { style: "color:var(--text-muted);", "No one you know has an active status right now." }
             }
@@ -1710,8 +1765,46 @@ fn SettingsPanel(
     avatar_hash: Option<String>,
     images: Signal<HashMap<String, String>>,
     on_change_avatar: EventHandler<()>,
+    on_avatar_bytes: EventHandler<Vec<u8>>,
+    on_media_error: EventHandler<String>,
 ) -> Element {
     let tab = use_signal(|| SettingsTab::Profile);
+    let notifications_enabled = use_signal(|| {
+        ui.core
+            .read()
+            .as_ref()
+            .is_none_or(|core| core.store().notifications_enabled())
+    });
+    let notification_sound_enabled = use_signal(|| {
+        ui.core
+            .read()
+            .as_ref()
+            .is_none_or(|core| core.store().notification_sound_enabled())
+    });
+    let read_receipts_enabled = use_signal(|| {
+        ui.core
+            .read()
+            .as_ref()
+            .is_none_or(|core| core.store().read_receipts_enabled())
+    });
+    let typing_indicator_enabled = use_signal(|| {
+        ui.core
+            .read()
+            .as_ref()
+            .is_none_or(|core| core.store().typing_indicator_enabled())
+    });
+    let background_wake_enabled = use_signal(|| {
+        ui.core
+            .read()
+            .as_ref()
+            .is_some_and(|core| core.store().background_wake_enabled())
+    });
+    let offline_mesh_enabled = use_signal(|| {
+        ui.core
+            .read()
+            .as_ref()
+            .is_some_and(Core::offline_mesh_enabled)
+    });
     let qr_svg = render_qr_svg(&ticket);
     let data_dir = CONFIG
         .get()
@@ -1732,20 +1825,21 @@ fn SettingsPanel(
                         if relay_ok { "Connected — relay reachable" } else { "Degraded — no relay, direct/LAN peers only" }
                     }
                     div { class: "settings-tabs",
-                        for (label, value) in [
-                            ("Profile", SettingsTab::Profile),
-                            ("Appearance", SettingsTab::Appearance),
-                            ("Notifications", SettingsTab::Notifications),
-                            ("Privacy", SettingsTab::Privacy),
-                            ("Network", SettingsTab::Network),
-                            ("Keys", SettingsTab::Keys),
-                            ("Storage", SettingsTab::Storage),
-                            ("About", SettingsTab::About),
+                        for (icon, label, value) in [
+                            ("👤", "Profile", SettingsTab::Profile),
+                            ("◐", "Appearance", SettingsTab::Appearance),
+                            ("🔔", "Notifications", SettingsTab::Notifications),
+                            ("🔒", "Privacy", SettingsTab::Privacy),
+                            ("◉", "Network", SettingsTab::Network),
+                            ("🔑", "Keys", SettingsTab::Keys),
+                            ("▣", "Storage", SettingsTab::Storage),
+                            ("ⓘ", "About", SettingsTab::About),
                         ] {
                             button {
                                 class: if tab.cloned() == value { "settings-tab active" } else { "settings-tab" },
                                 onclick: move |_| tab.clone().set(value),
-                                "{label}"
+                                span { class: "settings-tab-icon", "{icon}" }
+                                span { "{label}" }
                             }
                         }
                     }
@@ -1758,7 +1852,22 @@ fn SettingsPanel(
                                     Avatar { hash: avatar_hash.clone(), label: username.clone(), images, size_px: 72 }
                                 }
                                 div { class: "username", "@{username}" }
-                                button { style: "margin-top:8px;", onclick: move |_| on_change_avatar.call(()), "Change avatar" }
+                                if cfg!(any(target_os = "android", target_os = "ios")) {
+                                    label { class: "settings-avatar-button", r#for: "settings-avatar-input", "Change photo" }
+                                    input {
+                                        id: "settings-avatar-input", class: "visually-hidden-file", r#type: "file", accept: "image/*",
+                                        onchange: move |event| {
+                                            let Some(file) = event.files().into_iter().next() else { return };
+                                            if file.size() > 20 * 1024 * 1024 { on_media_error.call("Avatar image is too large (20 MB maximum)".to_string()); return; }
+                                            spawn(async move { match file.read_bytes().await {
+                                                Ok(bytes) => on_avatar_bytes.call(bytes.to_vec()),
+                                                Err(error) => on_media_error.call(format!("couldn't read avatar image: {error}")),
+                                            }});
+                                        },
+                                    }
+                                } else {
+                                    button { style: "margin-top:8px;", onclick: move |_| on_change_avatar.call(()), "Change avatar" }
+                                }
                                 div { class: "ticket-card",
                                     div { style: "display:flex; justify-content:center;", dangerous_inner_html: "{qr_svg}" }
                                     div { class: "ticket-value", "{ticket}" }
@@ -1823,33 +1932,30 @@ fn SettingsPanel(
                             }
                         },
                         SettingsTab::Notifications => rsx! {
-                            {
-                                let (notif, sound) = ui.core.read().as_ref()
-                                    .map(|c| (c.store().notifications_enabled(), c.store().notification_sound_enabled()))
-                                    .unwrap_or((true, true));
-                                rsx! {
-                                    div {
-                                        SettingsToggle {
-                                            label: "Desktop notifications".to_string(),
-                                            description: "Show a notification when a DM, room message, or contact request arrives while the app isn't focused.".to_string(),
-                                            checked: notif,
-                                            onchange: move |v| if let Some(core) = ui.core.read().as_ref() { let _ = core.store().set_notifications_enabled(v); },
-                                        }
-                                        SettingsToggle {
-                                            label: "Notification sound".to_string(),
-                                            description: "Play a sound alongside desktop notifications.".to_string(),
-                                            checked: sound,
-                                            onchange: move |v| if let Some(core) = ui.core.read().as_ref() { let _ = core.store().set_notification_sound_enabled(v); },
-                                        }
+                            div {
+                                SettingsToggle {
+                                    label: "Message notifications".to_string(),
+                                    description: "Alert me about messages, calls, and contact requests.".to_string(),
+                                    checked: notifications_enabled(),
+                                    onchange: move |v| {
+                                        notifications_enabled.clone().set(v);
+                                        if let Some(core) = ui.core.read().as_ref() { let _ = core.store().set_notifications_enabled(v); }
+                                        if v { request_android_notification_permission(); }
                                     }
+                                }
+                                SettingsToggle {
+                                    label: "Notification sound".to_string(),
+                                    description: "Play a sound with new notifications.".to_string(),
+                                    checked: notification_sound_enabled(),
+                                    onchange: move |v| {
+                                        notification_sound_enabled.clone().set(v);
+                                        if let Some(core) = ui.core.read().as_ref() { let _ = core.store().set_notification_sound_enabled(v); }
+                                    },
                                 }
                             }
                         },
                         SettingsTab::Privacy => rsx! {
                             {
-                                let (receipts, typing_ind) = ui.core.read().as_ref()
-                                    .map(|c| (c.store().read_receipts_enabled(), c.store().typing_indicator_enabled()))
-                                    .unwrap_or((true, true));
                                 let blocked: Vec<Contact> = ui.contacts.read().iter()
                                     .filter(|c| c.state == ContactState::Blocked)
                                     .cloned()
@@ -1859,14 +1965,20 @@ fn SettingsPanel(
                                         SettingsToggle {
                                             label: "Send read receipts".to_string(),
                                             description: "Let contacts see when you've read their messages. Turning this off only stops your own signal — it doesn't hide receipts they already sent you.".to_string(),
-                                            checked: receipts,
-                                            onchange: move |v| if let Some(core) = ui.core.read().as_ref() { let _ = core.store().set_read_receipts_enabled(v); },
+                                            checked: read_receipts_enabled(),
+                                            onchange: move |v| {
+                                                read_receipts_enabled.clone().set(v);
+                                                if let Some(core) = ui.core.read().as_ref() { let _ = core.store().set_read_receipts_enabled(v); }
+                                            },
                                         }
                                         SettingsToggle {
                                             label: "Send typing indicators".to_string(),
                                             description: "Let contacts see the \"typing…\" bubble while you're composing a reply.".to_string(),
-                                            checked: typing_ind,
-                                            onchange: move |v| if let Some(core) = ui.core.read().as_ref() { let _ = core.store().set_typing_indicator_enabled(v); },
+                                            checked: typing_indicator_enabled(),
+                                            onchange: move |v| {
+                                                typing_indicator_enabled.clone().set(v);
+                                                if let Some(core) = ui.core.read().as_ref() { let _ = core.store().set_typing_indicator_enabled(v); }
+                                            },
                                         }
                                         div { style: "margin-top:18px;",
                                             p { style: "font-size:12px; color:var(--text-muted); margin-bottom:8px;", "Blocked contacts" }
@@ -1901,9 +2013,7 @@ fn SettingsPanel(
                         },
                         SettingsTab::Network => rsx! {
                             {
-                                let (bg_wake, mesh_on, status) = ui.core.read().as_ref()
-                                    .map(|c| (c.store().background_wake_enabled(), c.offline_mesh_enabled(), Some(c.mesh_status())))
-                                    .unwrap_or((false, false, None));
+                                let status = ui.core.read().as_ref().map(Core::mesh_status);
                                 let (lan_active, ble_active, peers, relayed) = status
                                     .map(|s| (
                                         s.lan_active.load(std::sync::atomic::Ordering::Relaxed),
@@ -1916,27 +2026,23 @@ fn SettingsPanel(
                                     div {
                                         SettingsToggle {
                                             label: "Background wake (Android)".to_string(),
-                                            description: "Keep a low-priority background connection alive so this device can wake for an incoming message, call, or notification even while the app isn't open. Off by default — turning this on adds a persistent \"Siar is running\" notification (required by Android) and uses more battery. No effect on desktop.".to_string(),
-                                            checked: bg_wake,
+                                            description: "Stay reachable while Siar is in the background. Android shows a permanent notification and may use more battery.".to_string(),
+                                            checked: background_wake_enabled(),
                                             onchange: move |v| {
+                                                background_wake_enabled.clone().set(v);
                                                 if let Some(core) = ui.core.read().as_ref() {
                                                     let _ = core.store().set_background_wake_enabled(v);
                                                 }
-                                                // Actually starting/stopping `dev.irshad.siar.
-                                                // RelayForegroundService` from this toggle needs
-                                                // a Rust → Kotlin call this crate has no verified
-                                                // bridge for yet — the setting above is what the
-                                                // service reads on its own start (boot receiver /
-                                                // app launch), same class of open bootstrap-glue
-                                                // item as the Android JNI/native-activity entry
-                                                // point already documented in siar-android.
+                                                set_android_background_wake(v);
                                             },
                                         }
                                         SettingsToggle {
-                                            label: "Offline mesh (Bluetooth & Wi-Fi)".to_string(),
-                                            description: "When there's no relay/internet path, try to reach contacts directly over nearby Bluetooth LE and local Wi-Fi broadcast instead — messages hop peer-to-peer through whoever else has this on, with no server involved. Off by default: this scans/broadcasts in the background whenever it's on, which costs extra battery.".to_string(),
-                                            checked: mesh_on,
+                                            label: if cfg!(target_os = "android") { "Nearby Wi-Fi mesh".to_string() } else { "Offline mesh (Bluetooth & Wi-Fi)".to_string() },
+                                            description: "When internet or the relay is unavailable, try nearby peer-to-peer delivery. Both devices must enable it.".to_string(),
+                                            checked: offline_mesh_enabled(),
                                             onchange: move |v| {
+                                                offline_mesh_enabled.clone().set(v);
+                                                if v { request_android_nearby_permissions(); }
                                                 if let Some(core) = ui.core.read().as_ref() {
                                                     let store = core.store();
                                                     let mesh = core.mesh();
@@ -1947,7 +2053,7 @@ fn SettingsPanel(
                                                 }
                                             },
                                         }
-                                        if mesh_on {
+                                        if offline_mesh_enabled() {
                                             div { class: "mesh-status-grid",
                                                 div { class: "mesh-status-card",
                                                     div { class: "mesh-status-label", "Wi-Fi mesh" }
@@ -2433,6 +2539,74 @@ pub(crate) fn copy_to_clipboard(text: String) {
     }
 }
 
+fn set_android_background_wake(enabled: bool) {
+    #[cfg(target_os = "android")]
+    spawn(async move {
+        let script = format!(
+            "window.SiarAndroid?.setBackgroundWake({})",
+            if enabled { "true" } else { "false" }
+        );
+        let _ = document::eval(&script).await;
+    });
+
+    #[cfg(not(target_os = "android"))]
+    let _ = enabled;
+}
+
+fn request_android_nearby_permissions() {
+    #[cfg(target_os = "android")]
+    spawn(async move {
+        let _ = document::eval("window.SiarAndroid?.requestNearbyPermissions()").await;
+    });
+}
+
+fn request_android_notification_permission() {
+    #[cfg(target_os = "android")]
+    spawn(async move {
+        let _ = document::eval("window.SiarAndroid?.requestNotificationPermission()").await;
+    });
+}
+
+fn incoming_notification_preview(body: &Body) -> String {
+    match body {
+        Body::Text { text, .. } => text.clone(),
+        Body::File { name, .. } => format!("📎 {name}"),
+        _ => "New activity".to_string(),
+    }
+}
+
+/// Android system notification for activity received while Siar is not
+/// visible. The native bridge suppresses this when the Activity has focus,
+/// so the in-chat UI remains the only foreground signal.
+fn notify_android_message(ui: UiState, title: &str, body: String) {
+    #[cfg(target_os = "android")]
+    {
+        let (enabled, play_sound) = ui
+            .core
+            .read()
+            .as_ref()
+            .map(|core| {
+                (
+                    core.store().notifications_enabled(),
+                    core.store().notification_sound_enabled(),
+                )
+            })
+            .unwrap_or((false, false));
+        if !enabled {
+            return;
+        }
+        let title = title.to_string();
+        spawn(async move {
+            let script =
+                format!("window.SiarAndroid?.showNotification({title:?}, {body:?}, {play_sound})");
+            let _ = document::eval(&script).await;
+        });
+    }
+
+    #[cfg(not(target_os = "android"))]
+    let _ = (ui, title, body);
+}
+
 // ---- Boot / identity ----
 
 /// Boots `App`/`Core` and starts draining its event channel. Runs on
@@ -2797,6 +2971,11 @@ fn handle_app_event(ui: UiState, event: app::AppEvent) {
                     }
                     record_incoming(ui, ConvKey::Dm(from), &envelope, Some(from));
                     bump_unread(ui, &ConvKey::Dm(from));
+                    notify_android_message(
+                        ui,
+                        &envelope.from_name,
+                        incoming_notification_preview(&envelope.body),
+                    );
                     ui.typing.clone().write().remove(&ConvKey::Dm(from));
                     spawn_send_ack(ui, from, envelope.id);
                     // Archiving hides a chat from the main list, but it
@@ -2977,7 +3156,12 @@ fn handle_app_event(ui: UiState, event: app::AppEvent) {
                         }
                     }
                     record_incoming(ui, ConvKey::Room(room.clone()), &envelope, Some(from));
-                    bump_unread(ui, &ConvKey::Room(room));
+                    bump_unread(ui, &ConvKey::Room(room.clone()));
+                    notify_android_message(
+                        ui,
+                        &format!("#{} · {}", room, envelope.from_name),
+                        incoming_notification_preview(&envelope.body),
+                    );
                 }
                 Body::Reaction {
                     target_id,
@@ -3081,6 +3265,7 @@ fn handle_app_event(ui: UiState, event: app::AppEvent) {
             } else {
                 format!("New contact request from {who}: \"{note}\"")
             };
+            notify_android_message(ui, "New contact request", text.clone());
             push_toast(ui, text, false);
         }
         app::AppEvent::Contact(ContactEvent::RequestAccepted {
@@ -3125,6 +3310,7 @@ fn handle_app_event(ui: UiState, event: app::AppEvent) {
                 return;
             }
             ui.incoming_call_decision.clone().set(Some(decision));
+            notify_android_message(ui, "Incoming Siar call", format!("{from_name} is calling"));
             ui.incoming_call.clone().set(Some((from_id, from_name)));
             ui.active_call_direction
                 .clone()
@@ -3859,8 +4045,15 @@ fn spawn_record_status_audio(ui: UiState) {
     if ui.status_recording_audio.cloned() {
         return;
     }
-    ui.status_recording_audio.clone().set(true);
     spawn(async move {
+        if !ensure_android_audio_permission().await {
+            return push_toast(
+                ui,
+                "Allow microphone access, then tap Voice again".to_string(),
+                false,
+            );
+        }
+        ui.status_recording_audio.clone().set(true);
         let result = tokio::task::spawn_blocking(|| {
             siar_core::net::calls::audio::record_and_encode_voice_clip(STATUS_AUDIO_RECORD_SECS)
         })
@@ -3874,6 +4067,22 @@ fn spawn_record_status_audio(ui: UiState) {
             Err(e) => push_toast(ui, format!("recording task panicked: {e}"), true),
         }
     });
+}
+
+async fn ensure_android_audio_permission() -> bool {
+    #[cfg(target_os = "android")]
+    {
+        let script = r#"
+            if (!window.SiarAndroid) return false;
+            const granted = window.SiarAndroid.hasAudioPermission();
+            if (!granted) window.SiarAndroid.requestAudioPermission();
+            return granted;
+        "#;
+        return document::eval(script).join::<bool>().await.unwrap_or(false);
+    }
+
+    #[cfg(not(target_os = "android"))]
+    true
 }
 
 // ---- Actions ----
@@ -4486,6 +4695,21 @@ fn spawn_room_send(ui: UiState, name: String, envelope: Envelope, text: String) 
     });
 }
 
+fn spawn_set_status_image(ui: UiState, raw: Vec<u8>) {
+    spawn(async move {
+        let validation = tokio::task::spawn_blocking({
+            let raw = raw.clone();
+            move || siar_core::media::decode_status_image(&raw).map(|_| ())
+        })
+        .await;
+        match validation {
+            Ok(Ok(())) => ui.status_image.clone().set(Some(raw)),
+            Ok(Err(error)) => push_toast(ui, format!("couldn't use that image: {error}"), true),
+            Err(error) => push_toast(ui, format!("image task failed: {error}"), true),
+        }
+    });
+}
+
 fn spawn_attach_status_image(ui: UiState) {
     #[cfg(any(target_os = "android", target_os = "ios"))]
     {
@@ -4506,8 +4730,7 @@ fn spawn_attach_status_image(ui: UiState) {
         else {
             return;
         };
-        let raw = handle.read().await;
-        ui.status_image.clone().set(Some(raw));
+        spawn_set_status_image(ui, handle.read().await);
     });
 }
 
@@ -4549,14 +4772,22 @@ fn spawn_attach_status_audio(ui: UiState) {
             .file_name()
             .and_then(|n| n.to_str())
             .map(|s| s.to_string());
+        spawn_set_status_audio(ui, raw, file_name);
+    });
+}
+
+fn spawn_set_status_audio(ui: UiState, raw: Vec<u8>, file_name: Option<String>) {
+    spawn(async move {
         let result = tokio::task::spawn_blocking(move || {
             siar_core::net::calls::audio::decode_and_encode_audio_file(&raw, file_name.as_deref())
         })
         .await;
         match result {
             Ok(Ok(clip_bytes)) => ui.status_audio_pending.clone().set(Some(clip_bytes)),
-            Ok(Err(e)) => push_toast(ui, format!("couldn't use that audio file: {e}"), true),
-            Err(e) => push_toast(ui, format!("audio decode task panicked: {e}"), true),
+            Ok(Err(error)) => {
+                push_toast(ui, format!("couldn't use that audio file: {error}"), true)
+            }
+            Err(error) => push_toast(ui, format!("audio decode task failed: {error}"), true),
         }
     });
 }
@@ -4578,36 +4809,30 @@ fn spawn_attach_status_audio(ui: UiState) {
 /// without the `#[cfg]` below this would have been reachable, and
 /// broken, on mobile.)
 fn spawn_create_backup(ui: UiState) {
-    #[cfg(any(target_os = "android", target_os = "ios"))]
-    {
-        push_toast(ui, "Backup isn't wired up on mobile yet".to_string(), true);
-    }
+    let seed_phrase = ui.backup_seed_input.cloned();
+    let passphrase = ui.backup_passphrase_input.cloned();
+    ui.backup_error.clone().set(None);
+    ui.backup_busy.clone().set(true);
+    spawn(async move {
+        let data_dir = siar_core::CONFIG.get().unwrap().data_dir.clone();
+        let result = tokio::task::spawn_blocking(move || {
+            siar_core::backup::create_backup(&data_dir, &seed_phrase, &passphrase)
+        })
+        .await;
+        ui.backup_busy.clone().set(false);
+        let bytes = match result {
+            Ok(Ok(bytes)) => bytes,
+            Ok(Err(error)) => return ui.backup_error.clone().set(Some(error.to_string())),
+            Err(error) => {
+                return ui
+                    .backup_error
+                    .clone()
+                    .set(Some(format!("backup task failed: {error}")))
+            }
+        };
 
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    {
-        let seed_phrase = ui.backup_seed_input.cloned();
-        let passphrase = ui.backup_passphrase_input.cloned();
-        ui.backup_error.clone().set(None);
-        ui.backup_busy.clone().set(true);
-        spawn(async move {
-            let data_dir = siar_core::CONFIG.get().unwrap().data_dir.clone();
-            // Argon2id is deliberately slow (see backup.rs's module doc) —
-            // spawn_blocking so it doesn't stall the UI while it runs.
-            let result = tokio::task::spawn_blocking(move || {
-                siar_core::backup::create_backup(&data_dir, &seed_phrase, &passphrase)
-            })
-            .await;
-            ui.backup_busy.clone().set(false);
-            let bytes = match result {
-                Ok(Ok(bytes)) => bytes,
-                Ok(Err(e)) => return ui.backup_error.clone().set(Some(e.to_string())),
-                Err(e) => {
-                    return ui
-                        .backup_error
-                        .clone()
-                        .set(Some(format!("backup task panicked: {e}")))
-                }
-            };
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        {
             let Some(handle) = rfd::AsyncFileDialog::new()
                 .set_file_name("siar-backup.siarbackup")
                 .save_file()
@@ -4624,8 +4849,40 @@ fn spawn_create_backup(ui: UiState) {
                 ui.backup_passphrase_input.clone().set(String::new());
                 push_toast(ui, "Backup saved".to_string(), false);
             }
-        });
-    }
+        }
+
+        #[cfg(target_os = "android")]
+        {
+            save_file_with_android_picker(
+                "siar-backup.siarbackup",
+                "application/octet-stream",
+                &bytes,
+            )
+            .await;
+            ui.backup_seed_input.clone().set(String::new());
+            ui.backup_passphrase_input.clone().set(String::new());
+            push_toast(
+                ui,
+                "Choose where to save your encrypted backup".to_string(),
+                false,
+            );
+        }
+
+        #[cfg(target_os = "ios")]
+        ui.backup_error.clone().set(Some(
+            "Backup export is not available on iOS yet".to_string(),
+        ));
+    });
+}
+
+#[cfg(target_os = "android")]
+async fn save_file_with_android_picker(file_name: &str, mime: &str, bytes: &[u8]) {
+    let encoded = data_encoding::BASE64.encode(bytes);
+    let script = format!(
+        "window.SiarAndroid?.saveFile({:?}, {:?}, {:?})",
+        file_name, mime, encoded
+    );
+    let _ = document::eval(&script).await;
 }
 
 fn spawn_change_avatar(ui: UiState) {
@@ -4648,16 +4905,24 @@ fn spawn_change_avatar(ui: UiState) {
         else {
             return;
         };
-        let raw = handle.read().await;
+        spawn_set_avatar(ui, handle.read().await);
+    });
+}
 
-        let core_ref = ui.core.read();
-        let Some(core) = core_ref.as_ref() else {
-            return;
-        };
+fn spawn_set_avatar(ui: UiState, raw: Vec<u8>) {
+    spawn(async move {
         let cache_dir = CONFIG.get().unwrap().data_dir.join("avatar_cache");
-        match core.set_my_avatar(&raw, &cache_dir).await {
+        let result = {
+            let core_ref = ui.core.read();
+            let Some(core) = core_ref.as_ref() else {
+                return;
+            };
+            core.set_my_avatar(&raw, &cache_dir).await
+        };
+        match result {
             Ok(png_bytes) => {
-                if let Some(hash) = core.my_avatar_hash() {
+                let hash = ui.core.read().as_ref().and_then(Core::my_avatar_hash);
+                if let Some(hash) = hash {
                     load_avatar_into_cache(ui, &hash, &png_bytes);
                     ui.my_avatar_hash.clone().set(Some(hash));
                 }
@@ -4672,21 +4937,6 @@ fn spawn_attach_file(ui: UiState) {
         return;
     };
 
-    #[cfg(any(target_os = "android", target_os = "ios"))]
-    {
-        let _ = key;
-        // rfd has no Android/iOS file-picker backend, so this needs a
-        // platform-native picker (Storage Access Framework intent on
-        // Android, UIDocumentPickerViewController on iOS) wired in as a
-        // follow-up — see ARCHITECTURE.md §10. Surfacing this clearly
-        // beats silently doing nothing.
-        push_toast(
-            ui,
-            "Attaching files isn't wired up on mobile yet".to_string(),
-            true,
-        );
-    }
-
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     spawn(async move {
         let Some(path) = rfd::AsyncFileDialog::new().pick_file().await else {
@@ -4694,78 +4944,133 @@ fn spawn_attach_file(ui: UiState) {
         };
         let path = path.path().to_path_buf();
 
-        let (blobs, my_id, my_name, endpoint) = {
+        let blobs = {
             let core_ref = ui.core.read();
             let Some(core) = core_ref.as_ref() else {
                 return;
             };
-            (
-                core.blobs(),
-                core.my_id,
-                core.my_name.clone(),
-                core.endpoint(),
-            )
+            core.blobs()
         };
 
         let prepared = match siar_core::net::transfer::prepare_outgoing(&blobs, &path).await {
             Ok(p) => p,
             Err(e) => return push_toast(ui, format!("couldn't prepare file: {e}"), true),
         };
+        send_prepared_file(ui, key, prepared).await;
+    });
 
-        let envelope = Envelope::file(
-            &my_name,
-            &prepared.name,
-            &prepared.mime,
-            prepared.size_bytes,
-            prepared.compressed,
-            prepared.hash.to_string(),
-            None,
-        );
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    let _ = (ui, key);
+}
 
-        ui.conversations
-            .clone()
-            .write()
-            .entry(key.clone())
-            .or_default()
-            .push(StoredBubble {
-                id: Some(envelope.id),
-                kind: BubbleKind::Own { acked: false },
-                sender: "me".to_string(),
-                content: StoredContent::File {
-                    hash: prepared.hash.to_string(),
-                    name: prepared.name.clone(),
-                    size_bytes: prepared.size_bytes,
-                    state: FileState::Idle,
-                    compressed: prepared.compressed,
-                    from: None, // our own send — nothing to fetch, see field doc
+fn spawn_attach_file_bytes(ui: UiState, name: String, bytes: Vec<u8>) {
+    let Some(key) = ui.active.read().clone() else {
+        return;
+    };
+    spawn(async move {
+        let blobs = {
+            let core_ref = ui.core.read();
+            let Some(core) = core_ref.as_ref() else {
+                return;
+            };
+            core.blobs()
+        };
+        let prepared = match siar_core::net::transfer::prepare_outgoing_bytes(&blobs, &name, bytes)
+            .await
+        {
+            Ok(prepared) => prepared,
+            Err(error) => return push_toast(ui, format!("couldn't prepare file: {error}"), true),
+        };
+        send_prepared_file(ui, key, prepared).await;
+    });
+}
+
+async fn send_prepared_file(
+    ui: UiState,
+    key: ConvKey,
+    prepared: siar_core::net::transfer::PreparedFile,
+) {
+    let (my_name, endpoint) = {
+        let core_ref = ui.core.read();
+        let Some(core) = core_ref.as_ref() else {
+            return;
+        };
+        (core.my_name.clone(), core.endpoint())
+    };
+
+    let envelope = Envelope::file(
+        &my_name,
+        &prepared.name,
+        &prepared.mime,
+        prepared.size_bytes,
+        prepared.compressed,
+        prepared.hash.to_string(),
+        None,
+    );
+
+    ui.conversations
+        .clone()
+        .write()
+        .entry(key.clone())
+        .or_default()
+        .push(StoredBubble {
+            id: Some(envelope.id),
+            kind: BubbleKind::Own { acked: false },
+            sender: "me".to_string(),
+            content: StoredContent::File {
+                hash: prepared.hash.to_string(),
+                name: prepared.name.clone(),
+                size_bytes: prepared.size_bytes,
+                state: FileState::Idle,
+                compressed: prepared.compressed,
+                from: None, // our own send — nothing to fetch, see field doc
+            },
+            sent_unix_ms: envelope.sent_unix_ms as i64,
+            expires_at_unix_ms: None, // file-attachment expiry isn't wired up yet, see App::log_outgoing_file
+            reactions: Vec::new(),
+            edited: false,
+            deleted: false,
+            reply_to_envelope_id: None,
+        });
+
+    match &key {
+        ConvKey::Dm(peer) => {
+            let session = {
+                let core_ref = ui.core.read();
+                core_ref.as_ref().and_then(|c| c.existing_dm_session(*peer))
+            };
+            let session = match session {
+                Some(s) => s,
+                None => match app::connect_with_retry(&endpoint, *peer).await {
+                    Ok(s) => s,
+                    Err(e) => return push_toast(ui, format!("connect failed: {e}"), true),
                 },
-                sent_unix_ms: envelope.sent_unix_ms as i64,
-                expires_at_unix_ms: None, // file-attachment expiry isn't wired up yet, see App::log_outgoing_file
-                reactions: Vec::new(),
-                edited: false,
-                deleted: false,
-                reply_to_envelope_id: None,
-            });
-
-        match &key {
-            ConvKey::Dm(peer) => {
-                let session = {
-                    let core_ref = ui.core.read();
-                    core_ref.as_ref().and_then(|c| c.existing_dm_session(*peer))
-                };
-                let session = match session {
-                    Some(s) => s,
-                    None => match app::connect_with_retry(&endpoint, *peer).await {
-                        Ok(s) => s,
-                        Err(e) => return push_toast(ui, format!("connect failed: {e}"), true),
-                    },
-                };
-                if let Err(e) = session.send(&envelope).await {
-                    return push_toast(ui, format!("file send failed: {e}"), true);
+            };
+            if let Err(e) = session.send(&envelope).await {
+                return push_toast(ui, format!("file send failed: {e}"), true);
+            }
+            if let Some(core) = ui.core.read().as_ref() {
+                let _ = core.log_outgoing_file(
+                    &Conversation::Dm(app::hex(*peer)),
+                    &prepared,
+                    now_ms(),
+                    envelope.id,
+                    None,
+                );
+            }
+        }
+        ConvKey::Room(name) => {
+            let room = {
+                let core_ref = ui.core.read();
+                core_ref.as_ref().and_then(|c| c.existing_room(name))
+            };
+            if let Some(room) = room {
+                if let Err(e) = room.broadcast(&envelope).await {
+                    return push_toast(ui, format!("file broadcast failed: {e}"), true);
                 }
                 if let Some(core) = ui.core.read().as_ref() {
                     let _ = core.log_outgoing_file(
-                        &Conversation::Dm(app::hex(*peer)),
+                        &Conversation::Room(name.clone()),
                         &prepared,
                         now_ms(),
                         envelope.id,
@@ -4773,29 +5078,8 @@ fn spawn_attach_file(ui: UiState) {
                     );
                 }
             }
-            ConvKey::Room(name) => {
-                let room = {
-                    let core_ref = ui.core.read();
-                    core_ref.as_ref().and_then(|c| c.existing_room(name))
-                };
-                if let Some(room) = room {
-                    if let Err(e) = room.broadcast(&envelope).await {
-                        return push_toast(ui, format!("file broadcast failed: {e}"), true);
-                    }
-                    if let Some(core) = ui.core.read().as_ref() {
-                        let _ = core.log_outgoing_file(
-                            &Conversation::Room(name.clone()),
-                            &prepared,
-                            now_ms(),
-                            envelope.id,
-                            None,
-                        );
-                    }
-                }
-            }
         }
-        let _ = my_id;
-    });
+    }
 }
 
 /// Fetch an announced incoming file. Looks up the bubble by content hash
@@ -5474,6 +5758,20 @@ fn spawn_video_call_peer(ui: UiState, peer: EndpointId) {
 }
 
 fn spawn_call_peer_with(ui: UiState, peer: EndpointId, want_video: bool) {
+    spawn(async move {
+        if ensure_android_audio_permission().await {
+            begin_call_peer_with(ui, peer, want_video);
+        } else {
+            push_toast(
+                ui,
+                "Allow microphone access, then tap call again".to_string(),
+                false,
+            );
+        }
+    });
+}
+
+fn begin_call_peer_with(ui: UiState, peer: EndpointId, want_video: bool) {
     if ui.active_call.cloned().is_some()
         || ui.incoming_call.cloned().is_some()
         || ui.outgoing_call.cloned().is_some()
@@ -5561,8 +5859,27 @@ fn spawn_call_peer_with(ui: UiState, peer: EndpointId, want_video: bool) {
 }
 
 fn spawn_answer_call(ui: UiState, accept: bool) {
-    if let Some(tx) = ui.incoming_call_decision.clone().write().take() {
-        let _ = tx.send(accept);
+    let decision = ui.incoming_call_decision.clone().write().take();
+    if accept {
+        spawn(async move {
+            let permitted = ensure_android_audio_permission().await;
+            if let Some(tx) = decision {
+                let _ = tx.send(permitted);
+            }
+            if !permitted {
+                ui.active_ringtone.clone().write().take();
+                ui.incoming_call.clone().set(None);
+                push_toast(
+                    ui,
+                    "Microphone permission is required to answer".to_string(),
+                    true,
+                );
+            }
+        });
+        return;
+    }
+    if let Some(tx) = decision {
+        let _ = tx.send(false);
     }
     if !accept {
         ui.active_ringtone.clone().write().take();

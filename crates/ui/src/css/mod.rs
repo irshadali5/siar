@@ -37,6 +37,7 @@ const CHAT: &str = include_str!("chat.css");
 const COMPOSER: &str = include_str!("composer.css");
 const ONBOARDING: &str = include_str!("onboarding.css");
 const SETTINGS: &str = include_str!("settings.css");
+const STATUS: &str = include_str!("status.css");
 const TOAST: &str = include_str!("toast.css");
 const RESPONSIVE: &str = include_str!("responsive.css");
 const HACKER: &str = include_str!("hacker.css");
@@ -76,6 +77,6 @@ pub fn stylesheet() -> String {
          .app-shell[data-theme=\"dark\"] {{\n{TOKENS_DARK}}}\n\
          .app-shell[data-theme=\"hacker-green\"] {{\n{TOKENS_HACKER_GREEN}}}\n\
          .app-shell[data-theme=\"hacker-red\"] {{\n{TOKENS_HACKER_RED}}}\n\
-         {BASE}\n{TITLEBAR}\n{SIDEBAR}\n{CHAT}\n{COMPOSER}\n{ONBOARDING}\n{SETTINGS}\n{TOAST}\n{RESPONSIVE}\n{HACKER}"
+         {BASE}\n{TITLEBAR}\n{SIDEBAR}\n{CHAT}\n{COMPOSER}\n{ONBOARDING}\n{SETTINGS}\n{STATUS}\n{TOAST}\n{RESPONSIVE}\n{HACKER}"
     )
 }

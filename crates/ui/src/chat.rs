@@ -85,6 +85,10 @@ pub fn ChatPane(
     compose: Signal<String>,
     on_send: EventHandler<()>,
     on_attach_file: EventHandler<()>,
+    /// Mobile WebViews return a picked document as `(name, bytes)` rather
+    /// than an ordinary path. Desktop keeps the native picker above.
+    on_attach_bytes: EventHandler<(String, Vec<u8>)>,
+    on_attach_error: EventHandler<String>,
     on_back: EventHandler<()>,
     on_typing: EventHandler<()>,
     on_download_file: EventHandler<String>,
@@ -198,6 +202,8 @@ pub fn ChatPane(
                                         BubbleContent::Text(t) => t.chars().take(60).collect::<String>(),
                                         BubbleContent::File { name, .. } => format!("📎 {name}"),
                                     };
+                                    let more_sender_label = ctx_sender_label.clone();
+                                    let more_snippet = ctx_snippet.clone();
                                     rsx! {
                                         div {
                                             class: "{bubble_class}",
@@ -213,6 +219,23 @@ pub fn ChatPane(
                                                     ctx_deleted, ctx_sender_label.clone(), ctx_snippet.clone(),
                                                 ));
                                             },
+                                            if let Some(target_id) = ctx_bubble_id {
+                                                if !ctx_is_system {
+                                                    button {
+                                                        class: "bubble-more",
+                                                        aria_label: "Message actions",
+                                                        onclick: move |e| {
+                                                            e.stop_propagation();
+                                                            let coords = e.data.client_coordinates();
+                                                            on_bubble_context_menu.call((
+                                                                coords.x, coords.y, target_id, ctx_is_own,
+                                                                ctx_deleted, more_sender_label.clone(), more_snippet.clone(),
+                                                            ));
+                                                        },
+                                                        "⌄"
+                                                    }
+                                                }
+                                            }
                                             if !matches!(msg.kind, BubbleKind::Own { .. } | BubbleKind::System) {
                                                 div { class: "bubble-sender", "{msg.sender}" }
                                     }
@@ -385,7 +408,30 @@ pub fn ChatPane(
                 }
             }
             div { class: "composer",
-                button { class: "icon", onclick: move |_| on_attach_file.call(()), "📎" }
+                if cfg!(any(target_os = "android", target_os = "ios")) {
+                    label { class: "icon composer-attach", r#for: "chat-file-input", aria_label: "Attach a file", "📎" }
+                    input {
+                        id: "chat-file-input",
+                        class: "visually-hidden-file",
+                        r#type: "file",
+                        onchange: move |event| {
+                            let Some(file) = event.files().into_iter().next() else { return };
+                            if file.size() > 64 * 1024 * 1024 {
+                                on_attach_error.call("File is too large for mobile attachment (64 MB maximum)".to_string());
+                                return;
+                            }
+                            let name = file.name();
+                            spawn(async move {
+                                match file.read_bytes().await {
+                                    Ok(bytes) => on_attach_bytes.call((name, bytes.to_vec())),
+                                    Err(error) => on_attach_error.call(format!("couldn't read selected file: {error}")),
+                                }
+                            });
+                        },
+                    }
+                } else {
+                    button { class: "icon", onclick: move |_| on_attach_file.call(()), "📎" }
+                }
                 textarea {
                     class: "composer-input",
                     placeholder: "Type a message  ·  Shift+Enter for a new line",

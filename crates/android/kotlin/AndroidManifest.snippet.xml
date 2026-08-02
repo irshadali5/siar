@@ -1,8 +1,8 @@
 <!--
-    Not a full manifest — dx generates the real one from dioxus.toml's
-    [bundle.android] / [bundle.android.permissions] (already carried over
-    unchanged into this workspace's Dioxus.toml). This is only the
-    additions dx has no way to know about on its own: the <service>
+    Not a full manifest — dx generates the real one from Dioxus.toml.
+    scripts/build-android.sh merges this fragment immediately before the
+    generated </application> element. These are the additions dx has no
+    way to know about on its own: the <service>
     declarations for CallForegroundService and RelayForegroundService
     (with the typed foregroundServiceType Android 14 requires for each),
     and the <receiver> for BootCompletedReceiver. Merge these into

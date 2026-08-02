@@ -20,13 +20,11 @@ import androidx.core.content.ContextCompat
  *    their own local Wi-Fi networking (`net::mesh::lan`'s UDP
  *    broadcast) without going through a system Wi-Fi Direct API.
  *
- * All of the above are runtime-dangerous only from the API levels
- * noted — below them, the manifest declaration (already carried over
- * in `Dioxus.toml`'s `[bundle.android.permissions]`) is suficient on
- * its own, same as this file already documented for the original
- * three. None of this requests ACCESS_FINE_LOCATION: that's only
- * needed for BLE scanning on API < 31, and `Dioxus.toml`'s
- * `min_sdk_version = 34` floor means this app never runs there.
+ * Permissions are requested at the moment a person enables the related
+ * feature, rather than showing an intimidating camera/microphone/nearby
+ * device wall on first launch. The app's API 26 floor means BLE discovery
+ * on Android 8-11 still needs location permission, so nearby mesh remains
+ * Wi-Fi-only there; Android 12+ uses the dedicated Bluetooth permissions.
  *
  * Where this plugs in: call `RuntimePermissions.requestMissing(activity)`
  * from whatever Activity `dx` generates as this app's entry point, once
@@ -38,37 +36,34 @@ import androidx.core.content.ContextCompat
  */
 object RuntimePermissions {
 
-    private val REQUIRED = buildList {
-        add(Manifest.permission.RECORD_AUDIO)
-        add(Manifest.permission.CAMERA)
-
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            add(Manifest.permission.POST_NOTIFICATIONS)
-            add(Manifest.permission.NEARBY_WIFI_DEVICES)
-        }
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-            add(Manifest.permission.BLUETOOTH_SCAN)
-            add(Manifest.permission.BLUETOOTH_CONNECT)
-            add(Manifest.permission.BLUETOOTH_ADVERTISE)
-        }
-    }.toTypedArray()
-
     const val REQUEST_CODE = 4200
 
-    /** True once every permission in [REQUIRED] has been granted. */
-    fun allGranted(activity: Activity): Boolean =
-        REQUIRED.all {
-            ContextCompat.checkSelfPermission(activity, it) == PackageManager.PERMISSION_GRANTED
-        }
+    fun requestAudio(activity: Activity) = request(activity, listOf(Manifest.permission.RECORD_AUDIO))
 
-    /**
-     * Requests whichever permissions in [REQUIRED] aren't already granted.
-     * The request is ignored if nothing is missing or the Activity is finishing.
-     */
-    fun requestMissing(activity: Activity) {
+    fun requestNotifications(activity: Activity) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            request(activity, listOf(Manifest.permission.POST_NOTIFICATIONS))
+        }
+    }
+
+    fun requestNearby(activity: Activity) {
+        val permissions = buildList {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                add(Manifest.permission.NEARBY_WIFI_DEVICES)
+            }
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                add(Manifest.permission.BLUETOOTH_SCAN)
+                add(Manifest.permission.BLUETOOTH_CONNECT)
+                add(Manifest.permission.BLUETOOTH_ADVERTISE)
+            }
+        }
+        request(activity, permissions)
+    }
+
+    private fun request(activity: Activity, permissions: List<String>) {
         if (activity.isFinishing || activity.isDestroyed) return
 
-        val missing = REQUIRED.filter {
+        val missing = permissions.filter {
             ContextCompat.checkSelfPermission(activity, it) != PackageManager.PERMISSION_GRANTED
         }
         if (missing.isNotEmpty()) {

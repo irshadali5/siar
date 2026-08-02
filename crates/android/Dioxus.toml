@@ -12,7 +12,7 @@ target_sdk = 34
 compile_sdk = 34
 
 [android.signing]
-jks_file = "keystore.jks"
+jks_file = "../../keystore.jks"
 jks_password = "password"
 key_alias = "siar-key"
 key_password = "password"

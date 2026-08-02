@@ -78,21 +78,9 @@ pub fn Onboarding(
                                 onclick: move |_| step.set(Step::RecoverSeed),
                                 "I have a recovery phrase"
                             }
-                            // Same `rfd` mobile limitation as every other local-file
-                            // feature in this codebase (status image/audio attach,
-                            // avatar change) — see those call sites' comments.
-                            // Restore-from-backup needs a file picker either way, so
-                            // it's desktop-only until that gap closes. `#[cfg(...)]`
-                            // directly on an rsx element isn't valid syntax — `rsx!`
-                            // has its own macro grammar, not plain Rust item syntax —
-                            // so this needs `cfg!()` (a compile-time bool literal) used
-                            // as an ordinary `if` condition instead, which `rsx!`
-                            // does support natively.
-                            if cfg!(not(any(target_os = "android", target_os = "ios"))) {
-                                button { class: "secondary",
-                                    onclick: move |_| step.set(Step::RestoreBackup),
-                                    "Restore from encrypted backup"
-                                }
+                            button { class: "secondary",
+                                onclick: move |_| step.set(Step::RestoreBackup),
+                                "Restore from encrypted backup"
                             }
                         }
                     },
@@ -163,11 +151,33 @@ pub fn Onboarding(
                             "messages, and files from that backup onto this device."
                         }
                         div { style: "display:flex; gap:10px; align-items:center; margin: 12px 0;",
-                            button {
-                                class: "secondary",
-                                onclick: move |_| {
-                                    #[cfg(not(any(target_os = "android", target_os = "ios")))]
-                                    spawn(async move {
+                            if cfg!(any(target_os = "android", target_os = "ios")) {
+                                label { class: "secondary onboarding-file-button", r#for: "restore-backup-input", "Choose backup file" }
+                                input {
+                                    id: "restore-backup-input", class: "visually-hidden-file", r#type: "file", accept: ".siarbackup,application/octet-stream",
+                                    onchange: move |event| {
+                                        let Some(file) = event.files().into_iter().next() else { return };
+                                        if file.size() > 512 * 1024 * 1024 {
+                                            restore_error.set(Some("Backup is too large to restore on this device (512 MB maximum)".to_string()));
+                                            return;
+                                        }
+                                        spawn(async move {
+                                            match file.read_bytes().await {
+                                                Ok(bytes) => {
+                                                    restore_file.clone().set(Some(bytes.to_vec()));
+                                                    restore_error.set(None);
+                                                }
+                                                Err(error) => restore_error.set(Some(format!("couldn't read backup: {error}"))),
+                                            }
+                                        });
+                                    },
+                                }
+                            } else {
+                                button {
+                                    class: "secondary",
+                                    onclick: move |_| {
+                                        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+                                        spawn(async move {
                                         let Some(handle) = rfd::AsyncFileDialog::new()
                                             .add_filter("Siar backup", &["siarbackup"])
                                             .pick_file()
@@ -177,17 +187,12 @@ pub fn Onboarding(
                                         };
                                         restore_file.clone().set(Some(handle.read().await));
                                         restore_error.set(None);
-                                    });
-                                    // Unreachable via the UI on mobile already (see the
-                                    // `cfg!()` guard around the button that navigates to
-                                    // this step) — this branch exists so the closure still
-                                    // has something to do on a target where the branch
-                                    // above isn't compiled in, rather than leaving it empty
-                                    // and implicit.
-                                    #[cfg(any(target_os = "android", target_os = "ios"))]
-                                    restore_error.set(Some("Not available on mobile yet".to_string()));
-                                },
-                                "Choose backup file"
+                                        });
+                                        #[cfg(any(target_os = "android", target_os = "ios"))]
+                                        restore_error.set(Some("Use the file chooser above".to_string()));
+                                    },
+                                    "Choose backup file"
+                                }
                             }
                             if restore_file.read().is_some() {
                                 span { style: "font-size:12px; color:var(--text-muted);", "File selected ✓" }

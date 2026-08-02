@@ -96,11 +96,26 @@ pub async fn prepare_outgoing(store: &FsStore, path: &Path) -> Result<PreparedFi
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_else(|| "file".to_string());
-    let mime = mime_guess_simple(path);
-
     let raw = tokio::fs::read(path)
         .await
         .with_context(|| format!("reading {}", path.display()))?;
+
+    prepare_outgoing_bytes(store, &name, raw).await
+}
+
+/// In-memory counterpart to [`prepare_outgoing`] for Android/iOS WebView
+/// file inputs, whose Storage Access Framework selection is exposed as bytes
+/// rather than a filesystem path. The same compression, MIME, blob-store and
+/// wire metadata path is shared so mobile attachments interoperate exactly
+/// like desktop attachments.
+pub async fn prepare_outgoing_bytes(
+    store: &FsStore,
+    file_name: &str,
+    raw: Vec<u8>,
+) -> Result<PreparedFile> {
+    let name = sanitize_filename(file_name);
+    let path = Path::new(&name);
+    let mime = mime_guess_simple(path);
 
     let (bytes, compressed) = if should_compress(path) {
         let compressed = tokio::task::spawn_blocking(move || {

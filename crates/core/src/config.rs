@@ -28,19 +28,7 @@ pub static CONFIG: OnceLock<Config> = OnceLock::new();
 pub fn default_data_dir() -> PathBuf {
     #[cfg(target_os = "android")]
     {
-        if let Ok(files) = std::env::var("FILES_DIR") {
-            return PathBuf::from(files);
-        }
-        if let Ok(home) = std::env::var("HOME") {
-            return PathBuf::from(home).join(".siar");
-        }
-        if let Ok(data) = std::env::var("ANDROID_DATA") {
-            let p = PathBuf::from(data).join("data/dev.irshad.siar/files");
-            if p.parent().is_some_and(|parent| parent.exists()) {
-                return p;
-            }
-        }
-        PathBuf::from("/data/user/0/dev.irshad.siar/files")
+        android_data_dir_from_environment()
     }
 
     #[cfg(not(target_os = "android"))]
@@ -52,5 +40,92 @@ pub fn default_data_dir() -> PathBuf {
                     .map(|b| b.data_dir().join("siar"))
                     .unwrap_or_else(|| std::env::temp_dir().join("siar"))
             })
+    }
+}
+
+/// Resolve Android storage without allowing an environment-variable change
+/// between app versions to silently create a second, empty account.
+///
+/// Android preserves an application's private `files/` directory during a
+/// normal signed update. Older Siar builds could nevertheless choose either
+/// that directory or `$HOME/.siar`, depending on which variables Wry exposed
+/// on that launch. We inspect every historical location and prefer the one
+/// containing the richest real account before falling back to the canonical
+/// package files directory. This is selection, not migration: existing data
+/// is never moved, deleted, or overwritten during startup.
+#[cfg(target_os = "android")]
+fn android_data_dir_from_environment() -> PathBuf {
+    let canonical = PathBuf::from("/data/user/0/dev.irshad.siar/files");
+    let mut candidates = vec![
+        canonical.clone(),
+        PathBuf::from("/data/data/dev.irshad.siar/files"),
+    ];
+    if let Some(files) = std::env::var_os("FILES_DIR") {
+        candidates.push(PathBuf::from(files));
+    }
+    if let Some(home) = std::env::var_os("HOME") {
+        let home = PathBuf::from(home);
+        candidates.push(home.join(".siar"));
+        candidates.push(home.join("files"));
+    }
+    deduplicate_paths(&mut candidates);
+    select_existing_data_dir(&candidates).unwrap_or(canonical)
+}
+
+#[cfg(target_os = "android")]
+fn deduplicate_paths(paths: &mut Vec<PathBuf>) {
+    let mut unique = Vec::with_capacity(paths.len());
+    for path in paths.drain(..) {
+        if !unique.contains(&path) {
+            unique.push(path);
+        }
+    }
+    *paths = unique;
+}
+
+/// Pick an existing account rather than merely the first existing directory.
+/// `identity.key` is the completion marker for onboarding; database size then
+/// favors the location that contains actual history over an accidentally
+/// created empty account directory.
+#[cfg(any(target_os = "android", test))]
+fn select_existing_data_dir(candidates: &[PathBuf]) -> Option<PathBuf> {
+    candidates
+        .iter()
+        .filter(|path| path.join("identity.key").is_file())
+        .max_by_key(|path| {
+            let db_bytes = std::fs::metadata(path.join("messenger.db"))
+                .map(|meta| meta.len())
+                .unwrap_or(0);
+            let has_docs = u64::from(path.join("docs").is_dir());
+            let has_blobs = u64::from(path.join("blobs").is_dir());
+            (db_bytes, has_docs + has_blobs)
+        })
+        .cloned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::select_existing_data_dir;
+
+    #[test]
+    fn existing_android_history_wins_over_an_empty_update_directory() {
+        let root = std::env::temp_dir().join(format!(
+            "siar-config-test-{}-{}",
+            std::process::id(),
+            std::thread::current().name().unwrap_or("android-history")
+        ));
+        let old = root.join("legacy");
+        let accidentally_new = root.join("canonical");
+        std::fs::create_dir_all(old.join("docs")).unwrap();
+        std::fs::create_dir_all(accidentally_new.join("blobs")).unwrap();
+        std::fs::write(old.join("identity.key"), [1_u8; 32]).unwrap();
+        std::fs::write(old.join("messenger.db"), [7_u8; 128]).unwrap();
+        std::fs::write(accidentally_new.join("identity.key"), [2_u8; 32]).unwrap();
+        std::fs::write(accidentally_new.join("messenger.db"), [8_u8; 16]).unwrap();
+
+        let selected = select_existing_data_dir(&[accidentally_new.clone(), old.clone()]);
+        assert_eq!(selected.as_deref(), Some(old.as_path()));
+
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

@@ -100,12 +100,13 @@
     .qr-scan-actions { border-radius:14px; }
     .sidebar-tab { min-height:48px; font-size:14px; }
 
-    /* Touch screens have no hover state. Keep the compact message action
-       strip reachable without relying exclusively on a long press. */
+    /* Keep bubbles quiet like Signal/WhatsApp. A single chevron opens the
+       existing bottom-sheet action menu; reactions and text actions no
+       longer consume a full row inside every message. */
     @media (hover: none), (pointer: coarse) {
-        .bubble-actions { display:flex; opacity:.82; }
-        .bubble-action-emoji { min-width:25px; min-height:25px; display:grid; place-items:center; }
-        .bubble-action-text { min-height:25px; display:flex; align-items:center; }
+        .bubble { position:relative; padding-right:30px; }
+        .bubble-actions { display:none !important; }
+        .bubble-more { display:grid; place-items:center; }
     }
 
     .onboarding-shell { align-items:flex-start; padding:16px max(14px, env(safe-area-inset-right, 0px)) 24px max(14px, env(safe-area-inset-left, 0px)); }

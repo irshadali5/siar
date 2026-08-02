@@ -77,6 +77,7 @@
   cursor: pointer;
   transition: background-color 120ms ease, color 120ms ease;
 }
+.settings-tab-icon { display: none; }
 .settings-tab:hover { color: var(--text); background: var(--surface-hover); }
 .settings-tab.active {
   background: var(--bg-elevated);
@@ -104,6 +105,16 @@
 .profile-card .avatar-ring > * { display: block; border-radius: 50%; border: 3px solid var(--bg-elevated); }
 
 .profile-card .username { font-size: 17px; font-weight: 600; margin: 0 0 2px 0; }
+.settings-avatar-button {
+  margin-top: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  color: var(--accent-strong);
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
 
 .ticket-card {
   width: 100%;
@@ -195,3 +206,34 @@
 .mesh-status-card .mesh-status-label { font-size: 10.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
 .mesh-status-card .mesh-status-value { font-size: 14px; font-weight: 600; margin-top: 2px; }
 .mesh-status-value.active { color: var(--accent-strong); }
+
+@media (max-width: 760px) {
+  .settings-tabs {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    overflow: visible;
+    margin: 12px 0 16px;
+    padding: 0;
+    background: transparent;
+  }
+  .settings-tab {
+    min-width: 0;
+    min-height: 58px !important;
+    padding: 7px 3px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    font-size: 9.5px;
+  }
+  .settings-tab-icon { display: block; font-size: 16px; line-height: 1; }
+  .settings-tab.active { border-color: var(--accent); box-shadow: none; }
+  .switch-row { align-items: flex-start; padding: 16px 0; }
+  .switch-row .switch-label { font-size: 15px; }
+  .switch-row .switch-desc { font-size: 12.5px; line-height: 1.45; padding-right: 4px; }
+  .switch { margin-top: 2px; }
+}

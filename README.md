@@ -1,4 +1,4 @@
-# Siar (v2)
+# Siar
 
 Siar is a serverless, cross-platform peer-to-peer (P2P) messenger built on the [Iroh](https://iroh.computer/) networking stack. It provides a secure, fully decentralized alternative to Signal and WhatsApp by eliminating central servers, phone numbers, and centralized identity providers.
 
