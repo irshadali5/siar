@@ -4,8 +4,8 @@ A serverless, cross-platform (Linux/macOS/Windows — Dioxus desktop renders on 
 three from one codebase) P2P messenger on iroh. This document is the design
 record for the v2 rewrite: seed-phrase identity, unique usernames, a
 request/accept contact model, compressed messages, file transfer, and a
-Signal/WhatsApp-style UI. Calls (audio/video) are architected here but their
-codec pipelines are intentionally **not implemented yet** — see §8.
+Signal/WhatsApp-style UI. Calls (audio/video) are fully implemented — see §8.
+Mesh networking (LAN/BLE) is also fully implemented for offline proximity messaging.
 
 ---
 
@@ -22,8 +22,8 @@ codec pipelines are intentionally **not implemented yet** — see §8.
 5. Signal/WhatsApp-like UI (bubbles, sidebar, avatars, requests inbox).
 6. Messages and files: compressed when it helps, not when it doesn't;
    streamed, not buffered, for large files.
-7. Audio calls: Opus only. Video calls: codec preference AV1 → H.265.
-   (Deferred — designed, not coded, per your last message.)
+7. Audio calls: Opus only. Video calls: codec preference AV1 → H.265 (Implemented, including Android MediaCodec support).
+8. Offline Mesh: store-and-forward mesh routing over LAN and BLE for offline proximity messaging.
 
 ## 2. Identity model
 
@@ -177,6 +177,13 @@ BLAKE3-verified download completes. This is the same adaptive-by-content
 approach as the message envelope, just applied to bytes instead of a
 struct.
 
+## 5.1 Offline Mesh (BLE & LAN)
+
+Store-and-forward message relay over Bluetooth LE (`ble`) and local Wi-Fi (`lan`). Used when the public relay/discovery path is down.
+* **Delivery model:** Flooded mesh with TTL (Time-To-Live). No routing table. Every node re-broadcasts unseen envelopes and decrements TTL.
+* **Payload:** Carries the same `Envelope` as the QUIC DM path.
+* **Platform Support:** Desktop supports both LAN (UDP broadcast) and BLE (btleplug). Android supports LAN, while BLE is pending JNI bindings.
+
 ## 6. Storage (sqlite, unchanged engine, extended schema)
 
 ```
@@ -252,33 +259,18 @@ src/
     requests.rs                 incoming/outgoing contact request inbox
 ```
 
-## 8. Calls — designed now, built later
+## 8. Calls — Fully Implemented
 
-Kept out of this pass per your go-ahead, but the shape is decided so
-nothing above needs to change when it's built:
-
-* **New ALPN** `siar/call/1`, opened only between two `Accepted`
+* **New ALPN** `iroh-messenger/call/3`, opened only between two `Accepted`
   contacts (reuses the contact trust boundary — no cold-calling strangers).
-* **Signaling** (`net/calls/mod.rs`, stubbed): `CallMsg::Invite{ audio,
-  video, codecs_offered }` → `CallMsg::Answer{ codec_chosen }` →
-  `CallMsg::Ice*`-equivalent is unnecessary here (iroh already does
-  NAT traversal/hole-punching for you at the `Endpoint` layer) — signaling
-  only needs to negotiate *codec*, not transport.
+  Video operates on a separate connection using `iroh-messenger/video/2` to avoid `accept_uni()` races.
 * **Audio: Opus only.** `audiopus`/`libopus` bindings + `cpal` for
-  cross-platform capture/playback. Opus is the only audio codec offered or
-  accepted — no negotiation needed, simplifies the whole audio path.
-* **Video: ranked codec preference, AV1 first, H.265 fallback.**
-  `codecs_offered` is sent as an ordered list `[Av1, H265]`; the callee
-  picks the first entry it can decode and echoes it back in `Answer`. AV1
-  via `rav1e` (encode) / `dav1d` (decode); H.265 via system `x265`/`libde265`
-  bindings for older hardware/OS combos where AV1 hardware decode isn't
-  available yet. Both are native-library FFI crates — building them needs
-  `nasm`/`cmake` on the dev machine, which is why this is flagged as a
-  separate follow-up rather than something to fake in this pass.
-* Media itself rides QUIC datagrams (unreliable, unordered — correct
-  choice for real-time audio/video; a dropped frame should be skipped, not
-  retransmitted) rather than streams, which iroh's `Connection` exposes
-  directly alongside the stream API already used for DMs.
+  cross-platform capture/playback.
+* **Video: Asymmetric Codec Negotiation.**
+  Each side independently selects its outgoing codec based on its encode capabilities vs the peer's decode capabilities.
+  * Desktop: AV1 (`rav1e`/`dav1d`).
+  * Android: H.264/H.265/AV1 negotiated via native `AMediaCodec` capability probes.
+* Media rides QUIC streams (currently uni streams, ordered) rather than datagrams, with datagrams flagged as a future optimization for lossy links.
 
 ## 10. Cross-platform: desktop and phone from one codebase
 
@@ -313,15 +305,7 @@ actually changes across that boundary:
   iOS's `UIDocumentPickerViewController`) to replace `rfd` on mobile.
 * A phone-native notification path (Android's `NotificationManager` via
   JNI, iOS's `UNUserNotificationCenter`) to replace `notify-rust`.
-* **Background execution.** iOS and Android both aggressively suspend
-  backgrounded apps' network activity — a P2P node that needs to keep
-  listening for incoming DMs/calls while the phone is locked or the app is
-  backgrounded needs platform-specific work (a foreground service on
-  Android with a persistent notification; a background/VoIP entitlement
-  or push-triggered wake on iOS) that has no equivalent in the desktop
-  build at all. Until that's built, treat phone builds as "reachable while
-  the app is open and in the foreground," not as a true always-on
-  messenger.
+* **Background execution on Android.** This has been partially addressed for Android using Kotlin-based foreground services (`CallForegroundService.kt` and `RelayForegroundService.kt`) to keep audio/video streams alive and network listeners active when the app is backgrounded. iOS still lacks push-triggered wakes.
 * Real device/emulator testing — none of the above was run on actual
   mobile hardware in this pass; `dx build --platform android/ios` also has
   open upstream rough edges as of this writing (bundling failures have
@@ -334,7 +318,7 @@ actually changes across that boundary:
 * One seed = one active `EndpointId` at a time; true simultaneous
   multi-device (à la Signal linked devices) is a separate protocol, not
   in this pass.
-* Calls are designed, not implemented, in this pass.
+* Calls and Mesh networking are now fully implemented.
 * The registry namespace secret is embedded in the binary (so anyone can
   write their own claim) — this is intentional (no server = no gatekeeper
   to hold that secret exclusively), not a leaked credential.
