@@ -1,6 +1,6 @@
-# Siar v2 Release Notes
+# Siar v0.5.0 Release Notes
 
-We are thrilled to introduce **Siar v2**, a complete architectural rewrite designed to deliver a truly decentralized, serverless, and privacy-first peer-to-peer (P2P) messaging experience.
+We are thrilled to introduce **Siar v0.5.0**, a complete architectural rewrite designed to deliver a truly decentralized, serverless, and privacy-first peer-to-peer (P2P) messaging experience.
 
 Siar has transitioned away from hardcoded or centralized discovery mechanics to a fully P2P stack built on top of [Iroh](https://iroh.computer/). This release brings robust cryptography, multi-platform support, real-time media, and offline capabilities.
 
@@ -41,7 +41,7 @@ Siar has transitioned away from hardcoded or centralized discovery mechanics to 
 
 ## 🛠 Developer & Contributor Updates
 
-Siar v2 introduces major structural changes for developers:
+Siar v0.5.0 introduces major structural changes for developers:
 * Project split into an explicit Cargo Workspace (`crates/core`, `crates/ui`, `crates/desktop`, `crates/android`).
 * Added a new `DEVELOPER_GUIDE.md` for simplified contributor onboarding.
 * Adaptive adaptive content-based `zstd` compression logic added to the core networking layer.
