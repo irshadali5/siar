@@ -1,0 +1,29 @@
+[package]
+name = "siar-messaging"
+version.workspace = true
+edition.workspace = true
+rust-version = "1.91"   # inherits siar-transport's iroh floor
+
+[dependencies]
+siar-domain.workspace = true
+siar-protocol.workspace = true
+siar-crypto.workspace = true
+siar-crypto-mls.workspace = true
+siar-storage.workspace = true
+siar-transport.workspace = true
+tokio.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+postcard.workspace = true
+serde.workspace = true
+x25519-dalek.workspace = true
+iroh.workspace = true
+# Added for send_text_anon's TokenMailboxEnvelope::payload_hash — the
+# same already-adopted BLAKE3 primitive siar-crypto's own Session key
+# derivation and siar-crypto's mailbox_token module both already use,
+# not a new dependency chosen for this one purpose. `siar-protocol`'s
+# own `MeshEnvelope`/`TokenMailboxEnvelope` doc comments are explicit
+# that hashing the ciphertext is a caller responsibility, not something
+# those wire types compute themselves — this crate, as the one actually
+# constructing a `TokenMailboxEnvelope`, is that caller.
+blake3.workspace = true
