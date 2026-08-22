@@ -1,0 +1,21 @@
+# plan.md §104/§106: dependency license/security policy, checked in CI's
+# `audit` job via `cargo deny check`.
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+
+[licenses]
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Zlib",
+]
+
+[advisories]
+ignore = []
