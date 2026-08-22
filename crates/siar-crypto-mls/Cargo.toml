@@ -1,0 +1,60 @@
+[package]
+name = "siar-crypto-mls"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+# Every version here was read directly from openmls's own workspace
+# Cargo.toml (github.com/openmls/openmls, `main` branch, fetched
+# 2026-08-11) rather than guessed — see this crate's `lib.rs` doc
+# comment for why that distinction matters for a crypto dependency in
+# particular. `0.9.0-rc.1` / `0.6.0-rc.1` are genuinely the current
+# pins upstream, not a typo for a stable `0.9.0` that doesn't exist yet.
+[dependencies]
+siar-domain = { workspace = true }
+thiserror = { workspace = true }
+
+openmls = "0.9.0-rc.1"
+openmls_traits = "0.6.0-rc.1"
+# Reference crypto backend (RFC 9420 primitives via well-established
+# Rust crypto crates, not hand-rolled) — architecture.md §106's rule
+# ("Crypto primitives/protocol implementation must be selected very
+# conservatively and should preferably use audited implementations
+# rather than custom cryptography") applied to the *provider*, not just
+# the protocol: openmls itself implements zero cryptography, it only
+# implements the MLS state machine against whatever `OpenMlsProvider`
+# it's given (this crate's own `lib.rs` doc comment goes into this).
+openmls_rust_crypto = "0.6.0-rc.1"
+# `SignatureKeyPair` — the signing-key half of a credential. Confirmed
+# via openmls's own example code (`book_code.rs`) to be a *separate*
+# crate from the `BasicCredential` type itself, which lives inside
+# `openmls` core and is re-exported through `openmls::prelude`.
+#
+# `clonable` enabled deliberately, not guessed: confirmed from this
+# crate's own Cargo.toml.orig (`clonable = [] # Make the keys clonable`)
+# that `SignatureKeyPair` derives `Clone` only behind this feature — off
+# by default. `MlsGroupSession::create` (group.rs) needs to keep its own
+# copy of `founder_identity.signature_keys` alongside the identity that
+# still owns the original, which is exactly this feature's purpose.
+openmls_basic_credential = { version = "0.6.0-rc.1", features = ["clonable"] }
+# `MlsMessageOut::to_bytes()`/`MlsMessageIn::tls_deserialize_exact()`
+# used throughout `group.rs` are `tls_codec` trait methods openmls
+# re-exports via its prelude — declared directly here too since this
+# crate's own wire-boundary functions (`encode`/`decode` on
+# `MlsGroupSession`) name the trait explicitly rather than relying
+# entirely on the prelude glob.
+tls_codec = { version = "0.5", features = ["derive", "serde", "mls"] }
+# Real disk persistence for MLS group state (`persistent.rs`) —
+# version confirmed the same way as every other pin here: read directly
+# from openmls's own workspace Cargo.toml, not guessed. Brings in
+# `rusqlite` (bundled, so no system SQLite dependency) transitively;
+# this crate doesn't depend on `rusqlite` directly — see `persistent.rs`
+# for why (its `Connection` re-export is enough).
+openmls_sqlite_storage = "0.3.0-rc.1"
+# `PostcardCodec` (`persistent.rs`) implements `openmls_sqlite_storage`'s
+# `Codec` trait using `postcard` — reusing this workspace's existing
+# wire-format choice (architecture.md §59: "Avoid JSON for hot-path
+# networking") for local storage too, rather than pulling in
+# `serde_json` as a second serialization format for one crate.
+postcard = { workspace = true }
+serde = { workspace = true }
