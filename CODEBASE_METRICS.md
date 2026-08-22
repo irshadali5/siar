@@ -1,6 +1,6 @@
 # SIAR Codebase Metrics & Lines of Code Report
 
-> **Last Updated:** `2026-08-22 18:01:50 UTC`
+> **Last Updated:** `2026-08-22 22:54:51 UTC`
 
 ---
 
@@ -8,12 +8,12 @@
 
 | Language / Format | Files | Code Lines (Non-blank) | Blank Lines | Total Lines |
 | :--- | :---: | :---: | :---: | :---: |
-| **Rust (`.rs`)** | 149 | 21,852 | 2,152 | 24,004 |
+| **Rust (`.rs`)** | 162 | 23,289 | 2,294 | 25,583 |
 | **Kotlin (`.kt`, `.kts`)** | 20 | 2,889 | 269 | 3,158 |
-| **Markdown / Specs (`.md`)** | 41 | 72,032 | 35,129 | 107,161 |
-| **Configuration (`.toml`, `.yml`, `.xml`, `.properties`)** | 41 | 1,084 | 86 | 1,170 |
-| **Legal, Shell & Config (`LICENSE-*`, `.sh`, `.gitignore`, `py`)** | 6 | 928 | 166 | 1,094 |
-| **Total Codebase** | **257** | **98,785** | **37,802** | **136,587** |
+| **Markdown / Specs (`.md`)** | 42 | 72,526 | 35,220 | 107,746 |
+| **Configuration (`.toml`, `.yml`, `.xml`, `.properties`)** | 42 | 1,103 | 87 | 1,190 |
+| **Legal, Shell & Config (`LICENSE-*`, `.sh`, `.gitignore`)** | 5 | 742 | 145 | 887 |
+| **Total Codebase** | **271** | **100,549** | **38,015** | **138,564** |
 
 ---
 
@@ -46,10 +46,11 @@
 | [siar-ui-state](crates/siar-ui-state) | 10 | 887 | 1,014 | Reactive state models, timelines, composers |
 | **Subtotal** | **27** | **3,922** | **4,373** | |
 
-### Mesh Networking, Transports & Routing
+### Mesh Networking, Transports & Routing Policy
 
 | Component / Module | Files | Code Lines | Total Lines | Description |
 | :--- | :---: | :---: | :---: | :--- |
+| [siar-routing-policy](crates/siar-routing-policy) | 14 | 1,454 | 1,597 | Transport routing policy engine, path scoring, multi-path failover |
 | [siar-routing](crates/siar-routing) | 7 | 1,420 | 1,547 | Path scoring, multipath transport router |
 | [siar-dtn](crates/siar-dtn) | 5 | 562 | 630 | Store-and-forward bundle delivery & dedup |
 | [siar-transport](crates/siar-transport) | 8 | 537 | 602 | Iroh transport abstraction & peer pool |
@@ -59,7 +60,7 @@
 | [siar-transport-wifi-aware](crates/siar-transport-wifi-aware) | 3 | 190 | 205 | Wi-Fi NAN / Aware JNI bridge |
 | [siar-transport-wifi-direct](crates/siar-transport-wifi-direct) | 3 | 193 | 208 | Wi-Fi P2P / Direct JNI bridge |
 | [siar-connectivity](crates/siar-connectivity) | 3 | 227 | 248 | Link monitor & rank-ordered interface selection |
-| **Subtotal** | **41** | **4,283** | **4,713** | |
+| **Subtotal** | **55** | **5,737** | **6,310** | |
 
 ### Realtime Calls, Media & Codecs
 
@@ -100,6 +101,5 @@
 | Document Category | Files | Content Lines | Total Lines | Scope |
 | :--- | :---: | :---: | :---: | :--- |
 | [sys-arch](sys-arch) | 33 | 70,907 | 105,732 | Complete 33-part system architecture specifications |
-| Root Docs & Legal (`README`, `CLA`, `CONTRIBUTING`, `LICENSE-*`) | 10 | 1,664 | 2,100 | Setup guides, system evaluations & dual licensing |
-| **Subtotal** | **43** | **72,571** | **107,832** | |
-
+| Root Docs & Legal (`README`, `CLA`, `CONTRIBUTING`, `LICENSE-*`) | 11 | 2,158 | 2,685 | Setup guides, system evaluations & dual licensing |
+| **Subtotal** | **44** | **73,065** | **108,417** | |

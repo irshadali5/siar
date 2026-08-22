@@ -7322,6 +7322,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "siar-routing-policy"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "siar-domain",
+ "siar-identity-multidevice",
+ "thiserror 2.0.19",
+ "uuid",
+]
+
+[[package]]
 name = "siar-storage"
 version = "0.1.0"
 dependencies = [

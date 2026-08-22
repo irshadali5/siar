@@ -1,0 +1,18 @@
+[package]
+name = "siar-routing-policy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+# `siar-domain` for AccountId/DeviceId/ConversationId (see types.rs's
+# own doc comment on Destination::Group). `siar-identity-multidevice`
+# for the real §16 integration in resolve.rs — no `siar-transport`,
+# `siar-messaging`, or `iroh`: this crate stops at producing a
+# `RoutePlan`, it doesn't dial anything (see lib.rs's own doc comment).
+siar-domain = { path = "../siar-domain" }
+siar-identity-multidevice = { path = "../siar-identity-multidevice" }
+serde.workspace = true
+thiserror.workspace = true
+uuid.workspace = true

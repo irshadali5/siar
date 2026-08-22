@@ -4,6 +4,7 @@ exclude = ["fuzz"]
 members = [
     "crates/siar-domain",
     "crates/siar-identity-multidevice",
+    "crates/siar-routing-policy",
     "crates/siar-protocol",
     "crates/siar-protocol-ext",
     "crates/siar-crypto",
@@ -51,6 +52,7 @@ license = "MIT OR Apache-2.0"
 [workspace.dependencies]
 siar-domain = { path = "crates/siar-domain" }
 siar-identity-multidevice = { path = "crates/siar-identity-multidevice" }
+siar-routing-policy = { path = "crates/siar-routing-policy" }
 siar-protocol = { path = "crates/siar-protocol" }
 siar-protocol-ext = { path = "crates/siar-protocol-ext" }
 siar-crypto = { path = "crates/siar-crypto" }
