@@ -1,0 +1,24 @@
+[package]
+name = "siar-transport-wifi-aware"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+# Same reasoning as siar-transport-wifi-direct's Cargo.toml:
+# `System.loadLibrary("siar_transport_wifi_aware")` needs a `.so`
+# (cdylib); `rlib` stays so this is still a normal workspace dependency
+# for whatever eventually owns the shared `ConnectivityState` this
+# crate's `session_info` feeds.
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[target.'cfg(target_os = "android")'.dependencies]
+# Same pin, same rationale, as every other jni_bridge.rs in this
+# workspace (siar-media-android, siar-transport-wifi-direct,
+# siar-transport-ble-android): 0.21's extern "system" fn convention is
+# what every signature here is checked against.
+jni = "0.21"
+
+# On non-Android targets this crate has no cfg-gated content — same
+# "must still build empty on every workspace target" reasoning as its
+# siblings.
