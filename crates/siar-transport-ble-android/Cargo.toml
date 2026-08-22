@@ -1,0 +1,25 @@
+[package]
+name = "siar-transport-ble-android"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[target.'cfg(target_os = "android")'.dependencies]
+# Kept target-gated, not unconditional, matching siar-media-android's
+# and siar-transport-wifi-direct's own Cargo.toml convention: on
+# non-Android targets this crate has no cfg-gated content at all (see
+# lib.rs), so there's nothing here for it to depend on either — the
+# crate still needs to exist and build (empty) on every workspace
+# target so `cargo build --workspace` succeeds from a non-Android dev
+# machine.
+siar-transport-ble.workspace = true
+# jni 0.21, matching siar-media-android's and siar-transport-wifi-
+# direct's own jni_bridge.rs exactly — every signature in this crate's
+# jni_bridge.rs mirrors those two files' already-verified usage
+# (`env.convert_byte_array`, `env.byte_array_from_slice`,
+# `extern "system" fn Java_...(env: JNIEnv<'local>, ...)`), not written
+# from memory independently.
+jni = "0.21"
