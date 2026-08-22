@@ -1,0 +1,40 @@
+[package]
+name = "siar-media-android"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+# `System.loadLibrary("siar_media_android")` in NativeMediaBridge.kt
+# loads a `.so` — that only gets produced with `cdylib`. `rlib` stays
+# too so this crate remains a normal workspace dependency other Rust
+# crates can `use siar_media_android::...` against (e.g. the future
+# `calls` crate wiring `push_input`/`MediaSession` into an actual call).
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[target.'cfg(target_os = "android")'.dependencies]
+siar-media-core.workspace = true
+# Just for `Notify` (`output_ready` in `jni_bridge.rs`) — lets an async
+# consumer in `siar-calls::android` await new `output_queue` items
+# instead of polling on a timer. Nothing else in this crate touches a
+# tokio runtime; the "sync" feature (already enabled workspace-wide) is
+# all `Notify` needs, and `notify_one`/`Notify::new` work with no
+# runtime running, so this stays a pure library dependency, not a
+# runtime requirement on this crate.
+tokio.workspace = true
+# jni 0.21, not the newer 0.22 — 0.21's `extern "system" fn
+# Java_...(env: JNIEnv<'local>, ...)` is the long-established,
+# widely-documented entry-point convention; 0.22 redesigned it
+# (`EnvUnowned`/`with_env`) for reasons this crate doesn't need. Every
+# signature `jni_bridge.rs` uses was read from 0.21.1's actual source,
+# not written from memory or generated blind. "unsafe Rust calling a
+# compiled boundary" (JNI here, same as libopus/libdav1d elsewhere in
+# the media crates) is permitted per explicit instruction — nothing in
+# this crate hand-authors C/C++.
+jni = "0.21"
+
+# On non-Android targets this crate has no cfg-gated content at all —
+# `lib.rs` is Android-only, so there's nothing here for it to depend
+# on. The crate still needs to exist and build (as an empty crate) on
+# every workspace target so `cargo build --workspace` succeeds from a
+# Linux/macOS/Windows dev machine without an Android target installed.
