@@ -14,7 +14,7 @@
 SIAR is engineered to deploy in two distinct operating forms:
 1. **Standalone User Applications**:
    - **Android App** (Jetpack Compose UI)
-   - **Desktop GUI** (Slint UI for Linux / Windows)
+   - **Desktop GUI** (Dioxus Desktop UI for Linux / Windows)
    - **Terminal Messenger** (`siar-cli`)
 2. **Headless Off-Grid Repeater & Signal Booster Daemon (`siar-emergency-node`)**:
    - Can be deployed as a headless daemon on **any device**—Raspberry Pi, Linux servers, embedded router hardware, solar-powered field nodes, or dedicated mobile repeater boosters.
@@ -78,7 +78,7 @@ SIAR is engineered to deploy in two distinct operating forms:
 graph TD
     subgraph Client Applications
         CLI["apps/cli (Terminal Node)"]
-        Desktop["apps/desktop (Slint GUI)"]
+        Desktop["apps/desktop (Dioxus Desktop GUI)"]
         Android["apps/android (Jetpack Compose UI)"]
         Emergency["apps/emergency-node (Headless DTN Relay)"]
     end
@@ -144,7 +144,7 @@ siar/
 │   │   ├── rust-jni-glue/        # Shared JNI glue helpers
 │   │   └── build-native.sh       # Multi-ABI cargo ndk build automation script
 │   ├── cli/                      # Interactive Terminal Messenger & Node
-│   ├── desktop/                  # Desktop GUI Application (Slint UI)
+│   ├── desktop/                  # Desktop GUI Application (Dioxus Desktop UI)
 │   └── emergency-node/           # Headless Emergency DTN Relay Daemon
 ├── crates/
 │   ├── siar-calls/               # Realtime Media Call Session Protocols
@@ -327,7 +327,7 @@ SIAR Interactive Messenger
 
 ### 2. Desktop Application (`siar-desktop`)
 
-The desktop app features a modern GUI built with **Slint**.
+The desktop app features a modern, responsive GUI built with **Dioxus** (v0.7).
 
 ```bash
 cargo run --bin siar-desktop
