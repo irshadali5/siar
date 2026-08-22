@@ -1,0 +1,5 @@
+# plan.md §5's workspace structure. Deliberately minimal — start from
+# clippy's defaults (already run at -D warnings in CI) and only add
+# overrides here once a specific false-positive actually shows up in
+# this codebase, rather than pre-emptively guessing at lint config
+# nothing has justified yet.
