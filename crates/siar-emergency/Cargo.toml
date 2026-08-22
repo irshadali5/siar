@@ -1,0 +1,17 @@
+[package]
+name = "siar-emergency"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+siar-domain.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+# Deliberately no siar-crypto dependency: next.md §47's "private SOS
+# and public/local emergency alert as separate cryptographic concepts"
+# and §49's authority-alert signature verification are real crypto
+# work this crate doesn't do — it defines the *shapes* (which kind of
+# report, what trust classification a UI should show) that crypto
+# layer will need to produce/consume, same "infra-free shape crate"
+# discipline siar-domain's attachment.rs already documents for itself.
