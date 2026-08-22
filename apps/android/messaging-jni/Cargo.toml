@@ -1,0 +1,38 @@
+[package]
+name = "siar-android-messaging"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+# The other real gap this workspace's `apps/android/README.md` named
+# explicitly: "there is no `siar-messaging::MessageService` FFI surface
+# here at all." This crate is that surface — deliberately scoped down
+# from everything `apps/cli`'s `Bootstrapped` wires up (no
+# `GroupService`/MLS groups, no attachments, no anonymous mailbox path
+# — see this crate's own `lib.rs` doc comment for the full "what's here
+# and what still isn't" accounting).
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+siar-domain.workspace = true
+siar-protocol.workspace = true
+siar-crypto.workspace = true
+siar-storage.workspace = true
+siar-transport.workspace = true
+siar-messaging.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+iroh.workspace = true
+# Real crate dependency (this crate's `rlib` output, not `cdylib`) —
+# lets this crate report its own `SiarEndpoint`'s connectivity
+# straight into the shared `ConnectivityState` without a needless JNI
+# round-trip through Kotlin and back. See that crate's own `lib.rs` doc
+# comment for why `mark_link_up`/`mark_link_down` are plain `pub`
+# functions, not only reachable via JNI.
+siar-android-connectivity = { path = "../rust-jni-glue" }
+
+[target.'cfg(target_os = "android")'.dependencies]
+# jni 0.21, matching every other jni_bridge.rs in this workspace
+# exactly.
+jni = "0.21"
