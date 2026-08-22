@@ -1,0 +1,19 @@
+[package]
+name = "siar-protocol-ext"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+# Part 01 of the 24-part architecture series ("Protocol Extension
+# System Architecture") this crate implements a first slice of — see
+# this crate's own lib.rs doc comment for exactly which sections are
+# real here and which are deliberately not attempted yet. New crate
+# rather than folding into `siar-protocol`: this is the versioned
+# *capability* layer the spec describes (§1–§27ish), sitting logically
+# above the wire codec `siar-protocol` already owns, not a replacement
+# for it — `siar-protocol::WireMessage` is untouched by this pass.
+
+[dependencies]
+thiserror.workspace = true
+serde.workspace = true

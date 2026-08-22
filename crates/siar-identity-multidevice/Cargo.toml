@@ -1,0 +1,22 @@
+[package]
+name = "siar-identity-multidevice"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+# Deliberately only `siar-domain` (for `AccountId`/`DeviceId` — see
+# `lib.rs`'s own doc comment for why this crate reuses rather than
+# redefines those) — no `siar-crypto`, no `siar-storage`, no `iroh`.
+# §86 in this crate's own spec document ("Domain must stay
+# platform/infra-free") is written about `siar-domain`, but the same
+# discipline applies here: this is identity *policy* (certificates,
+# directories, rollback rules), not a transport or storage integration.
+siar-domain = { path = "../siar-domain" }
+ed25519-dalek = { version = "2", features = ["rand_core", "serde", "zeroize"] }
+rand_core.workspace = true
+serde.workspace = true
+postcard.workspace = true
+thiserror.workspace = true
+zeroize.workspace = true

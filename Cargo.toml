@@ -3,7 +3,9 @@ resolver = "2"
 exclude = ["fuzz"]
 members = [
     "crates/siar-domain",
+    "crates/siar-identity-multidevice",
     "crates/siar-protocol",
+    "crates/siar-protocol-ext",
     "crates/siar-crypto",
     "crates/siar-crypto-mls",
     "crates/siar-storage",
@@ -48,7 +50,9 @@ license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 siar-domain = { path = "crates/siar-domain" }
+siar-identity-multidevice = { path = "crates/siar-identity-multidevice" }
 siar-protocol = { path = "crates/siar-protocol" }
+siar-protocol-ext = { path = "crates/siar-protocol-ext" }
 siar-crypto = { path = "crates/siar-crypto" }
 siar-crypto-mls = { path = "crates/siar-crypto-mls" }
 siar-storage = { path = "crates/siar-storage" }
