@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- `Theme.Material3.DayNight.NoActionBar` (the original choice
+         here) is an XML Material Components theme — it needs
+         `com.google.android.material:material` as a real dependency,
+         which app/build.gradle.kts deliberately doesn't declare (this
+         app's whole UI is Compose; the manifest theme only needs to
+         cover the brief window before `setContent { MaterialTheme {
+         ... } }` in MainActivity takes over). `Theme.Material.Light.
+         NoActionBar` is a platform framework theme — always present,
+         no library dependency required — which is the correct choice
+         for a Compose-only app's launch theme, not a downgrade from
+         the original intent. -->
+    <style name="Theme.SiarMessenger" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
