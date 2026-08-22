@@ -448,10 +448,11 @@ For commercial enterprises that wish to rebrand, white-label, or host modified c
 ---
 
 ### Guidelines for Contribution:
-1. All contributions are governed by the Contributor License Agreement (CLA) granting the SIAR maintainers dual-licensing rights.
-2. Maintain zero-warning clean compilation across all targets (`cargo check --workspace`).
-3. Preserve strict boundary isolation: Core crates under `crates/` must remain pure-Rust without mandatory C-library linkages.
-4. Ensure platform-specific hardware integration is strictly isolated in dedicated crates (`siar-media-android`, `siar-transport-ble-android`).
+1. Please read our **[Contributing Guidelines](file:///home/irshad/Projects/siar/CONTRIBUTING.md)** and **[Contributor License Agreement (CLA)](file:///home/irshad/Projects/siar/CLA.md)** before opening a Pull Request.
+2. All contributions are governed by the CLA, granting the SIAR maintainers dual-licensing rights.
+3. Maintain zero-warning clean compilation across all targets (`cargo check --workspace`).
+4. Preserve strict boundary isolation: Core crates under `crates/` must remain pure-Rust without mandatory C-library linkages.
+5. Ensure platform-specific hardware integration is strictly isolated in dedicated crates (`siar-media-android`, `siar-transport-ble-android`).
 
 ---
 *Built with Rust, Kotlin, and OpenMLS by the SIAR Open Source Engineering Team.*
