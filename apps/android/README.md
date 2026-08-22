@@ -72,12 +72,24 @@ missing since they were built: "this workspace doesn't have an
   direct iroh connection apart from a relayed one or from LAN-local
   discovery (same honest approximation `apps/emergency-node`'s
   `send_and_record` helper makes on the Rust side).
-- **Identity/database now persist on Android.** `siar-android-messaging`
-  now load-or-creates its identity/device id/account id and opens a
-  real on-disk database under `Context.filesDir` (previously fresh
-  every process start) — `apps/cli` still regenerates fresh each run,
-  a Phase-1 stand-in its own `bootstrap()` doc comment already names as
-  known, not something this pass touched on that platform.
+- **Identity/database now persist on both Android and `apps/cli`.**
+  `siar-android-messaging` load-or-creates its identity/device id/
+  account id and opens a real on-disk database under `Context.filesDir`
+  (previously fresh every process start); `apps/cli` gained the exact
+  same treatment in the same pass (its own `resolve_data_paths`/
+  `load_or_create_id`, mirroring `apps/desktop`'s pre-existing version)
+  — all three of this workspace's client entry points now persist
+  identity the same way.
+- **`LocalLan`/`InternetDirect`/`InternetRelay` are now genuinely
+  distinguished**, not defaulted to `InternetDirect` everywhere.
+  `siar_routing::path::classify_endpoint_addr` classifies a peer's
+  *advertised* addresses (private/link-local IP → `LocalLan`, public
+  IP → `InternetDirect`, relay-URL-only → `InternetRelay`) — real
+  evidence, not a measured path (iroh's own `conn_type` API for that
+  was removed upstream; see that function's own doc comment for the
+  full story). Wired into both `apps/emergency-node`'s `send_and_record`
+  (where the caller happens to already have the full address) and
+  `siar-android-messaging`'s `send_text`/`send_text_anon`.
 - **`.so` build script now exists**: `build-native.sh` runs a real,
   explicitly-scoped `cargo ndk` invocation across all 4 ABIs, for
   exactly the 7 Android-relevant crates — a real build/error report
@@ -104,6 +116,20 @@ missing since they were built: "this workspace doesn't have an
   requires alongside it — now declared). Also added `NEARBY_WIFI_DEVICES`
   (API 33+'s real replacement for using fine location to gate Wi-Fi
   peer discovery), which the manifest was missing entirely.
+- **Android DNS resolution fix**: confirmed directly against iroh
+  1.0.3's real published docs (`Endpoint`'s own "Usage on Android"
+  section, and `iroh_dns::install_android_jni_context`'s own docs.rs
+  page) that iroh's DNS resolver needs a `JavaVM`/Application `Context`
+  published to `ndk_context` *before* `SiarEndpoint::bind` is ever
+  called, or DNS falls back to Google's public servers (and can panic
+  outright under a `panic = "abort"` build profile). `siar-android-
+  messaging` now installs this via a `JNI_OnLoad` function — the
+  standard, automatic JNI entry point the JVM calls the moment its
+  `.so` loads, no explicit Kotlin call needed. One genuine uncertainty
+  flagged in that function's own doc comment: it follows the real
+  docs.rs example verbatim, but whether `JNI_OnLoad`'s own reserved
+  parameter is actually a valid Context in practice wasn't something
+  this pass could confirm without a real device/emulator run.
 - **Nothing here has been compiled or run.** No Android SDK, Gradle
   wrapper, or emulator exists in this sandbox. Every Kotlin file is
   written against real, current Android SDK API shapes — checked

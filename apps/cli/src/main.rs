@@ -175,19 +175,80 @@ struct Bootstrapped {
     rx: mpsc::Receiver<IncomingFrame>,
 }
 
-/// Common setup for both modes (plan.md §84's staged startup, collapsed to
-/// what Phase 1/2 needs — no config file, no persisted identity yet, a
-/// fresh `DeviceIdentity` and in-memory DB every run).
-async fn bootstrap() -> Result<Bootstrapped> {
-    let identity = DeviceIdentity::generate();
-    let device_id = DeviceId::new();
-    // Phase-1 stand-in, same spirit as the fresh `DeviceIdentity`/
-    // in-memory DB above: a real client persists its `AccountId`
-    // alongside its identity (plan.md §6's account-vs-device split)
-    // instead of minting a new one every run.
-    let local_account = AccountId::new();
+/// Common setup for both modes (plan.md §84's staged startup).
+///
+/// Identity/account id/device id/database now persist under an
+/// OS-appropriate data directory (`directories::ProjectDirs`) —
+/// closing the gap this file's own doc comment used to name as a
+/// known Phase-1 stand-in ("no persisted identity yet"). Same exact
+/// pattern `apps/desktop`'s `resolve_data_paths`/`load_or_create_id`
+/// already used and `apps/android/messaging-jni`'s `AppDataPaths`
+/// mirrored for Android — this is the third and last of this
+/// workspace's three client entry points to gain it. All three now
+/// agree on the shape (bare UUID text files for ids,
+/// `DeviceIdentity::save_to_file`/`load_from_file` for the key
+/// material, a real on-disk `siar_storage::open` database) though
+/// each resolves its own OS-appropriate directory independently —
+/// sharing the actual struct/function across three separate binaries
+/// would mean a new shared crate for ~30 lines, not worth the
+/// coupling for this pass.
+struct DataPaths {
+    identity: std::path::PathBuf,
+    account_id: std::path::PathBuf,
+    device_id: std::path::PathBuf,
+    database: std::path::PathBuf,
+}
 
-    let db = siar_storage::open_in_memory().context("opening local database")?;
+fn resolve_data_paths() -> Result<DataPaths> {
+    let dirs = directories::ProjectDirs::from("dev", "irshad", "siar-cli")
+        .context("couldn't resolve a data directory for this platform")?;
+    let data_dir = dirs.data_dir();
+    std::fs::create_dir_all(data_dir).with_context(|| format!("creating data directory {}", data_dir.display()))?;
+    Ok(DataPaths {
+        identity: data_dir.join("identity.bin"),
+        account_id: data_dir.join("account_id.txt"),
+        device_id: data_dir.join("device_id.txt"),
+        database: data_dir.join("siar.db"),
+    })
+}
+
+/// Loads an id previously written by this function, or generates and
+/// persists a fresh one on first run — identical to `apps/desktop`'s
+/// own `load_or_create_id` (see that function's doc comment for why a
+/// bare UUID string, not postcard/JSON).
+fn load_or_create_id<T>(
+    path: &std::path::Path,
+    from_uuid: impl Fn(uuid::Uuid) -> T,
+    to_uuid: impl Fn(&T) -> uuid::Uuid,
+    generate: impl Fn() -> T,
+) -> Result<T> {
+    if path.exists() {
+        let text = std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
+        let id = uuid::Uuid::parse_str(text.trim())
+            .with_context(|| format!("{} did not contain a valid UUID", path.display()))?;
+        Ok(from_uuid(id))
+    } else {
+        let id = generate();
+        std::fs::write(path, to_uuid(&id).to_string()).with_context(|| format!("writing {}", path.display()))?;
+        Ok(id)
+    }
+}
+
+async fn bootstrap() -> Result<Bootstrapped> {
+    let paths = resolve_data_paths()?;
+
+    let identity = if paths.identity.exists() {
+        DeviceIdentity::load_from_file(&paths.identity).context("loading persisted device identity")?
+    } else {
+        let identity = DeviceIdentity::generate();
+        identity.save_to_file(&paths.identity).context("persisting device identity")?;
+        identity
+    };
+    let device_id = load_or_create_id(&paths.device_id, DeviceId::from_uuid, DeviceId::as_uuid, DeviceId::new)?;
+    let local_account =
+        load_or_create_id(&paths.account_id, AccountId::from_uuid, AccountId::as_uuid, AccountId::new)?;
+
+    let db = siar_storage::open(&paths.database.display().to_string()).context("opening local database")?;
     let messages = Arc::new(siar_storage::StoolapMessageRepository::new(db.clone()));
     let outbox = Arc::new(siar_storage::StoolapOutboxRepository::new(db.clone()));
     let groups = Arc::new(siar_storage::StoolapGroupRepository::new(db.clone()));

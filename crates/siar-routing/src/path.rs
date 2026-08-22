@@ -63,6 +63,64 @@ pub struct TransportCapabilities {
     pub supports_realtime_media: bool,
 }
 
+/// Classifies a peer's *advertised* addressing info into the closest
+/// [`TransportLink`] this crate can infer without a live connection to
+/// measure — closing (partially) the "`LocalLan`/`InternetRelay`
+/// unreported, everything classified `InternetDirect`" gap flagged
+/// across several earlier passes (`apps/emergency-node`'s
+/// `send_and_record`, `apps/android/messaging-jni`'s `bootstrap`).
+///
+/// Real, evidence-based heuristic — not a guess: an [`iroh::EndpointAddr`]
+/// advertising any private/link-local/loopback direct IP (RFC 1918,
+/// link-local, or IPv6 unique-local `fc00::/7`, checked via
+/// `Ipv4Addr::is_private`/`is_link_local`/a manual IPv6 range check)
+/// classifies as [`TransportLink::LocalLan`]; one advertising any
+/// public direct IP classifies as [`TransportLink::InternetDirect`];
+/// one with only a relay URL and no direct IPs at all classifies as
+/// [`TransportLink::InternetRelay`].
+///
+/// **What this is NOT**: the connection's actually-measured path.
+/// iroh's `Endpoint::conn_type` (which reported the real, currently-in-
+/// use path) was removed in iroh 0.96 in favor of a per-path,
+/// multipath-aware `Connection::paths()` stream — a real, separate
+/// integration this function doesn't attempt (it would need a live
+/// `Connection` handle, not just the `EndpointAddr` this function
+/// takes). A peer that advertises a LAN IP but was actually reached
+/// over relay (NAT traversal failed) still classifies as `LocalLan`
+/// here. Better than every call site in this workspace previously
+/// defaulting to `InternetDirect` unconditionally, not a full
+/// measurement-based fix.
+pub fn classify_endpoint_addr(addr: &iroh::EndpointAddr) -> TransportLink {
+    let mut saw_any_ip = false;
+    for socket_addr in addr.ip_addrs() {
+        saw_any_ip = true;
+        if is_local_or_private_ip(socket_addr) {
+            return TransportLink::LocalLan;
+        }
+    }
+    if saw_any_ip {
+        TransportLink::InternetDirect
+    } else {
+        TransportLink::InternetRelay
+    }
+}
+
+fn is_local_or_private_ip(socket_addr: &std::net::SocketAddr) -> bool {
+    match socket_addr.ip() {
+        std::net::IpAddr::V4(v4) => v4.is_private() || v4.is_link_local() || v4.is_loopback(),
+        std::net::IpAddr::V6(v6) => {
+            // fc00::/7 (unique local) checked by bit pattern rather
+            // than `Ipv6Addr::is_unique_local()` — that method's
+            // stabilization history wasn't something this pass could
+            // confirm against this workspace's `rust-version = "1.91"`
+            // floor without a real compile, so this uses the
+            // unambiguous, always-stable bit check instead: the top 7
+            // bits of a unique-local address are `1111110`.
+            v6.is_loopback() || (v6.segments()[0] & 0xfe00) == 0xfc00
+        }
+    }
+}
+
 pub fn capabilities_for(link: TransportLink) -> TransportCapabilities {
     use TransportLink::*;
     match link {
@@ -563,5 +621,61 @@ mod tests {
             RelayAdvertisement { via: relay, destination, rtt_millis: Some(10), reliability: 1.0, last_seen: 0 };
         table.compose_via_relay(&advertisement);
         assert!(table.routes_for(destination).is_empty());
+    }
+
+    // `classify_endpoint_addr`'s own tests — construction of a synthetic
+    // `iroh::EndpointAddr` with specific `addrs` here is written against
+    // the field/method shape iroh's own 0.94.0 changelog documents
+    // (`EndpointAddr { id, addrs: BTreeSet<TransportAddr> }`,
+    // `TransportAddr::{Relay(RelayUrl), Ip(SocketAddr)}`), not verified
+    // by a real compile of this workspace's pinned iroh 1.0.3 — same
+    // "found via changelog/docs.rs, not compiled" caveat every other
+    // iroh-touching test in this file already carries.
+
+    fn addr_with_ips(id: EndpointId, ips: &[std::net::SocketAddr]) -> iroh::EndpointAddr {
+        let addrs = ips.iter().map(|&ip| iroh::TransportAddr::Ip(ip)).collect();
+        iroh::EndpointAddr { id, addrs }
+    }
+
+    fn addr_with_relay_only(id: EndpointId) -> iroh::EndpointAddr {
+        let relay_url: iroh::RelayUrl = "https://relay.example.com".parse().expect("valid relay URL");
+        iroh::EndpointAddr { id, addrs: std::collections::BTreeSet::from([iroh::TransportAddr::Relay(relay_url)]) }
+    }
+
+    #[test]
+    fn classify_endpoint_addr_with_a_private_ipv4_is_local_lan() {
+        let addr = addr_with_ips(test_endpoint_id(40), &["192.168.1.5:4433".parse().unwrap()]);
+        assert_eq!(classify_endpoint_addr(&addr), TransportLink::LocalLan);
+    }
+
+    #[test]
+    fn classify_endpoint_addr_with_a_public_ipv4_is_internet_direct() {
+        let addr = addr_with_ips(test_endpoint_id(41), &["8.8.8.8:4433".parse().unwrap()]);
+        assert_eq!(classify_endpoint_addr(&addr), TransportLink::InternetDirect);
+    }
+
+    #[test]
+    fn classify_endpoint_addr_with_only_a_relay_url_is_internet_relay() {
+        let addr = addr_with_relay_only(test_endpoint_id(42));
+        assert_eq!(classify_endpoint_addr(&addr), TransportLink::InternetRelay);
+    }
+
+    #[test]
+    fn classify_endpoint_addr_prefers_local_lan_when_both_kinds_of_ip_are_present() {
+        // A dual-stack peer reachable both on a LAN IP and a public
+        // one — LAN wins, since it's the more specific/actionable
+        // signal (matches this device's own likely reachability, not
+        // just the peer's).
+        let addr = addr_with_ips(
+            test_endpoint_id(43),
+            &["192.168.1.5:4433".parse().unwrap(), "8.8.8.8:4433".parse().unwrap()],
+        );
+        assert_eq!(classify_endpoint_addr(&addr), TransportLink::LocalLan);
+    }
+
+    #[test]
+    fn classify_endpoint_addr_link_local_ipv4_is_local_lan() {
+        let addr = addr_with_ips(test_endpoint_id(44), &["169.254.1.1:4433".parse().unwrap()]);
+        assert_eq!(classify_endpoint_addr(&addr), TransportLink::LocalLan);
     }
 }

@@ -7060,6 +7060,7 @@ dependencies = [
  "siar-domain",
  "siar-messaging",
  "siar-protocol",
+ "siar-routing",
  "siar-storage",
  "siar-transport",
  "tokio",
@@ -7085,6 +7086,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "base64",
+ "directories",
  "iroh",
  "postcard",
  "rand_core 0.9.5",

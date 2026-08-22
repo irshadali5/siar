@@ -262,33 +262,30 @@ fn bundle_to_envelope(bundle: siar_dtn::bundle::MeshBundle) -> siar_protocol::Me
 }
 
 /// Times a real `SiarEndpoint::send` attempt and folds the outcome into
-/// `TransportManager`'s `LinkHealth`/`PathTable` via
-/// `record_send_outcome` — the real caller
 /// `siar_routing::link_health::LinkHealth::record_outcome`'s own doc
 /// comment named as missing from this workspace ever since it was
-/// built, and `TransportManager::record_send_outcome`'s own doc comment
-/// echoed the same thing. Every real outbound send in this file now
-/// goes through this instead of calling `endpoint.send` directly, so
-/// `PathTable`'s `rtt_millis`/`reliability` fields stop being permanent
-/// `None`/`1.0` placeholders the moment this relay actually talks to
-/// anyone.
+/// built. Every real outbound send in this file now goes through this
+/// instead of calling `endpoint.send` directly, so `PathTable`'s
+/// `rtt_millis`/`reliability` fields stop being permanent `None`/`1.0`
+/// placeholders the moment this relay actually talks to anyone.
 ///
-/// Classifies every send this function makes as
-/// `TransportLink::InternetDirect` — an honest approximation, not a
-/// verified fact: `PeerTransport::send`'s current signature doesn't
-/// expose whether iroh actually negotiated a direct connection or fell
-/// back to one of its relay servers for this particular send (that
-/// distinction needs inspecting the underlying `iroh::endpoint::
-/// Connection`'s `remote_info()`, which isn't reachable from here).
-/// `InternetDirect` is the more common case for this workspace's Phase
-/// 1 (Iroh Internet+LAN) plane and the honest default until a real
-/// direct-vs-relayed distinction is wired in — narrower than
-/// `TransportLink::InternetRelay` sometimes being the true answer, but
-/// not fabricated as if this function actually checked.
+/// `known_addr`, when the caller happens to already have the
+/// destination's full `iroh::EndpointAddr` in hand (not just its
+/// `EndpointId`), is classified via `siar_routing::path::
+/// classify_endpoint_addr` — real evidence-based `LocalLan`/
+/// `InternetDirect`/`InternetRelay` distinction instead of the
+/// blanket `InternetDirect` default this function used everywhere
+/// before. `None` (most call sites in this file only ever have a bare
+/// `EndpointId` from an incoming frame's sender, not its full
+/// addressing) falls back to that same `InternetDirect` default — see
+/// `classify_endpoint_addr`'s own doc comment for exactly what the
+/// classification is and isn't (advertised reachability, not a
+/// measured path either way).
 async fn send_and_record(
     endpoint: &SiarEndpoint,
     transport_manager: &TransportManager,
     destination: iroh::EndpointId,
+    known_addr: Option<&iroh::EndpointAddr>,
     message: &WireMessage,
 ) -> Result<(), siar_transport::TransportError> {
     let started = std::time::Instant::now();
@@ -298,9 +295,12 @@ async fn send_and_record(
         Ok(()) => siar_routing::link_health::SendOutcome::success(elapsed_millis),
         Err(_) => siar_routing::link_health::SendOutcome::failure(),
     };
+    let link = known_addr
+        .map(siar_routing::path::classify_endpoint_addr)
+        .unwrap_or(siar_domain::TransportLink::InternetDirect);
     transport_manager.record_send_outcome(
         destination,
-        siar_domain::TransportLink::InternetDirect,
+        link,
         siar_routing::path::NextHop::Direct,
         siar_domain::now_millis(),
         outcome,
@@ -438,7 +438,7 @@ async fn main() -> Result<()> {
                             reliability: entry.reliability,
                             advertised_at: now,
                         });
-                        if let Err(e) = send_and_record(&endpoint, &transport_manager, peer.id, &advertisement).await {
+                        if let Err(e) = send_and_record(&endpoint, &transport_manager, peer.id, Some(peer), &advertisement).await {
                             tracing::debug!(error = %e, peer = ?peer.id, "route advertisement send failed");
                         }
                     }
@@ -550,7 +550,7 @@ async fn main() -> Result<()> {
                         continue; // evicted between the scan above and now
                     };
                     let envelope = bundle_to_envelope(bundle);
-                    match send_and_record(&endpoint, &transport_manager, frame.from, &WireMessage::Mesh(envelope)).await {
+                    match send_and_record(&endpoint, &transport_manager, frame.from, None, &WireMessage::Mesh(envelope)).await {
                         Ok(()) => {
                             bundle_store.lock().expect("BundleStore lock poisoned").mark_delivered(id);
                             delivered_count += 1;
@@ -604,7 +604,7 @@ async fn main() -> Result<()> {
                 let mut redeposit = Vec::new();
                 for envelope in deposits {
                     let message = WireMessage::TokenMailboxDeposit(envelope.clone());
-                    match send_and_record(&endpoint, &transport_manager, frame.from, &message).await {
+                    match send_and_record(&endpoint, &transport_manager, frame.from, None, &message).await {
                         Ok(()) => delivered_count += 1,
                         Err(e) => {
                             tracing::debug!(error = %e, "anonymous mailbox delivery attempt failed, re-depositing");
@@ -744,7 +744,7 @@ async fn main() -> Result<()> {
                         if let Some(bundle) = consumed {
                             let envelope = bundle_to_envelope(bundle);
                             let message = WireMessage::Mesh(envelope);
-                            match send_and_record(&endpoint, &transport_manager, target_endpoint, &message).await {
+                            match send_and_record(&endpoint, &transport_manager, target_endpoint, None, &message).await {
                                 Ok(()) => {
                                     already_pushed = Some(mesh_envelope.id);
                                     tracing::info!(
@@ -825,7 +825,7 @@ async fn main() -> Result<()> {
             };
             let envelope = bundle_to_envelope(bundle);
             let message = WireMessage::Mesh(envelope);
-            if let Err(e) = send_and_record(&endpoint, &transport_manager, frame.from, &message).await {
+            if let Err(e) = send_and_record(&endpoint, &transport_manager, frame.from, None, &message).await {
                 tracing::debug!(error = %e, id = ?id, to = ?frame.from, "forward attempt failed");
             } else {
                 tracing::debug!(id = ?id, to = ?frame.from, "forwarded a stored bundle on contact");

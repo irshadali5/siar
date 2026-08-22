@@ -103,10 +103,10 @@
 //!   text files, and opens a real on-disk database (`siar_storage::open`)
 //!   instead of `open_in_memory()` — the exact pattern `apps/desktop`'s
 //!   own `resolve_data_paths`/`load_or_create_id` already used,
-//!   applied here for the first time. `apps/cli` still regenerates a
-//!   fresh identity every run (its own `bootstrap()` doc comment
-//!   already names that as a known Phase-1 stand-in) — this crate no
-//!   longer does.
+//!   applied here for the first time, and later mirrored into
+//!   `apps/cli` too (see that binary's own `resolve_data_paths`/
+//!   `load_or_create_id`) — all three of this workspace's client
+//!   entry points now persist identity the same way.
 //! - **`mark_link_up` now has a `mark_link_down` counterpart** —
 //!   [`shutdown_inner`], called (via JNI) from `MainActivity.onDestroy`.
 //!   Real, but genuinely partial: see that function's own doc comment
@@ -397,6 +397,11 @@ fn send_text_inner(peer_ticket: &str, text: &str) -> Result<String, String> {
     let app = APP.get().ok_or("bootstrap must run before send_text")?;
     let peer = PeerTicket::decode(peer_ticket).map_err(|e| e.to_string())?;
     let text = MessageText::parse(text.to_string()).map_err(|e| e.to_string())?;
+    // Real evidence-based link classification, replacing the bootstrap-
+    // time blanket `InternetDirect` — see `siar_routing::path::
+    // classify_endpoint_addr`'s own doc comment for exactly what this
+    // is (advertised reachability) and isn't (a measured path).
+    siar_android_connectivity::mark_link_up(siar_routing::path::classify_endpoint_addr(&peer.endpoint_addr));
     runtime().block_on(async {
         // Phase-1 stand-in, same as `apps/cli`'s own `send`: a real
         // client looks up (or creates) the conversation with this peer
@@ -428,6 +433,13 @@ fn send_text_anon_inner(peer_ticket: &str, relay_ticket: &str, text: &str) -> Re
     let peer = PeerTicket::decode(peer_ticket).map_err(|e| e.to_string())?;
     let relay = PeerTicket::decode(relay_ticket).map_err(|e| e.to_string())?;
     let text = MessageText::parse(text.to_string()).map_err(|e| e.to_string())?;
+    // Classified against the relay's address, not the peer's — this
+    // path is delivered *through* the relay (see `send_text_anon`'s
+    // own doc comment), so the relay is the actual link this device
+    // talks over, same reasoning `classify_endpoint_addr` applies
+    // anywhere else in this workspace: classify what's actually
+    // reached, not the final recipient the traffic is addressed to.
+    siar_android_connectivity::mark_link_up(siar_routing::path::classify_endpoint_addr(&relay.endpoint_addr));
     runtime().block_on(async {
         app.service.send_text_anon(&peer, &relay, text).await.map(|id| id.to_string()).map_err(|e| e.to_string())
     })
@@ -504,6 +516,54 @@ mod jni_bridge {
 
     fn jstring_to_string<'local>(env: &mut JNIEnv<'local>, s: &JString<'local>) -> String {
         env.get_string(s).expect("invalid UTF-8 from Kotlin").into()
+    }
+
+    /// Real, previously-missing prerequisite for `bootstrap`/`SiarEndpoint::
+    /// bind` to work reliably on Android — confirmed directly against
+    /// iroh 1.0.3's real published docs (`docs.rs/iroh/1.0.3/iroh/
+    /// endpoint/struct.Endpoint.html`'s own "Usage on Android" section,
+    /// and `docs.rs/iroh-dns/1.0.3/iroh_dns/fn.install_android_jni_context.html`
+    /// directly — not guessed): the endpoint's default `DnsResolver`
+    /// reads Android's system DNS configuration through JNI, which
+    /// needs a `JavaVM`/Application `Context` published to
+    /// `ndk_context` *before* the endpoint is constructed. Without
+    /// this, iroh falls back to Google's public DNS servers — and if
+    /// this app's compilation profile ever sets `panic = "abort"`
+    /// (not currently the case, but worth flagging), the fallback
+    /// detection itself can't work and the app would panic instead.
+    ///
+    /// `JNI_OnLoad` is the standard, un-namespaced JNI entry point the
+    /// JVM calls automatically the moment `System.loadLibrary
+    /// ("siar_android_messaging")` finishes loading this `.so` —
+    /// before any `Java_com_siar_messaging_...` function is ever
+    /// called, which is exactly the ordering this needs. No explicit
+    /// Kotlin-side call required.
+    ///
+    /// One genuine unresolved uncertainty, flagged rather than
+    /// papered over: the real docs.rs example this is copied from
+    /// passes `JNI_OnLoad`'s own `res: *mut c_void` parameter (the
+    /// JNI spec's "reserved" argument, conventionally null) straight
+    /// through as `context_jobject` — the same pattern shown on the
+    /// real docs page verbatim. Whether that's actually a valid
+    /// Application `Context` in practice, or whether this needs a
+    /// separate real Context passed in from Kotlin some other way,
+    /// isn't something this pass could verify by running it — flagged
+    /// so a real device/emulator run's DNS-resolution behavior is what
+    /// confirms or corrects this, not blind trust in one docs example.
+    #[no_mangle]
+    pub extern "C" fn JNI_OnLoad(vm: jni::JavaVM, reserved: *mut std::ffi::c_void) -> jni::sys::jint {
+        let java_vm = match vm.get_java_vm_pointer() as *mut std::ffi::c_void {
+            ptr if !ptr.is_null() => ptr,
+            // JNI spec's well-known `JNI_ERR` value (-1) — used as a
+            // literal rather than a `jni::sys::JNI_ERR` constant this
+            // pass couldn't independently confirm exists under that
+            // exact name in the `jni` 0.21 crate.
+            _ => return -1,
+        };
+        unsafe {
+            iroh::dns::install_android_jni_context(java_vm, reserved);
+        }
+        jni::JNIVersion::V6.into()
     }
 
     #[no_mangle]
