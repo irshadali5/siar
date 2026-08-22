@@ -3,46 +3,44 @@
 **Version 1.0 — Effective August 2026**
 
 > **IMPORTANT NOTICE TO ENTERPRISE & COMMERCIAL USERS**:  
-> The SIAR software ecosystem is dual-licensed under the **GNU Affero General Public License Version 3 (AGPLv3)** for open-source use, and under this **Commercial License & Enterprise Exemption Agreement (SIAR-CEEL-1.0)** for commercial, proprietary, SaaS, cloud-hosted, or enterprise deployment.  
-> If you incorporate, link, embed, bundle, or host SIAR software or its derivative works within a proprietary product or network service without releasing your entire product/service source code under AGPLv3, **you are legally required to purchase and maintain an active SIAR Commercial Subscription**.
+> The SIAR project employs a clear two-tier licensing model:
+> 1. **Core Libraries & Crates (`crates/*`)** are dual-licensed under **MIT OR Apache-2.0**. They are 100% free and permissive for anyone (including commercial enterprises) to embed, link, and use in proprietary or open-source software without restriction.
+> 2. **Standalone Applications & Daemons (`apps/*`)** are dual-licensed under the **GNU Affero General Public License Version 3 (AGPLv3)** for open-source use, and under this **Commercial License & Enterprise Exemption Agreement (SIAR-CEEL-1.0)** for commercial, proprietary, white-label, or closed-source SaaS/cloud-hosted deployments.  
+> If you modify, rebrand, or host SIAR standalone applications or daemons within a proprietary product or network service without releasing your modifications under AGPLv3, **you are legally required to purchase and maintain an active SIAR Commercial Subscription**.
 
 ---
 
-## 1. Preamble & Dual-Licensing Rationale
+## 1. Preamble & Licensing Architecture
 
 ### 🕊️ Free for Humanity Commitment
 **SIAR is, and will always remain, 100% free and open-source software for all of humanity.** 
 
-Built primarily in pure **Rust** (core engine, 95%+ codebase) with **Kotlin** strictly for Android UI bindings, SIAR ships both as **standalone applications** (Android/Desktop/CLI) and as **headless off-grid repeater daemons (`siar-emergency-node`)** deployable on Raspberry Pi, Linux servers, embedded hardware, and router boosters to transmit messages during severe internet blackouts and disaster outages.
-
-The software is created to empower individuals, civil society, humanitarian efforts, disaster responders, academic researchers, and public open-source developers worldwide with resilient, zero-infrastructure messaging capabilities without cost or commercial barriers.
+- **Permissive Libraries (`crates/*`)**: All underlying Rust crates (`siar-crypto`, `siar-crypto-mls`, `siar-transport`, `siar-storage`, `siar-messaging`, `siar-routing`, `siar-dtn`, etc.) are licensed under **MIT OR Apache-2.0** to maximize developer adoption, academic research, and interoperability across the ecosystem.
+- **Copyleft Standalone Applications (`apps/*`)**: Complete end-user applications (`apps/android`, `apps/desktop`, `apps/cli`) and headless relay daemons (`apps/emergency-node`) are licensed under **GNU AGPLv3** to ensure that modifications to user-facing applications and network services remain open and accessible to the public.
 
 ### 💡 Fueling Development via Commercial Reinvestment
-Permissive open-source licenses (such as MIT or Apache 2.0) allow large technology conglomerates and commercial enterprises to incorporate open software into billion-dollar closed-source platforms without contributing back to the project maintainers or compensating the open-source creators.
-
-To prevent uncompensated enterprise exploitation while guaranteeing perpetual freedom for humanity, SIAR employs a **Dual Licensing Model**:
-
-1. **Open Source & Humanitarian Path (GNU AGPLv3)**: **100% gratis for everyone**. Under Section 13 of the AGPLv3, any entity deploying SIAR standalone applications or headless repeater daemons as a network service must publish its complete source code under AGPLv3.
-2. **Commercial Exemption Path (SIAR-CEEL-1.0)**: Commercial enterprises using SIAR within closed-source applications, hardware booster nodes, or proprietary SaaS platforms pay a commercial subscription fee to lift AGPLv3 copyleft restrictions.
-
-**100% of commercial licensing revenues are directly reinvested to fuel the core engineering, security auditing, multi-platform maintenance, and ongoing development of SIAR for the benefit of humanity.**
+To prevent uncompensated enterprise exploitation of turnkey applications while guaranteeing perpetual freedom for humanity, SIAR provides a **Commercial Exemption Path (SIAR-CEEL-1.0)**:
+- Commercial enterprises that modify or deploy SIAR standalone applications and daemons as proprietary SaaS platforms or white-labeled closed-source products can purchase a commercial subscription to lift AGPLv3 copyleft restrictions.
+- **100% of commercial licensing revenues are directly reinvested to fuel the core engineering, security auditing, multi-platform maintenance, and ongoing development of SIAR for the benefit of humanity.**
 
 ---
 
-## 2. Terms of Commercial Exemption Grant
+## 2. Terms of Commercial Exemption Grant for Applications
 
 Subject to your payment of applicable Commercial Subscription Fees and compliance with this Agreement, the SIAR Maintainers grant your entity a non-exclusive, worldwide, royalty-bearing (paid via subscription) commercial license to:
 
-1. **Exemption from AGPLv3 Copyleft**:
-   - You are fully exempt from Section 13 (Remote Network Interaction) of the GNU AGPLv3. You may host, run, scale, and provide cloud/SaaS messaging infrastructure built on SIAR without disclosing your application source code, proprietary algorithms, database schemas, or cloud orchestration software.
-   - You are fully exempt from Section 5 and Section 6 of the GNU AGPLv3. You may link (statically or dynamically) SIAR Rust crates (`siar-messaging`, `siar-transport`, `siar-crypto`, `siar-storage`, `siar-routing`, etc.) or Android JNI binaries (`siar-android-messaging`) directly into proprietary, closed-source applications.
+1. **Exemption from AGPLv3 Copyleft on Applications**:
+   - You are fully exempt from Section 13 (Remote Network Interaction) of the GNU AGPLv3 for `apps/*`. You may host, run, scale, and provide cloud/SaaS messaging infrastructure built on SIAR applications without disclosing your application source code, proprietary algorithms, database schemas, or cloud orchestration software.
+   - You may modify, rebrand, white-label, and adapt SIAR standalone applications (`apps/desktop`, `apps/android`, `apps/cli`, `apps/emergency-node`) for closed-source commercial distribution.
 
 2. **Proprietary Modification & Distribution**:
-   - You may modify, enhance, extend, and adapt SIAR source code for internal enterprise use or external commercial distribution.
+   - You may modify, enhance, extend, and adapt SIAR application source code for internal enterprise use or external commercial distribution.
    - You are under no obligation to share or publish your proprietary modifications back to the public repository.
 
 3. **Binary Redistribution**:
-   - You may distribute compiled SIAR binaries or embedded runtime components inside commercial mobile apps (iOS / Android), desktop software (Windows / macOS / Linux), embedded hardware devices (IoT / Automotive / Defense), or cloud container images under your own proprietary commercial End User License Agreement (EULA).
+   - You may distribute compiled SIAR application binaries or embedded runtime components inside commercial mobile apps (iOS / Android), desktop software (Windows / macOS / Linux), embedded hardware devices (IoT / Automotive / Defense), or cloud container images under your own proprietary commercial End User License Agreement (EULA).
+
+*(Note: Core crates under `crates/*` are already permissively licensed under MIT OR Apache-2.0 and do not require a commercial subscription for library linking.)*
 
 ---
 
@@ -50,19 +48,19 @@ Subject to your payment of applicable Commercial Subscription Fees and complianc
 
 ### 3.1 Tier Structure
 
-The Commercial Exemption is conditioned upon maintaining an active subscription based on organization size and deployment scale:
+The Commercial Exemption for applications is conditioned upon maintaining an active subscription based on organization size and deployment scale:
 
 | Tier | Eligibility | Rights & Exemption Scope | Annual Subscription Fee |
 | :--- | :--- | :--- | :--- |
-| **Startup / Developer Tier** | Revenue < $2M USD & < 10 Employees | Closed-source embedding up to 50k active devices/nodes | **$2,400 / year** ($200/mo) |
-| **Business / Growth Tier** | Revenue $2M - $20M USD | Closed-source embedding up to 500k active devices/nodes | **$12,000 / year** ($1,000/mo) |
+| **Startup / Developer Tier** | Revenue < $2M USD & < 10 Employees | Closed-source app embedding/rebranding up to 50k active devices/nodes | **$2,400 / year** ($200/mo) |
+| **Business / Growth Tier** | Revenue $2M - $20M USD | Closed-source app embedding/rebranding up to 500k active devices/nodes | **$12,000 / year** ($1,000/mo) |
 | **Enterprise / Cloud Tier** | Revenue > $20M USD or Big-Tech / Telecommunications | Unlimited devices, SaaS network hosting, dedicated SLA & priority support | **Custom Quote** (Contact Licensing) |
 
 ### 3.2 Term, Renewal & Lapse
 
 - **Billing Cycle**: Commercial subscriptions are billed annually or monthly in advance.
 - **Continuous Validity**: The commercial exemption remains valid **only while your commercial subscription account is active and non-delinquent**.
-- **Automatic Fallback on Lapse**: If your subscription lapses, is canceled, or fails payment beyond a 30-day grace period, the commercial exemption granted under SIAR-CEEL automatically terminates. Your deployment immediately reverts to governance under the **GNU AGPLv3**, rendering un-disclosed proprietary SaaS or binary distribution an act of copyright infringement under applicable international copyright law.
+- **Automatic Fallback on Lapse**: If your subscription lapses, is canceled, or fails payment beyond a 30-day grace period, the commercial exemption granted under SIAR-CEEL automatically terminates. Your deployment of `apps/*` immediately reverts to governance under the **GNU AGPLv3**, rendering un-disclosed proprietary SaaS or binary distribution an act of copyright infringement under applicable international copyright law.
 
 ---
 

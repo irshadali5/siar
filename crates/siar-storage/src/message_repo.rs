@@ -67,7 +67,7 @@ impl MessageRepository for StoolapMessageRepository {
         self.db
             .execute(
                 "INSERT INTO messages
-                    (message_id, conversation_id, sender_device, sequence,
+                    (message_id, conversation_id, sender_device, seq_num,
                      timestamp_millis, delivery_state, payload)
                  VALUES ($1, $2, $3, $4, $5, $6, $7)",
                 (
@@ -110,7 +110,7 @@ impl MessageRepository for StoolapMessageRepository {
 
         let insert_result = self.db.execute(
             "INSERT INTO messages
-                (message_id, conversation_id, sender_device, sequence,
+                (message_id, conversation_id, sender_device, seq_num,
                  timestamp_millis, delivery_state, payload)
              VALUES ($1, $2, $3, $4, $5, $6, $7)",
             (
@@ -136,7 +136,7 @@ impl MessageRepository for StoolapMessageRepository {
         let mut rows = self
             .db
             .query(
-                "SELECT message_id, conversation_id, sender_device, sequence,
+                "SELECT message_id, conversation_id, sender_device, seq_num,
                         timestamp_millis, delivery_state, payload
                  FROM messages
                  WHERE message_id = $1",
@@ -163,15 +163,15 @@ impl MessageRepository for StoolapMessageRepository {
         before: Option<u64>,
         limit: usize,
     ) -> Result<Vec<StoredMessage>, StorageError> {
-        let before_sequence = before.unwrap_or(u64::MAX) as i64;
+        let before_sequence = before.map(|s| s as i64).unwrap_or(i64::MAX);
         let rows = self
             .db
             .query(
-                "SELECT message_id, conversation_id, sender_device, sequence,
+                "SELECT message_id, conversation_id, sender_device, seq_num,
                         timestamp_millis, delivery_state, payload
                  FROM messages
-                 WHERE conversation_id = $1 AND sequence < $2
-                 ORDER BY sequence DESC
+                 WHERE conversation_id = $1 AND seq_num < $2
+                 ORDER BY seq_num DESC
                  LIMIT $3",
                 (
                     conversation.as_uuid().to_string(),

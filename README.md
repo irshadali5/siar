@@ -1,6 +1,6 @@
 # SIAR: Secure Interoperable Autonomous Routing & Messaging
 
-[![License: AGPLv3 / Commercial](https://img.shields.io/badge/license-AGPLv3%20%7C%20Commercial-blue.svg)](#license--duality-model)
+[![License: MIT / Apache-2.0 (Libraries) & AGPLv3 (Apps)](https://img.shields.io/badge/license-MIT%20%2F%20Apache--2.0%20(Libs)%20%7C%20AGPLv3%20(Apps)-blue.svg)](#license--duality-model)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](#build--compilation-tutorial)
 [![Platform Target](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20Android-lightgrey.svg)](#prerequisites--environment-setup)
 
@@ -412,42 +412,38 @@ cargo fuzz run decode_blob_frame
 
 ---
 
-## License & Duality Model
+## License & Dual-Tier Model
 
-SIAR is dual-licensed under the **GNU Affero General Public License Version 3 (AGPLv3)** and the **SIAR Commercial License & Enterprise Exemption Agreement (SIAR-CEEL-1.0)**.
+SIAR employs a two-tier open-source licensing model designed for maximum library adoption while protecting user-facing standalone applications:
 
-### 🕊️ Free & Open Source for Humanity
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            SIAR LICENSING MODEL                             │
+├──────────────────────────────────────┬──────────────────────────────────────┤
+│    Core Libraries (`crates/*`)       │    Standalone Apps (`apps/*`)        │
+│    - siar-crypto / siar-crypto-mls   │    - apps/android (Jetpack Compose)  │
+│    - siar-transport / siar-routing   │    - apps/desktop (Dioxus GUI)       │
+│    - siar-storage / siar-messaging   │    - apps/cli (Terminal Node)        │
+│    - siar-dtn / siar-protocol        │    - apps/emergency-node (Daemon)    │
+│                                      │                                      │
+│    📜 MIT License OR Apache-2.0      │    📜 GNU AGPLv3 / Commercial        │
+│    (Permissive Open Source)          │    (Copyleft & Enterprise Exemption) │
+└──────────────────────────────────────┴──────────────────────────────────────┘
+```
 
-**SIAR is, and will always remain, 100% free and open-source software for everyone for humanity.**
+### 1. Permissive Core Libraries (`crates/*`): MIT OR Apache-2.0
+All underlying Rust crates and protocol engines are dual-licensed under **[MIT](file:///home/irshad/Projects/siar/LICENSE-MIT)** OR **[Apache-2.0](file:///home/irshad/Projects/siar/LICENSE-APACHE)**. 
+- You may freely embed, link (statically or dynamically), and build proprietary or open-source applications using these crates without any commercial subscription or copyleft obligations.
 
-This software is built to guarantee resilient, decentralized communication for individuals, civil society, emergency response, humanitarian missions, academic research, and public open-source developers worldwide—completely gratis and without restriction.
+### 2. Standalone Applications & Daemons (`apps/*`): GNU AGPLv3
+All complete end-user client applications (`apps/android`, `apps/desktop`, `apps/cli`) and headless network daemons (`apps/emergency-node`) are licensed under the **[GNU AGPLv3](file:///home/irshad/Projects/siar/LICENSE-AGPLv3)**.
+- **100% Free for Everyone**: Anyone can use, inspect, modify, and self-host these applications.
+- **Copyleft on Modifications**: If you modify and distribute or run these applications over a network, you must release your application source code modifications under AGPLv3.
 
-### 💡 Commercial Reinvestment to Fuel Core Development
-
-Under permissive open-source licenses (such as MIT or Apache 2.0), big-tech conglomerates can package open-source infrastructure into closed-source commercial platforms without contributing back. 
-
-SIAR's commercial exemption lifts the AGPLv3 Section 13 network copyleft for enterprise SaaS providers in exchange for commercial licensing fees. **100% of commercial licensing revenues are directly reinvested to fuel ongoing R&D, independent security audits, and continuous open-source development of SIAR for humanity.**
-
-1. **GNU AGPLv3 (Open Source & Humanitarian Path)**:
-   - **100% Gratis for Humanity**: Free for personal, non-commercial, emergency response, educational, and open-source use.
-   - **Section 13 (Network Copyleft Trigger)**: Any network service or cloud provider running SIAR must release its complete source code under AGPLv3.
-   - Full text available in [`LICENSE-AGPLv3`](file:///home/irshad/Projects/siar/LICENSE-AGPLv3).
-
-2. **SIAR Commercial License (SIAR-CEEL-1.0)**:
-   - Designed for commercial enterprises, closed-source app bundling (iOS/Android/Desktop), and big-tech cloud infrastructure.
-   - **Lifts AGPLv3 Section 13 Copyleft**: Enables proprietary linking and SaaS hosting without exposing internal backend source code.
-   - **Conditioned on Active Subscription**: Granted via recurring commercial subscription fees that fuel SIAR's development.
-   - Full legal contract available in [`LICENSE-COMMERCIAL.md`](file:///home/irshad/Projects/siar/LICENSE-COMMERCIAL.md).
-
-### Commercial Subscription Tiers
-
-| Tier | Revenue / Eligibility | Annual Fee | Exemption Scope |
-| :--- | :--- | :--- | :--- |
-| **Startup Tier** | Revenue < $2M USD | **$2,400 / yr** ($200/mo) | Closed-source embedding up to 50k devices |
-| **Business Tier** | Revenue $2M - $20M USD | **$12,000 / yr** ($1,000/mo) | Closed-source embedding up to 500k devices |
-| **Enterprise / Cloud Tier** | Revenue > $20M USD / Big-Tech | **Custom Quote** | Unlimited deployments, cloud SaaS, SLA & dedicated support |
-
-To activate a Commercial Exemption or inquire about Enterprise Licensing, contact `licensing@siar.network`.
+### 3. Commercial Exemption for Applications (`SIAR-CEEL-1.0`)
+For commercial enterprises that wish to rebrand, white-label, or host modified closed-source versions of SIAR standalone applications/daemons as a proprietary SaaS without releasing their code under AGPLv3:
+- Full legal terms and commercial subscription tiers are available in [`LICENSE-COMMERCIAL.md`](file:///home/irshad/Projects/siar/LICENSE-COMMERCIAL.md).
+- To purchase a commercial license or enterprise support SLA, contact `licensing@siar.network`.
 
 ---
 

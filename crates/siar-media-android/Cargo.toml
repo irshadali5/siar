@@ -2,6 +2,7 @@
 name = "siar-media-android"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 rust-version.workspace = true
 
 # `System.loadLibrary("siar_media_android")` in NativeMediaBridge.kt
