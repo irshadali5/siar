@@ -1,0 +1,28 @@
+[package]
+name = "siar-transport"
+version.workspace = true
+edition.workspace = true
+rust-version = "1.91"   # iroh 0.95.1's real floor, transitively (hickory/time/netwatch)
+
+[dependencies]
+siar-domain.workspace = true
+siar-protocol.workspace = true
+tokio.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+async-trait.workspace = true
+iroh.workspace = true
+# next.md §12: local-network discovery. In iroh 1.x this is a separate
+# crate, not a `discovery-local-network` feature flag on `iroh` itself
+# (that's iroh 0.x's shape — the widely-mirrored docs for it don't
+# apply here). Version matches iroh-mdns-address-lookup's own current
+# release per https://docs.iroh.computer/connecting/local-discovery.
+iroh-mdns-address-lookup = "0.4"
+# Only for `StreamExt::next` on `MdnsAddressLookup::subscribe`'s event
+# stream — matches the import the crate's own doc example uses, rather
+# than assuming `futures_util`'s equivalent (also in the dependency
+# tree transitively) behaves identically here.
+n0-future = "0.3"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
