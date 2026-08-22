@@ -1,0 +1,21 @@
+[package]
+name = "siar-connectivity"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+siar-domain.workspace = true
+siar-transport.workspace = true
+siar-routing.workspace = true
+# Needed as of this pass: `TransportManager::record_send_outcome`
+# names `iroh::EndpointId` directly in its signature (matching
+# `PathTable`'s key type — see `siar_routing::path`'s doc comment).
+# Everything before this pass only ever got `EndpointId` values back
+# inferred from `siar_transport::SiarEndpoint`'s return types, never
+# spelling the crate path out, which is why this dependency wasn't
+# already listed despite the type being used throughout this file.
+iroh.workspace = true
+
+[target.'cfg(target_os = "android")'.dependencies]
+siar-transport-wifi-direct = { path = "../siar-transport-wifi-direct" }
