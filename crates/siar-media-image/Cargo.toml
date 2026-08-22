@@ -1,0 +1,26 @@
+[package]
+name = "siar-media-image"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+siar-domain = { workspace = true }
+thiserror = { workspace = true }
+# Pure-Rust JPEG/PNG/WebP codec (codecs2.md's image-codec policy:
+# "JPEG — software decode/encode required. PNG — software decode/encode
+# required. WebP — software decode/encode recommended."). Unlike realtime
+# video (codecs2.md: hardware negotiation matters for calls), the doc is
+# explicit that "image formats do not need peer-to-peer codec negotiation"
+# — so this crate has zero JNI/hardware surface, same reasoning that made
+# siar-dtn/siar-routing buildable and testable without a compiler present.
+# default-features = false: we only want the pure-Rust jpeg/png/webp
+# decoders/encoders, not the optional codecs this project has no policy
+# for yet (avif/tiff/bmp/etc pull in extra C-adjacent or unaudited deps).
+image = { version = "0.25", default-features = false, features = [
+    "jpeg",
+    "png",
+    "webp",
+] }
+
+[dev-dependencies]
