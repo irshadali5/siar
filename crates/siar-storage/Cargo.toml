@@ -1,0 +1,12 @@
+[package]
+name = "siar-storage"
+version.workspace = true
+edition.workspace = true
+rust-version = "1.87"   # stoolap's real floor (confirmed: uses is_multiple_of)
+
+[dependencies]
+siar-domain.workspace = true
+thiserror.workspace = true
+stoolap = { version = "0.4", default-features = false, features = ["parallel"] }
+uuid.workspace = true
+base64.workspace = true
