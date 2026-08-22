@@ -1,7 +1,6 @@
 # SIAR: Secure Interoperable Autonomous Routing & Messaging
 
-[![Rust 1.91+](https://img.shields.io/badge/rust-1.91%2B-orange.svg)](https://www.rust-lang.org/)
-[![License: MIT/Apache-2.0](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](#license)
+[![License: AGPLv3 / Commercial](https://img.shields.io/badge/license-AGPLv3%20%7C%20Commercial-blue.svg)](#license--duality-model)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](#build--compilation-tutorial)
 [![Platform Target](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20Android-lightgrey.svg)](#prerequisites--environment-setup)
 
@@ -389,14 +388,44 @@ cargo fuzz run decode_blob_frame
 
 ---
 
-## License & Contributing
+## License & Duality Model
 
-SIAR is licensed under dual **MIT** or **Apache-2.0** licenses.
+SIAR is dual-licensed under the **GNU Affero General Public License Version 3 (AGPLv3)** and the **SIAR Commercial License & Enterprise Exemption Agreement (SIAR-CEEL-1.0)**.
+
+### Why Dual AGPLv3 + Commercial License?
+
+Under permissive licenses (such as MIT or Apache 2.0), commercial corporations and big-tech entities can incorporate open-source mesh routing, cryptographic protocols, and core engine code into proprietary, revenue-generating SaaS platforms and embedded closed-source products without contributing back to the project maintainers or compensating the open-source creators.
+
+To prevent uncompensated enterprise exploitation while preserving 100% freedom for the open-source community:
+
+1. **GNU AGPLv3 (Open Source & Non-Commercial)**:
+   - Gratis for non-commercial projects, academic research, open-source developers, emergency responders, and GPL/AGPL-compliant applications.
+   - **Section 13 (Network Copyleft Trigger)**: Any cloud service, SaaS application, or network node running SIAR must release its complete corresponding source code under AGPLv3 to all network users.
+   - Full text available in [`LICENSE-AGPLv3`](file:///home/irshad/Projects/siar/LICENSE-AGPLv3).
+
+2. **SIAR Commercial License (SIAR-CEEL-1.0)**:
+   - Designed for commercial enterprise integration, closed-source application bundling (iOS/Android/Desktop), cloud SaaS deployment, and big-tech infrastructure.
+   - **Lifts AGPLv3 Section 13 Network Copyleft**: Allows embedding, static/dynamic linking, and cloud hosting without disclosing proprietary application code or infrastructure backend sources.
+   - **Conditioned on Active Recurring Subscription**: Granted in exchange for monthly or annual commercial licensing fees.
+   - Full legal contract available in [`LICENSE-COMMERCIAL.md`](file:///home/irshad/Projects/siar/LICENSE-COMMERCIAL.md).
+
+### Commercial Subscription Tiers
+
+| Tier | Revenue / Eligibility | Annual Fee | Exemption Scope |
+| :--- | :--- | :--- | :--- |
+| **Startup Tier** | Revenue < $2M USD | **$2,400 / yr** ($200/mo) | Closed-source embedding up to 50k devices |
+| **Business Tier** | Revenue $2M - $20M USD | **$12,000 / yr** ($1,000/mo) | Closed-source embedding up to 500k devices |
+| **Enterprise / Cloud Tier** | Revenue > $20M USD / Big-Tech | **Custom Quote** | Unlimited deployments, cloud SaaS, SLA & dedicated support |
+
+To activate a Commercial Exemption or inquire about Enterprise Licensing, contact `licensing@siar.network`.
+
+---
 
 ### Guidelines for Contribution:
-1. Maintain zero-warning clean compilation across all targets (`cargo check --workspace`).
-2. Preserving strict boundary isolation: Core crates under `crates/` must remain pure-Rust without mandatory C-library linkages.
-3. Ensure platform-specific hardware integration is strictly isolated in dedicated crates (`siar-media-android`, `siar-transport-ble-android`).
+1. All contributions are governed by the Contributor License Agreement (CLA) granting the SIAR maintainers dual-licensing rights.
+2. Maintain zero-warning clean compilation across all targets (`cargo check --workspace`).
+3. Preserve strict boundary isolation: Core crates under `crates/` must remain pure-Rust without mandatory C-library linkages.
+4. Ensure platform-specific hardware integration is strictly isolated in dedicated crates (`siar-media-android`, `siar-transport-ble-android`).
 
 ---
 *Built with Rust, Kotlin, and OpenMLS by the SIAR Open Source Engineering Team.*
