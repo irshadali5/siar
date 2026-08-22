@@ -17,7 +17,31 @@ import com.siar.messaging.MessagingBridge
  */
 data class Contact(val nickname: String, val ticket: String, val endpointKey: String)
 
-data class ChatMessage(val text: String, val fromMe: Boolean, val timestampMillis: Long, val anon: Boolean = false)
+/** The fields an `attachment` poll event carries — everything
+ * [MessagingBridge.fetchAttachment] needs to retrieve the actual
+ * bytes later. Kept separate from [ChatMessage] itself rather than
+ * eagerly fetched, since fetching is opt-in per item (see
+ * [MessagingBridge.onAttachmentReceived]'s own doc comment). */
+data class AttachmentRef(
+    val blobHashB64: String,
+    val encryptedSizeBytes: Long,
+    val mediaType: String,
+    val attachmentKeyB64: String,
+)
+
+data class ChatMessage(
+    val text: String,
+    val fromMe: Boolean,
+    val timestampMillis: Long,
+    val anon: Boolean = false,
+    val attachment: AttachmentRef? = null,
+    /** Set once [ChatStore.fetchAttachment] succeeds — a local file
+     * path the bytes were saved to, so a message never needs to hold
+     * the (possibly large) plaintext bytes themselves in memory
+     * longer than the one write. `null` means either no attachment,
+     * or one not fetched (yet). */
+    val savedPath: String? = null,
+)
 
 /**
  * The Android chat UI this whole app was still missing — [MessagingBridge]
@@ -89,6 +113,50 @@ object ChatStore {
         MessagingBridge.sendText(contact.ticket, text).map {
             messagesFor(contact.endpointKey).add(ChatMessage(text, fromMe = true, timestampMillis = System.currentTimeMillis()))
         }
+
+    /** Sends a file as a 1:1 attachment — `mediaType` is a MIME-type
+     * string (empty/unrecognized becomes `MediaType::Other` on the
+     * Rust side, not a failure). Recorded locally as a message with an
+     * empty `text` and no [AttachmentRef] (there's nothing to fetch
+     * back for an outgoing attachment — this device already has the
+     * bytes it just sent). */
+    fun sendAttachment(contact: Contact, fileBytes: ByteArray, mediaType: String): Result<Unit> =
+        MessagingBridge.sendAttachment(contact.ticket, fileBytes, mediaType).map {
+            messagesFor(contact.endpointKey).add(
+                ChatMessage(text = "[attachment sent]", fromMe = true, timestampMillis = System.currentTimeMillis()),
+            )
+        }
+
+    /** Called from [MessagingBridge.onAttachmentReceived]. Same
+     * unknown-sender handling as [recordIncoming]. */
+    fun recordIncomingAttachment(senderKey: String, ref: AttachmentRef) {
+        messagesFor(senderKey).add(
+            ChatMessage(text = "[attachment: ${ref.mediaType}, ${ref.encryptedSizeBytes} bytes]", fromMe = false, timestampMillis = System.currentTimeMillis(), attachment = ref),
+        )
+        if (contacts.none { it.endpointKey == senderKey }) {
+            contacts.add(Contact(nickname = "Unknown ($senderKey)", ticket = senderKey, endpointKey = senderKey))
+        }
+    }
+
+    /** Retrieves and decrypts a previously-received attachment
+     * ([ChatMessage.attachment]) and saves the plaintext bytes to
+     * `saveDir` (the caller's own cache/files dir — this object has no
+     * `Context` of its own), then updates the message in place with
+     * the resulting path. Replaces the list entry rather than mutating
+     * [ChatMessage] (a `data class` of `val`s) in place, so Compose
+     * actually observes the change. */
+    fun fetchAttachment(contact: Contact, message: ChatMessage, saveDir: java.io.File): Result<String> {
+        val ref = message.attachment ?: return Result.failure(IllegalStateException("this message has no attachment"))
+        return MessagingBridge.fetchAttachment(contact.ticket, ref.blobHashB64, ref.encryptedSizeBytes, ref.mediaType, ref.attachmentKeyB64)
+            .mapCatching { bytes ->
+                val file = java.io.File(saveDir, "attachment_${System.currentTimeMillis()}")
+                file.writeBytes(bytes)
+                val list = messagesFor(contact.endpointKey)
+                val index = list.indexOf(message)
+                if (index >= 0) list[index] = message.copy(savedPath = file.absolutePath)
+                file.absolutePath
+            }
+    }
 
     /** Called from [MessagingBridge.onTextReceived]/[onAnonTextReceived].
      * `senderKey` matches a [Contact.endpointKey] when the sender is

@@ -7053,8 +7053,10 @@ dependencies = [
 name = "siar-android-messaging"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "iroh",
  "jni 0.21.1",
+ "postcard",
  "siar-android-connectivity",
  "siar-crypto",
  "siar-domain",

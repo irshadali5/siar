@@ -31,29 +31,30 @@ import kotlin.concurrent.thread
  * ([WifiDirectManager], [WifiAwareManagerBridge], [BleGattManager],
  * [BluetoothClassicManager]), the shared connectivity state
  * ([ConnectivityBridge]), and a real [MessagingBridge] wrapping
- * `siar-messaging::MessageService` — plus, as of this pass, an actual
- * chat UI ([MessengerScreen]/[ChatStore]) on top of it: a contact
- * list, an add-contact flow (paste a peer's ticket), and a per-contact
- * conversation screen. Every one of those Rust crates' own doc
- * comments named this activity as the missing real consumer, and
- * `apps/android`'s own former "no chat UI at all" gap is what
- * [MessengerScreen] closes.
+ * `siar-messaging::MessageService`/`GroupService` — plus a chat UI
+ * ([MessengerScreen]/[ChatStore]/[GroupStore]) on top of it: a 1:1
+ * contact list and conversation screen, groups/MLS (create, add
+ * member, join via a pending-invite banner, group messaging), and 1:1
+ * attachments (pick a file, send it; fetch and save a received one).
+ * Every one of those Rust crates' own doc comments named this activity
+ * as the missing real consumer.
  *
  * ## What this activity still deliberately does NOT do
  *
- * No groups/MLS, no attachments — [ChatStore]/[MessagingBridge] cover
- * text-only 1:1 conversations, matching exactly what
- * `siar-android-messaging`'s own doc comment says it exposes (that
- * crate has no `GroupService`/attachment FFI to call into yet, a
- * separate, larger follow-up). Contacts and message history live only
- * in this process's memory — nothing here reads back the message
- * history the native side already persists to `siar.db`, since no FFI
- * exists yet to read it (see `ChatStore`'s own doc comment).
- * `LocalLan`/`InternetDirect`/`InternetRelay` also aren't reported
- * into [ConnectivityBridge] from anywhere in this activity —
- * `MessagingBridge`'s own `SiarEndpoint` isn't threaded through to
- * `ConnectivityBridge` yet, a real remaining gap between these two
- * bridges this pass didn't close.
+ * Group attachments — see `siar-android-messaging`'s own top doc
+ * comment for why (no `DeviceId`-to-`PeerTicket` lookup exists
+ * anywhere in this codebase to fetch one with). Contacts, groups, and
+ * message history all live only in this process's memory — nothing
+ * here reads back the message history the native side already
+ * persists to `siar.db`, since no FFI exists yet to read it (see
+ * `ChatStore`'s own doc comment); group membership itself isn't
+ * persisted across restarts either (see `GroupStore.recordIncoming`'s
+ * own comment on the placeholder name a group gets if a text frame for
+ * it arrives after a fresh process start). `LocalLan`/`InternetDirect`/
+ * `InternetRelay` also aren't reported into [ConnectivityBridge] from
+ * anywhere in this activity — `MessagingBridge`'s own `SiarEndpoint`
+ * isn't threaded through to `ConnectivityBridge` yet, a real remaining
+ * gap between these two bridges this pass didn't close.
  *
  * ## What could not be verified this pass
  *
@@ -87,15 +88,28 @@ class MainActivity : ComponentActivity() {
         bleGattManager = BleGattManager(this)
         bluetoothClassicManager = BluetoothClassicManager(this)
 
+        // Before anything else native-side: see `initAndroidContext`'s
+        // own doc comment for why this needs to happen before
+        // `startMessaging()`'s `bootstrap()` call constructs a
+        // `SiarEndpoint` (that construction is what actually triggers
+        // Android DNS resolution through this context).
+        MessagingBridge.initAndroidContext(applicationContext)
+
         // Wired before `startMessaging()` below so no incoming event
         // from the very first poll tick onward is ever missed —
-        // `ChatStore.recordIncoming` is what makes an incoming message
-        // actually show up in a conversation thread; without this the
-        // native side would still receive and decrypt messages (see
+        // `ChatStore.recordIncoming`/[GroupStore.recordIncoming]/etc.
+        // are what make an incoming message actually show up
+        // somewhere in this app; without this the native side would
+        // still receive and decrypt messages (see
         // `siar-android-messaging`'s own doc comment) with nothing in
         // this app ever finding out.
         MessagingBridge.onTextReceived = { sender, text -> ChatStore.recordIncoming(sender, text, anon = false) }
         MessagingBridge.onAnonTextReceived = { sender, text -> ChatStore.recordIncoming(sender, text, anon = true) }
+        MessagingBridge.onAttachmentReceived = { sender, blobHashB64, sizeBytes, mediaType, keyB64 ->
+            ChatStore.recordIncomingAttachment(sender, AttachmentRef(blobHashB64, sizeBytes, mediaType, keyB64))
+        }
+        MessagingBridge.onGroupInvite = { conversation, fromDevice -> GroupStore.recordInvite(conversation, fromDevice) }
+        MessagingBridge.onGroupText = { conversation, _sender, text -> GroupStore.recordIncoming(conversation, text) }
 
         setContent {
             MaterialTheme {

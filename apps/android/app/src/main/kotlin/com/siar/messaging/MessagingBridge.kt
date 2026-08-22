@@ -6,9 +6,9 @@ import android.os.Looper
 /**
  * Thin Kotlin wrapper over `siar-android-messaging`'s JNI surface — see
  * that crate's own `lib.rs` doc comment for the full picture of what
- * this does and doesn't cover yet (no groups, no attachments, no
- * anonymous mailbox path, no identity persistence — a real slice, not
- * the whole of `siar-messaging`).
+ * this covers (1:1 text, groups/MLS, 1:1 attachments) and what's still
+ * out of scope (anonymous mailbox item contents, group attachments,
+ * identity persistence's own remaining caveats).
  *
  * [pollEvents] runs on a fixed [Handler] tick, same tradeoff
  * [com.siar.ble.BleGattManager]'s fragment pump and
@@ -19,6 +19,21 @@ import android.os.Looper
 object MessagingBridge {
     private val pumpHandler = Handler(Looper.getMainLooper())
     private var pumping = false
+
+    /** Publishes the real Application `Context` to the native side for
+     * iroh's Android DNS resolver — see the Rust side's own
+     * `initAndroidContext` doc comment for why this exists as a real,
+     * explicit call now instead of the previous (likely-inert)
+     * `JNI_OnLoad`-based guess. Call once, early — before [bootstrap] —
+     * from `MainActivity.onCreate`, passing `applicationContext` (not
+     * an `Activity` context, which doesn't outlive a single screen the
+     * way this native-side reference needs to). Safe to call more than
+     * once (each call installs a fresh global reference; the native
+     * side doesn't track whether it's already been called), but one
+     * call per process is all this needs. */
+    fun initAndroidContext(context: android.content.Context) {
+        NativeMessagingBridge.initAndroidContext(context.applicationContext)
+    }
 
     /** Bootstraps a fresh identity + `SiarEndpoint` and starts the
      * incoming-event pump — call once, from a background thread (every
@@ -73,6 +88,87 @@ object MessagingBridge {
     fun checkMailboxAnon(peerTicket: String, relayTicket: String): Result<Unit> =
         callNative { NativeMessagingBridge.checkMailboxAnon(peerTicket, relayTicket) }.map { }
 
+    /** This device's own `DeviceId`, as plain UUID text — share
+     * alongside [groupKeyPackage] and [accountId] with whoever will add
+     * this device to a group via [groupAddMember]. */
+    fun deviceId(): Result<String> = callNative { NativeMessagingBridge.deviceId() }
+
+    /** This device's own `AccountId`, as plain UUID text — see
+     * [deviceId]'s own doc comment. */
+    fun accountId(): Result<String> = callNative { NativeMessagingBridge.accountId() }
+
+    /** This device's own base64-encoded MLS key package, published once
+     * at [bootstrap] time — hand this, [deviceId], and [accountId] to
+     * whoever will call [groupAddMember] for this device. Empty string
+     * (not a failure) if publishing failed at bootstrap — see the Rust
+     * side's own `key_package_b64` field doc comment. */
+    fun groupKeyPackage(): Result<String> = callNative { NativeMessagingBridge.groupKeyPackage() }
+
+    /** Creates a new MLS group founded by this device's account.
+     * Returns the new conversation id — share it with whoever will be
+     * added via [groupAddMember]. */
+    fun groupCreate(): Result<String> = callNative { NativeMessagingBridge.groupCreate() }
+
+    /** Admin-only (enforced natively). Adds a new member — their
+     * [deviceId]/[accountId]/ticket/[groupKeyPackage], all obtained from
+     * them out-of-band beforehand — to an existing group, sending the
+     * MLS commit and welcome over the wire. Returns the
+     * post-admission group state, base64-encoded: relay this back to
+     * the new member out-of-band alongside the conversation id, for
+     * them to pass to [groupJoin]. */
+    fun groupAddMember(
+        conversation: String,
+        peerTicket: String,
+        peerDeviceId: String,
+        peerAccountId: String,
+        keyPackageB64: String,
+    ): Result<String> =
+        callNative { NativeMessagingBridge.groupAddMember(conversation, peerTicket, peerDeviceId, peerAccountId, keyPackageB64) }
+
+    fun groupSendText(conversation: String, text: String): Result<String> =
+        callNative { NativeMessagingBridge.groupSendText(conversation, text) }
+
+    /** Joins a group this device was added to — consumes the buffered
+     * `GroupMlsWelcome` the pump already received over the wire (see
+     * the `group_invite` event) together with the group state obtained
+     * out-of-band from the admin's [groupAddMember] call. Fails with a
+     * clear message if there's no pending invite for this conversation
+     * (already joined, already declined, or the welcome hasn't arrived
+     * over the wire yet). */
+    fun groupJoin(conversation: String, groupStateB64: String): Result<Unit> =
+        callNative { NativeMessagingBridge.groupJoin(conversation, groupStateB64) }.map { }
+
+    /** Discards a buffered invite without joining. Returns whether
+     * there actually was a pending invite to discard — `false` isn't a
+     * failure, just a no-op (already decided). */
+    fun groupDeclineInvite(conversation: String): Result<Boolean> =
+        callNative { NativeMessagingBridge.groupDeclineInvite(conversation) }.map { it == "true" }
+
+    /** 1:1 only — see `siar-android-messaging`'s own top doc comment for
+     * why group attachments aren't wired. `fileBytes` is base64-encoded
+     * here, not passed as a raw byte array — see the Rust side's own
+     * `sendAttachment` doc comment for why. `mediaType` is a MIME-type
+     * string (`"image/jpeg"`, etc.); an unrecognized one becomes
+     * `MediaType::Other` on the Rust side rather than failing. */
+    fun sendAttachment(peerTicket: String, fileBytes: ByteArray, mediaType: String): Result<String> {
+        val fileBytesB64 = android.util.Base64.encodeToString(fileBytes, android.util.Base64.NO_WRAP)
+        return callNative { NativeMessagingBridge.sendAttachment(peerTicket, fileBytesB64, mediaType) }
+    }
+
+    /** Retrieves and decrypts a previously-received attachment's blob —
+     * pass the exact `blobHashB64`/`encryptedSizeBytes`/`mediaType`/
+     * `attachmentKeyB64` fields an `attachment` poll event carried (see
+     * [onAttachmentReceived]). Returns the plaintext file bytes. */
+    fun fetchAttachment(
+        peerTicket: String,
+        blobHashB64: String,
+        encryptedSizeBytes: Long,
+        mediaType: String,
+        attachmentKeyB64: String,
+    ): Result<ByteArray> =
+        callNative { NativeMessagingBridge.fetchAttachment(peerTicket, blobHashB64, encryptedSizeBytes, mediaType, attachmentKeyB64) }
+            .map { android.util.Base64.decode(it, android.util.Base64.NO_WRAP) }
+
     /** Set by the caller (e.g. an activity or view model) to receive
      * incoming text messages, keyed by the sender's endpoint id in the
      * Debug-formatted form the Rust side emits (see that side's own
@@ -92,6 +188,24 @@ object MessagingBridge {
      * event kind for why an anonymous response has no sender field at
      * all. */
     var onAnonTextReceived: ((matchedPeerEndpointDebug: String, text: String) -> Unit)? = null
+
+    /** Set by the caller to receive a 1:1 attachment reference — pass
+     * these five fields straight to [fetchAttachment] to retrieve the
+     * actual bytes; nothing here fetches automatically (a real,
+     * deliberate choice — attachments can be large, see
+     * `siar_domain::MAX_ATTACHMENT_BYTES`, so fetching is opt-in per
+     * item, driven by the UI, not automatic on arrival). */
+    var onAttachmentReceived:
+        ((senderEndpointDebug: String, blobHashB64: String, encryptedSizeBytes: Long, mediaType: String, attachmentKeyB64: String) -> Unit)? =
+        null
+
+    /** Set by the caller to receive a group invite — a `GroupMlsWelcome`
+     * arrived and is buffered on the Rust side, waiting on [groupJoin]/
+     * [groupDeclineInvite]. */
+    var onGroupInvite: ((conversation: String, fromDeviceDebug: String) -> Unit)? = null
+
+    /** Set by the caller to receive a group text message. */
+    var onGroupText: ((conversation: String, senderDeviceDebug: String, text: String) -> Unit)? = null
 
     /** Starts the fixed-interval poll loop — call once, after
      * [bootstrap] succeeds. */
@@ -128,21 +242,49 @@ object MessagingBridge {
     }
 
     private fun dispatch(line: String) {
-        val parts = line.split("\t", limit = 3)
-        when (parts.getOrNull(0)) {
+        val kind = line.substringBefore('\t')
+        when (kind) {
             "text" -> {
+                val parts = line.split("\t", limit = 3)
                 val sender = parts.getOrNull(1) ?: return
                 val text = parts.getOrNull(2) ?: return
                 onTextReceived?.invoke(sender, text)
             }
             "mailbox" -> {
+                val parts = line.split("\t", limit = 2)
                 val count = parts.getOrNull(1)?.toIntOrNull() ?: return
                 onMailboxChecked?.invoke(count)
             }
             "anon_text" -> {
+                val parts = line.split("\t", limit = 3)
                 val matchedPeer = parts.getOrNull(1) ?: return
                 val text = parts.getOrNull(2) ?: return
                 onAnonTextReceived?.invoke(matchedPeer, text)
+            }
+            "attachment" -> {
+                // Fixed-shape trailing fields (base64/number/MIME type,
+                // never free text), unlike "text"/"group_text" above —
+                // no embedded-tab risk, so an unlimited split is safe.
+                val parts = line.split("\t")
+                val sender = parts.getOrNull(1) ?: return
+                val blobHashB64 = parts.getOrNull(2) ?: return
+                val sizeBytes = parts.getOrNull(3)?.toLongOrNull() ?: return
+                val mediaType = parts.getOrNull(4) ?: return
+                val keyB64 = parts.getOrNull(5) ?: return
+                onAttachmentReceived?.invoke(sender, blobHashB64, sizeBytes, mediaType, keyB64)
+            }
+            "group_invite" -> {
+                val parts = line.split("\t", limit = 3)
+                val conversation = parts.getOrNull(1) ?: return
+                val fromDevice = parts.getOrNull(2) ?: return
+                onGroupInvite?.invoke(conversation, fromDevice)
+            }
+            "group_text" -> {
+                val parts = line.split("\t", limit = 4)
+                val conversation = parts.getOrNull(1) ?: return
+                val sender = parts.getOrNull(2) ?: return
+                val text = parts.getOrNull(3) ?: return
+                onGroupText?.invoke(conversation, sender, text)
             }
         }
     }
@@ -174,6 +316,7 @@ private object NativeMessagingBridge {
         System.loadLibrary("siar_android_messaging")
     }
 
+    external fun initAndroidContext(context: android.content.Context)
     external fun bootstrap(filesDir: String): String
     external fun addPeer(ticket: String): String
     external fun ticketEndpointDebug(ticket: String): String
@@ -181,6 +324,28 @@ private object NativeMessagingBridge {
     external fun checkMailbox(relayTicket: String): String
     external fun sendTextAnon(peerTicket: String, relayTicket: String, text: String): String
     external fun checkMailboxAnon(peerTicket: String, relayTicket: String): String
+    external fun deviceId(): String
+    external fun accountId(): String
+    external fun groupKeyPackage(): String
+    external fun groupCreate(): String
+    external fun groupAddMember(
+        conversation: String,
+        peerTicket: String,
+        peerDeviceId: String,
+        peerAccountId: String,
+        keyPackageB64: String,
+    ): String
+    external fun groupSendText(conversation: String, text: String): String
+    external fun groupJoin(conversation: String, groupStateB64: String): String
+    external fun groupDeclineInvite(conversation: String): String
+    external fun sendAttachment(peerTicket: String, fileBytesB64: String, mediaType: String): String
+    external fun fetchAttachment(
+        peerTicket: String,
+        blobHashB64: String,
+        encryptedSizeBytes: Long,
+        mediaType: String,
+        attachmentKeyB64: String,
+    ): String
     external fun pollNextEvent(): String?
     external fun shutdown()
 }

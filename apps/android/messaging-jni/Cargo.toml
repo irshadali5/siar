@@ -6,11 +6,12 @@ rust-version.workspace = true
 
 # The other real gap this workspace's `apps/android/README.md` named
 # explicitly: "there is no `siar-messaging::MessageService` FFI surface
-# here at all." This crate is that surface — deliberately scoped down
-# from everything `apps/cli`'s `Bootstrapped` wires up (no
-# `GroupService`/MLS groups, no attachments, no anonymous mailbox path
-# — see this crate's own `lib.rs` doc comment for the full "what's here
-# and what still isn't" accounting).
+# here at all." This crate is that surface. Originally scoped down from
+# everything `apps/cli`'s `Bootstrapped` wires up; groups/MLS
+# (`GroupService`) and 1:1 attachments have since been added — see this
+# crate's own `lib.rs` doc comment for the current, full "what's here
+# and what still isn't" accounting (anonymous mailbox path and group
+# attachments remain out of scope).
 [lib]
 crate-type = ["cdylib", "rlib"]
 
@@ -33,6 +34,14 @@ iroh.workspace = true
 # functions, not only reachable via JNI.
 siar-android-connectivity = { path = "../rust-jni-glue" }
 uuid.workspace = true
+# For the same reason `apps/cli`'s own `base64_encode`/`base64_decode`
+# helpers exist: MLS key packages, welcome bytes, and `GroupState` blobs
+# all have to move across the JNI boundary (and, for now, out-of-band
+# between devices — see `lib.rs`'s doc comment on why) as text, not raw
+# bytes, and this crate's own event-line convention is already
+# plain-text over JSON.
+base64.workspace = true
+postcard.workspace = true
 
 [target.'cfg(target_os = "android")'.dependencies]
 # jni 0.21, matching every other jni_bridge.rs in this workspace

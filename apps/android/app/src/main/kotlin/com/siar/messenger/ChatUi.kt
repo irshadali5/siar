@@ -1,6 +1,8 @@
 package com.siar.messenger
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.text.SimpleDateFormat
@@ -40,9 +43,31 @@ import java.util.Locale
  * a two-screen app doesn't need a back stack library; [BackHandler],
  * from the already-present `activity-compose` dependency, covers the
  * system back button for the one screen that needs it).
+ *
+ * A simple two-tab switcher on top ("Chats"/"Groups") — [GroupsScreen]
+ * is the groups/MLS half of this UI, added alongside this one rather
+ * than merged into it, since a 1:1 conversation and a group
+ * conversation are backed by genuinely different native call surfaces
+ * (`ChatStore`/`MessagingBridge` vs. `GroupStore`/`GroupService`).
  */
 @Composable
 fun MessengerScreen() {
+    var showGroups by remember { mutableStateOf(false) }
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+            TextButton(onClick = { showGroups = false }) { Text(if (!showGroups) "• Chats" else "Chats") }
+            TextButton(onClick = { showGroups = true }) { Text(if (showGroups) "• Groups" else "Groups") }
+        }
+        if (showGroups) {
+            GroupsScreen()
+        } else {
+            ChatsScreen()
+        }
+    }
+}
+
+@Composable
+private fun ChatsScreen() {
     var openContact by remember { mutableStateOf<Contact?>(null) }
     val contact = openContact
     if (contact == null) {
@@ -163,6 +188,24 @@ private fun ConversationScreen(contact: Contact, onBack: () -> Unit) {
     var draft by remember { mutableStateOf("") }
     var sendError by remember { mutableStateOf<String?>(null) }
     val messages = ChatStore.messagesFor(contact.endpointKey)
+    val context = LocalContext.current
+
+    // `GetContent` (not `OpenDocument`) — this app only needs one-shot
+    // read access for a single send, not the persistable
+    // `ACTION_OPEN_DOCUMENT` permission grant `OpenDocument` implies;
+    // `GetContent` is the standard, simpler contract for that.
+    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val mediaType = context.contentResolver.getType(uri) ?: ""
+        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+        if (bytes == null) {
+            sendError = "Couldn't read that file"
+            return@rememberLauncherForActivityResult
+        }
+        ChatStore.sendAttachment(contact, bytes, mediaType)
+            .onSuccess { sendError = null }
+            .onFailure { e -> sendError = e.message ?: "Send failed" }
+    }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -172,7 +215,12 @@ private fun ConversationScreen(contact: Contact, onBack: () -> Unit) {
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
         LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            items(messages) { message -> MessageBubble(message) }
+            items(messages) { message ->
+                MessageBubble(message, onFetchAttachment = {
+                    ChatStore.fetchAttachment(contact, message, context.cacheDir)
+                        .onFailure { e -> sendError = e.message ?: "Fetch failed" }
+                })
+            }
         }
 
         val currentError = sendError
@@ -181,6 +229,7 @@ private fun ConversationScreen(contact: Contact, onBack: () -> Unit) {
         }
 
         Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = { filePicker.launch("*/*") }) { Text("Attach") }
             OutlinedTextField(
                 value = draft,
                 onValueChange = { draft = it },
@@ -209,13 +258,21 @@ private fun ConversationScreen(contact: Contact, onBack: () -> Unit) {
 }
 
 @Composable
-private fun MessageBubble(message: ChatMessage) {
+private fun MessageBubble(message: ChatMessage, onFetchAttachment: () -> Unit) {
     val alignment = if (message.fromMe) Alignment.CenterEnd else Alignment.CenterStart
     Box(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Column(
             modifier = Modifier.align(alignment),
         ) {
             Text(message.text)
+            if (message.attachment != null) {
+                val saved = message.savedPath
+                if (saved != null) {
+                    Text("Saved to $saved", style = MaterialTheme.typography.bodySmall)
+                } else {
+                    TextButton(onClick = onFetchAttachment) { Text("Fetch attachment") }
+                }
+            }
             Text(
                 text = timeLabel(message.timestampMillis) + if (message.anon) " · anon" else "",
                 style = MaterialTheme.typography.bodySmall,

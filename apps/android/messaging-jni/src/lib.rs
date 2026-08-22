@@ -45,6 +45,15 @@
 //!   the wire — an anonymous check-in response has no sender field at
 //!   all, the entire point (see `siar_crypto::mailbox_token`'s doc
 //!   comment).
+//! - `attachment\t<sender endpoint id debug>\t<blob_hash b64>\t<size
+//!   bytes>\t<media type>\t<attachment_key b64>` — a 1:1
+//!   `MessageContent::Attachment` arrived; [`fetch_attachment`] needs
+//!   every one of these fields back to actually retrieve the blob.
+//! - `group_invite\t<conversation id>\t<from device debug>` — a
+//!   `GroupMlsWelcome` arrived and is buffered, waiting on
+//!   [`group_join`]/[`group_decline_invite`].
+//! - `group_text\t<conversation id>\t<sender device debug>\t<message
+//!   text>` — a `GroupMlsApplication` frame decoded to text.
 //!
 //! ## What's here
 //!
@@ -76,14 +85,54 @@
 //!   land in the poll queue as `mailbox\t<count>`/`anon_text\t...`
 //!   respectively, mirroring `apps/cli`'s `check-mailbox`/
 //!   `check-mailbox-anon`.
+//! - **Groups/MLS** — `GroupService` is now wired in, mirroring
+//!   `apps/desktop`'s own `bootstrap_messaging`/`incoming_loop` wiring
+//!   (the reference this crate's group functions were built against)
+//!   rather than `apps/cli`'s one-shot-process version, since a
+//!   long-running Android process can match the desktop app's
+//!   always-listening shape instead of needing the CLI's manual
+//!   `listen --publish-key-package` workaround for
+//!   `pending_identity`'s in-process-only lifetime. A key package is
+//!   published once automatically at [`bootstrap`] time (same as
+//!   desktop) — [`group_key_package`] returns the resulting base64
+//!   text to share out-of-band with whoever will add this device to a
+//!   group, exactly the same hand-paired exchange `PeerTicket` itself
+//!   already requires (see this crate's own top doc comment on that).
+//!   [`group_create`]/[`group_add_member`]/[`group_send_text`]/
+//!   [`group_join`]/[`group_decline_invite`] are the rest of the
+//!   surface; an incoming `GroupMlsWelcome` is buffered (not
+//!   auto-joined — same deliberate "let the UI ask first" stance
+//!   `GroupService::handle_incoming_mls`'s own doc comment states) and
+//!   surfaces as a `group_invite\t...` poll event, `GroupMlsApplication`
+//!   text as `group_text\t...`. **Not attempted**: `add_member`/
+//!   `remove_member` (the static-key, non-MLS group path —
+//!   `create_group_mls`'s MLS path is the real cryptographic one, same
+//!   choice `apps/cli`/`apps/desktop` both made), `remove_member_mls`,
+//!   and group attachments (`handle_incoming_mls` can hand back
+//!   `MessageContent::Attachment` in principle, but fetching it needs
+//!   the sending device's `PeerTicket`, and `envelope.sender` is only
+//!   a bare `DeviceId` with no directory lookup back to one exposed
+//!   anywhere in this codebase yet, in `apps/desktop` either — a real
+//!   gap in the library this crate wraps, not something to paper over
+//!   here).
+//! - **Attachments (1:1 only)** — [`send_attachment`]/
+//!   [`fetch_attachment`] wrap `MessageService::send_attachment`/
+//!   `fetch_attachment` directly (both already take/return plain
+//!   `Vec<u8>`, so unlike groups there's no out-of-band exchange
+//!   needed here — the reference and the blob both travel over the
+//!   wire on their own). An incoming `MessageContent::Attachment`
+//!   surfaces as `attachment\t...` in the poll queue, carrying the
+//!   `AttachmentReference` fields [`fetch_attachment`] needs back.
+//!   Deliberately no image decoding/thumbnailing here (unlike
+//!   `apps/desktop`'s `siar-media-image`-backed preview pipeline) —
+//!   Android already prefers platform codecs over this workspace's own
+//!   native ones (see `build-native.sh`'s own comment on why
+//!   `siar-media-audio`/`siar-media-av1` are desktop-only), and
+//!   `BitmapFactory` on the Kotlin side is the equivalent tool for
+//!   images specifically, not a new native dependency here.
 //!
 //! ## What's still NOT here
 //!
-//! - **No groups/MLS.** `GroupService` isn't wired in at all — no
-//!   `apps/android` equivalent of `apps/cli`'s `group-create`/
-//!   `group-send`/`join-group`.
-//! - **No attachments.** `MessageService::send_attachment`/
-//!   `fetch_attachment` aren't exposed.
 //! - **No delivery-ack visibility.** Incoming `DeliveryAck`/
 //!   `ReadReceipt` frames are silently absorbed by `handle_incoming`
 //!   (returns `None` for them, same as `apps/cli`) — nothing surfaces
@@ -129,17 +178,64 @@
 // android-only-caller situation.
 #![cfg_attr(not(target_os = "android"), allow(dead_code))]
 
-use siar_domain::{AccountId, ConversationId, DeviceId, MessageContent, MessageText};
-use siar_messaging::{IncomingEvent, MessageService, PeerTicket};
+use siar_domain::{AccountId, ConversationId, DeviceId, MediaType, MessageContent, MessageText};
+use siar_messaging::{
+    GroupService, IncomingEvent, InMemoryDeviceDirectory, InMemoryKeyPackageDirectory, KeyPackageDirectory,
+    MemberDevice, MessageService, PeerTicket,
+};
+use siar_protocol::v1::EnvelopeKind;
 use siar_transport::{IncomingFrame, PeerTransport, SiarEndpoint};
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex, OnceLock};
 use tokio::sync::mpsc;
 
+fn base64_encode(bytes: &[u8]) -> String {
+    use base64::Engine;
+    base64::engine::general_purpose::STANDARD.encode(bytes)
+}
+
+fn base64_decode(s: &str) -> Result<Vec<u8>, String> {
+    use base64::Engine;
+    base64::engine::general_purpose::STANDARD.decode(s.trim()).map_err(|e| e.to_string())
+}
+
+fn parse_uuid(s: &str) -> Result<uuid::Uuid, String> {
+    uuid::Uuid::parse_str(s.trim()).map_err(|e| format!("'{s}' is not a valid id: {e}"))
+}
+
+fn media_type_from_str(s: &str) -> MediaType {
+    // A conservative parse of `MediaType`'s own allow-list (see that
+    // enum's doc comment) — an unrecognized string from Kotlin becomes
+    // `Other` rather than a hard error, matching `MediaType::Other`'s
+    // own stated purpose ("covers anything else without letting an
+    // arbitrary string masquerade as a trusted type").
+    match s {
+        "image/png" => MediaType::ImagePng,
+        "image/jpeg" => MediaType::ImageJpeg,
+        "image/webp" => MediaType::ImageWebp,
+        "audio/opus" => MediaType::AudioOpus,
+        "video/mp4" => MediaType::VideoMp4,
+        _ => MediaType::Other,
+    }
+}
+
+fn media_type_to_str(m: MediaType) -> &'static str {
+    match m {
+        MediaType::ImagePng => "image/png",
+        MediaType::ImageJpeg => "image/jpeg",
+        MediaType::ImageWebp => "image/webp",
+        MediaType::AudioOpus => "audio/opus",
+        MediaType::VideoMp4 => "video/mp4",
+        MediaType::Other => "application/octet-stream",
+    }
+}
+
 struct AppMessaging {
     endpoint: Arc<SiarEndpoint>,
     service: MessageService,
     my_ticket: PeerTicket,
+    device_id: DeviceId,
+    local_account: AccountId,
     /// Registered via [`add_peer`] — see this module's top doc comment
     /// on why a sender's `PeerTicket` has to already be known before an
     /// incoming `V1` envelope from them can be decrypted.
@@ -153,6 +249,36 @@ struct AppMessaging {
     /// `tokio::spawn` returns, one step after this struct itself is
     /// constructed (see [`bootstrap_inner`]).
     pump_handle: Mutex<Option<tokio::task::JoinHandle<()>>>,
+    group_service: GroupService,
+    /// Fanout targets for `add_member_mls`/`remove_member_mls` — see
+    /// `GroupService::DeviceDirectory`'s own doc comment. Populated by
+    /// [`group_add_member_inner`] right before calling `add_member_mls`,
+    /// same order `apps/cli`'s `group_add_member` uses.
+    device_directory: Arc<InMemoryDeviceDirectory>,
+    /// Backs [`group_publish_key_package_inner`] (called once at
+    /// [`bootstrap_inner`] time, same as `apps/desktop`'s own
+    /// `bootstrap_messaging`) — see `GroupService::publish_key_package`'s
+    /// doc comment for why this is only ever a same-process, in-memory
+    /// directory here (no cross-device key-package discovery exists in
+    /// this codebase yet).
+    key_package_directory: Arc<InMemoryKeyPackageDirectory>,
+    /// This device's own published key package, base64-encoded, ready
+    /// to share out-of-band with whoever will call [`group_add_member`]
+    /// for this device — computed once at bootstrap (mirrors desktop's
+    /// `key_package_b64`), empty if publishing failed at bootstrap time
+    /// (a logged warning there, not a hard bootstrap failure — same
+    /// "losing 'can be added to a group' shouldn't take down 1:1
+    /// messaging too" reasoning desktop's own comment gives).
+    key_package_b64: String,
+    /// A `GroupMlsWelcome`'s payload, buffered by conversation id until
+    /// [`group_join_inner`] (or [`group_decline_invite_inner`]) consumes
+    /// it — mirrors `apps/desktop`'s `PendingInviteState`/`PendingInvite`
+    /// (`siar-ui-state`), reimplemented here rather than pulled in as a
+    /// dependency since this crate's own event-line/poll-queue shape
+    /// already replaces what that crate's `Signal`-friendly structs are
+    /// for. `(DeviceId, Vec<u8>)`: the welcome's sender (`envelope.sender`,
+    /// for display) alongside the welcome bytes themselves.
+    pending_welcomes: Mutex<HashMap<ConversationId, (DeviceId, Vec<u8>)>>,
 }
 
 // `RUNTIME` stays a `OnceLock`: a Tokio multi-thread runtime is a real
@@ -261,7 +387,7 @@ fn bootstrap_inner(base_dir: &str) -> Result<String, String> {
             identity
         };
         let device_id = load_or_create_id(&paths.device_id, DeviceId::from_uuid, DeviceId::as_uuid, DeviceId::new)?;
-        let _local_account = load_or_create_id(&paths.account_id, AccountId::from_uuid, AccountId::as_uuid, AccountId::new)?; // kept alive by MessageService's own device_id, not used directly here yet
+        let local_account = load_or_create_id(&paths.account_id, AccountId::from_uuid, AccountId::as_uuid, AccountId::new)?;
 
         // Real on-disk database, not `open_in_memory()` — the other
         // half of the persistence fix: an in-memory DB would have
@@ -271,9 +397,11 @@ fn bootstrap_inner(base_dir: &str) -> Result<String, String> {
         let messages = Arc::new(siar_storage::StoolapMessageRepository::new(db.clone()));
         let outbox = Arc::new(siar_storage::StoolapOutboxRepository::new(db.clone()));
         let blobs: Arc<dyn siar_storage::BlobRepository + Send + Sync> =
-            Arc::new(siar_storage::StoolapBlobRepository::new(db));
+            Arc::new(siar_storage::StoolapBlobRepository::new(db.clone()));
         let blob_store: Arc<dyn siar_transport::BlobStore> =
             Arc::new(siar_messaging::StorageBlobStore(blobs.clone()));
+        let groups: Arc<dyn siar_storage::GroupRepository + Send + Sync> =
+            Arc::new(siar_storage::StoolapGroupRepository::new(db));
 
         let (tx, mut rx) = mpsc::channel::<IncomingFrame>(64);
         let iroh_secret = iroh::SecretKey::generate();
@@ -294,12 +422,55 @@ fn bootstrap_inner(base_dir: &str) -> Result<String, String> {
         // `mark_link_down` counterpart to this.
         siar_android_connectivity::mark_link_up(siar_domain::TransportLink::InternetDirect);
 
+        // `MessageService` and `GroupService` both take a
+        // `DeviceIdentity` by value, and both represent this same local
+        // device — `DeviceIdentity::try_clone` is exactly the "more
+        // than one owner of the same key material in one process" case
+        // it exists for. Same pattern `apps/cli`'s `bootstrap()` and
+        // `apps/desktop`'s `bootstrap_messaging` both already use.
+        let group_identity = identity.try_clone().map_err(|e| e.to_string())?;
+        let device_directory = Arc::new(InMemoryDeviceDirectory::new());
+        let key_package_directory = Arc::new(InMemoryKeyPackageDirectory::new());
+        let group_service = GroupService::new(
+            device_id,
+            local_account,
+            group_identity,
+            endpoint.clone(),
+            messages.clone(),
+            device_directory.clone(),
+            groups,
+        );
+
+        // Publish once at startup, immediately reclaim the bytes from
+        // the same in-process directory to hand back to Kotlin — this
+        // device is the only writer/reader of `key_package_directory`
+        // today (see that field's own doc comment), so `take` right
+        // after `publish` always succeeds unless publishing itself
+        // failed. A logged warning, not a hard bootstrap failure, since
+        // losing "can be added to a group" shouldn't take down 1:1
+        // messaging too — same reasoning `apps/desktop`'s own comment
+        // gives for this exact sequence.
+        let key_package_b64 = match group_service.publish_key_package(key_package_directory.as_ref()) {
+            Ok(()) => key_package_directory.take(device_id).map(|bytes| base64_encode(&bytes)).unwrap_or_default(),
+            Err(e) => {
+                tracing::warn!(error = %e, "failed to publish this device's MLS key package at startup");
+                String::new()
+            }
+        };
+
         let service = MessageService::new(device_id, identity, endpoint.clone(), messages, outbox, blobs);
 
         let app = AppMessaging {
             endpoint,
             service,
             my_ticket: my_ticket.clone(),
+            device_id,
+            local_account,
+            group_service,
+            device_directory,
+            key_package_directory,
+            key_package_b64,
+            pending_welcomes: Mutex::new(HashMap::new()),
             known_peers: Mutex::new(HashMap::new()),
             events: Mutex::new(VecDeque::new()),
             pump_handle: Mutex::new(None),
@@ -322,6 +493,75 @@ fn bootstrap_inner(base_dir: &str) -> Result<String, String> {
                 let Some(frame) = rx.recv().await else { break };
                 match frame.message {
                     siar_protocol::WireMessage::V1(envelope) => {
+                        // Group frames go to `GroupService`, not
+                        // `MessageService::handle_incoming` — that
+                        // function explicitly doesn't handle these (see
+                        // its own doc comment) — checked before the
+                        // 1:1 `known_peers` lookup below since group
+                        // frames don't need (or use) a registered 1:1
+                        // `PeerTicket` at all. Mirrors `apps/desktop`'s
+                        // `incoming_loop` gate exactly (see this
+                        // module's top doc comment on why that app, not
+                        // `apps/cli`, is what this crate's group support
+                        // was built against).
+                        if matches!(
+                            envelope.kind,
+                            EnvelopeKind::GroupEvent
+                                | EnvelopeKind::GroupMlsCommit
+                                | EnvelopeKind::GroupMlsWelcome
+                                | EnvelopeKind::GroupMlsApplication
+                        ) {
+                            match envelope.kind {
+                                EnvelopeKind::GroupMlsWelcome => {
+                                    // Buffered, not auto-joined — see
+                                    // `GroupService::handle_incoming_mls`'s
+                                    // own doc comment on why a welcome
+                                    // never joins itself. `group_join`
+                                    // is what a person explicitly
+                                    // choosing to accept calls, taking
+                                    // this back out.
+                                    app.pending_welcomes
+                                        .lock()
+                                        .expect("pending_welcomes lock poisoned")
+                                        .insert(envelope.conversation_id, (envelope.sender, envelope.payload));
+                                    let line = format!("group_invite\t{}\t{:?}", envelope.conversation_id, envelope.sender);
+                                    app.events.lock().expect("events lock poisoned").push_back(line);
+                                }
+                                _ => match app.group_service.handle_incoming_mls(envelope.conversation_id, &envelope) {
+                                    Ok(Some(MessageContent::Text(text))) => {
+                                        let line = format!(
+                                            "group_text\t{}\t{:?}\t{}",
+                                            envelope.conversation_id,
+                                            envelope.sender,
+                                            text.as_str()
+                                        );
+                                        app.events.lock().expect("events lock poisoned").push_back(line);
+                                    }
+                                    Ok(Some(MessageContent::Attachment(_))) => {
+                                        // A real, named gap, not a
+                                        // silent drop — see this crate's
+                                        // top doc comment's "Not
+                                        // attempted: ... group
+                                        // attachments" bullet for why
+                                        // this can't be surfaced the
+                                        // same way 1:1 attachments are
+                                        // below: `envelope.sender` is a
+                                        // bare `DeviceId` with no
+                                        // directory lookup back to a
+                                        // fetchable `PeerTicket`
+                                        // anywhere in this codebase yet.
+                                        tracing::warn!(
+                                            conversation = ?envelope.conversation_id,
+                                            "a group attachment arrived — dropping, no DeviceId-to-PeerTicket lookup exists yet to fetch it with"
+                                        );
+                                    }
+                                    Ok(_) => {} // commit merged, call-signal, or nothing to show
+                                    Err(e) => tracing::warn!(error = %e, conversation = ?envelope.conversation_id, "failed to handle incoming group frame"),
+                                },
+                            }
+                            continue;
+                        }
+
                         let peer_ticket = {
                             let known = app.known_peers.lock().expect("known_peers lock poisoned");
                             known.get(&frame.from).cloned()
@@ -345,7 +585,23 @@ fn bootstrap_inner(base_dir: &str) -> Result<String, String> {
                                 let line = format!("text\t{:?}\t{}", frame.from, text.as_str());
                                 app.events.lock().expect("events lock poisoned").push_back(line);
                             }
-                            Ok(_) => {} // attachment/call-signal/ack — not surfaced by this crate yet, see top doc comment
+                            Ok(Some(IncomingEvent::Content(MessageContent::Attachment(reference)))) => {
+                                // Carries back exactly what
+                                // `fetch_attachment_inner` needs to
+                                // actually retrieve the blob — see
+                                // `AttachmentReference`'s own field doc
+                                // comments for what each of these is.
+                                let line = format!(
+                                    "attachment\t{:?}\t{}\t{}\t{}\t{}",
+                                    frame.from,
+                                    base64_encode(&reference.blob_hash),
+                                    reference.encrypted_size.bytes(),
+                                    media_type_to_str(reference.media_type),
+                                    base64_encode(&reference.attachment_key),
+                                );
+                                app.events.lock().expect("events lock poisoned").push_back(line);
+                            }
+                            Ok(_) => {} // call-signal/ack — not surfaced by this crate yet, see top doc comment
                             Err(e) => tracing::debug!(error = %e, from = ?frame.from, "failed to handle an incoming V1 envelope"),
                         }
                     }
@@ -533,6 +789,172 @@ fn ticket_endpoint_debug_inner(ticket: &str) -> Result<String, String> {
     Ok(format!("{:?}", peer.endpoint_addr.id))
 }
 
+/// This device's own `DeviceId`/`AccountId`, as plain UUID text — what
+/// [`group_add_member`]'s caller (the group admin, a different device)
+/// needs alongside [`group_key_package`] to actually add this device to
+/// a group, mirroring `apps/desktop`'s own "device id / account id /
+/// ticket / key package" bundle (`publish_key_package`'s CLI
+/// counterpart prints exactly these four things).
+fn device_id_inner() -> Result<String, String> {
+    Ok(app_handle().ok_or("bootstrap must run before device_id")?.device_id.as_uuid().to_string())
+}
+
+fn account_id_inner() -> Result<String, String> {
+    Ok(app_handle().ok_or("bootstrap must run before account_id")?.local_account.as_uuid().to_string())
+}
+
+/// This device's own base64-encoded MLS key package, published once at
+/// [`bootstrap`] — see [`AppMessaging::key_package_b64`]'s own doc
+/// comment. Empty string (not an error) if publishing failed at
+/// bootstrap time, matching that field's own "logged warning, not a
+/// hard failure" choice.
+fn group_key_package_inner() -> Result<String, String> {
+    Ok(app_handle().ok_or("bootstrap must run before group_key_package")?.key_package_b64.clone())
+}
+
+/// Creates a new MLS group with this device's account as founder/admin
+/// — `GroupService::create_group_mls`. Returns the new conversation id
+/// (its `Display` impl, same as `apps/cli`'s `group_create` prints) to
+/// share with whoever will be added via [`group_add_member`].
+fn group_create_inner() -> Result<String, String> {
+    let app = app_handle().ok_or("bootstrap must run before group_create")?;
+    let conversation = ConversationId::new();
+    app.group_service.create_group_mls(conversation, app.local_account).map_err(|e| e.to_string())?;
+    Ok(conversation.to_string())
+}
+
+/// Admin-only (enforced inside `add_member_mls` itself, not re-checked
+/// here). Registers the new member's device in [`AppMessaging::device_directory`]
+/// (needed for fanout — see that field's own doc comment) and calls
+/// `GroupService::add_member_mls`, which sends the MLS commit to every
+/// existing member and the welcome to the new member over the wire.
+/// Returns the base64-encoded post-admission `GroupState` — the piece
+/// that does *not* travel over the wire (see `join_group_mls`'s own doc
+/// comment for why) — for the caller to relay to the new member
+/// out-of-band alongside the conversation id, exactly the shape
+/// `apps/cli`'s `group_add_member` prints for pasting into `join-group`.
+fn group_add_member_inner(
+    conversation: &str,
+    peer_ticket: &str,
+    peer_device_id: &str,
+    peer_account_id: &str,
+    key_package_b64: &str,
+) -> Result<String, String> {
+    let app = app_handle().ok_or("bootstrap must run before group_add_member")?;
+    let conversation = ConversationId::from_uuid(parse_uuid(conversation)?);
+    let peer_device = DeviceId::from_uuid(parse_uuid(peer_device_id)?);
+    let peer_account = AccountId::from_uuid(parse_uuid(peer_account_id)?);
+    let ticket = PeerTicket::decode(peer_ticket).map_err(|e| e.to_string())?;
+    let key_package_bytes = base64_decode(key_package_b64)?;
+
+    app.device_directory.register(peer_account, MemberDevice { device_id: peer_device, ticket });
+
+    runtime()
+        .block_on(app.group_service.add_member_mls(conversation, peer_account, peer_device, &key_package_bytes))
+        .map_err(|e| e.to_string())?;
+
+    let state = app
+        .group_service
+        .group_state(conversation)
+        .map_err(|e| e.to_string())?
+        .ok_or("just-updated group has no local state — this is a bug")?;
+    let state_bytes = postcard::to_allocvec(&state).map_err(|e| e.to_string())?;
+    Ok(base64_encode(&state_bytes))
+}
+
+fn group_send_text_inner(conversation: &str, text: &str) -> Result<String, String> {
+    let app = app_handle().ok_or("bootstrap must run before group_send_text")?;
+    let conversation = ConversationId::from_uuid(parse_uuid(conversation)?);
+    let text = MessageText::parse(text.to_string()).map_err(|e| e.to_string())?;
+    let message_id = runtime()
+        .block_on(app.group_service.send_text_mls(conversation, text))
+        .map_err(|e| e.to_string())?;
+    Ok(message_id.to_string())
+}
+
+/// Consumes a buffered [`AppMessaging::pending_welcomes`] entry (the
+/// `GroupMlsWelcome` bytes the pump already received over the wire —
+/// see that field's own doc comment) together with a base64
+/// `GroupState` obtained out-of-band from whoever called
+/// [`group_add_member`] (their return value), and actually joins —
+/// `GroupService::join_group_mls`. Errors with a clear message, not a
+/// panic, if there's no pending invite for this conversation (already
+/// joined, already declined, or the welcome hasn't arrived yet).
+fn group_join_inner(conversation: &str, group_state_b64: &str) -> Result<(), String> {
+    let app = app_handle().ok_or("bootstrap must run before group_join")?;
+    let conversation = ConversationId::from_uuid(parse_uuid(conversation)?);
+    let (_from_device, welcome_bytes) = app
+        .pending_welcomes
+        .lock()
+        .expect("pending_welcomes lock poisoned")
+        .remove(&conversation)
+        .ok_or("no pending invite for this conversation — wait for a group_invite event, or ask the admin to add you again")?;
+    let state_bytes = base64_decode(group_state_b64)?;
+    let state: siar_domain::GroupState = postcard::from_bytes(&state_bytes).map_err(|e| e.to_string())?;
+    app.group_service.join_group_mls(conversation, &welcome_bytes, state).map_err(|e| e.to_string())
+}
+
+/// Discards a buffered welcome without joining — the "no" side of the
+/// invite-banner accept/decline pair `apps/desktop`'s
+/// `AppCommand::DeclineGroupInvite` already models. Returns whether
+/// there was actually a pending invite to discard (`false` isn't an
+/// error — declining an already-decided invite is a no-op, not a
+/// failure).
+fn group_decline_invite_inner(conversation: &str) -> Result<bool, String> {
+    let app = app_handle().ok_or("bootstrap must run before group_decline_invite")?;
+    let conversation = ConversationId::from_uuid(parse_uuid(conversation)?);
+    let removed = app
+        .pending_welcomes
+        .lock()
+        .expect("pending_welcomes lock poisoned")
+        .remove(&conversation)
+        .is_some();
+    Ok(removed)
+}
+
+/// `MessageService::send_attachment` — see this crate's top doc comment
+/// for why this is 1:1-only. `conversation` is generated fresh here
+/// (`ConversationId::new()`), same as [`send_text_inner`] — this crate
+/// has no multi-message-thread concept per peer yet (a real, existing
+/// limitation this function inherits, not one it introduces).
+fn send_attachment_inner(peer_ticket: &str, file_bytes: Vec<u8>, media_type_str: &str) -> Result<String, String> {
+    let app = app_handle().ok_or("bootstrap must run before send_attachment")?;
+    let peer = PeerTicket::decode(peer_ticket).map_err(|e| e.to_string())?;
+    let media_type = media_type_from_str(media_type_str);
+    let message_id = runtime()
+        .block_on(app.service.send_attachment(ConversationId::new(), &peer, file_bytes, media_type))
+        .map_err(|e| e.to_string())?;
+    Ok(message_id.to_string())
+}
+
+/// `MessageService::fetch_attachment` — takes the exact fields the
+/// `attachment\t...` poll-event line carried (see this module's top
+/// doc comment for that format), reconstructs the `AttachmentReference`
+/// it was built from, and returns the decrypted plaintext bytes.
+fn fetch_attachment_inner(
+    peer_ticket: &str,
+    blob_hash_b64: &str,
+    encrypted_size_bytes: u64,
+    media_type_str: &str,
+    attachment_key_b64: &str,
+) -> Result<Vec<u8>, String> {
+    let app = app_handle().ok_or("bootstrap must run before fetch_attachment")?;
+    let peer = PeerTicket::decode(peer_ticket).map_err(|e| e.to_string())?;
+    let blob_hash_vec = base64_decode(blob_hash_b64)?;
+    let blob_hash: [u8; 32] = blob_hash_vec.try_into().map_err(|_| "blob hash must be 32 bytes".to_string())?;
+    let attachment_key_vec = base64_decode(attachment_key_b64)?;
+    let attachment_key: [u8; 32] =
+        attachment_key_vec.try_into().map_err(|_| "attachment key must be 32 bytes".to_string())?;
+    let reference = siar_domain::AttachmentReference {
+        blob_hash,
+        encrypted_size: siar_domain::BlobSize::parse(encrypted_size_bytes).map_err(|e| e.to_string())?,
+        media_type: media_type_from_str(media_type_str),
+        attachment_key,
+        thumbnail: None,
+    };
+    runtime().block_on(app.service.fetch_attachment(&peer, &reference)).map_err(|e| e.to_string())
+}
+
 fn poll_next_event_inner() -> Option<String> {
     app_handle()?.events.lock().expect("events lock poisoned").pop_front()
 }
@@ -577,7 +999,7 @@ fn shutdown_inner() {
 #[cfg(target_os = "android")]
 mod jni_bridge {
     use super::*;
-    use jni::objects::{JClass, JString};
+    use jni::objects::{JClass, JObject, JString};
     use jni::sys::jstring;
     use jni::JNIEnv;
 
@@ -616,36 +1038,93 @@ mod jni_bridge {
     ///
     /// `JNI_OnLoad` is the standard, un-namespaced JNI entry point the
     /// JVM calls automatically the moment `System.loadLibrary
-    /// ("siar_android_messaging")` finishes loading this `.so` —
-    /// before any `Java_com_siar_messaging_...` function is ever
-    /// called, which is exactly the ordering this needs. No explicit
-    /// Kotlin-side call required.
+    /// ("siar_android_messaging")` finishes loading this `.so` — before
+    /// any `Java_com_siar_messaging_...` function is ever called. This
+    /// crate previously used it to also install iroh's Android DNS
+    /// context, passing this function's own `reserved: *mut c_void`
+    /// parameter through as if it were the Application `Context` —
+    /// flagged at the time as an unverified guess copied from a docs.rs
+    /// example. It wasn't just unverified, it was wrong: every real JNI
+    /// reference checked this pass (Android's own NDK docs, multiple
+    /// independent JNI_OnLoad examples, and a library maintainer's own
+    /// answer to this exact "how do I get an Android Context to a
+    /// native lib" problem for a different crate) agrees the JNI
+    /// spec's `reserved` parameter is exactly that — reserved, unused,
+    /// always null in practice — never a `Context`. That guess is
+    /// removed; [`initAndroidContext`] below is the real fix. This
+    /// function now does only what `JNI_OnLoad` is actually for:
+    /// confirming this library supports the JNI version the JVM is
+    /// asking for.
     ///
-    /// One genuine unresolved uncertainty, flagged rather than
-    /// papered over: the real docs.rs example this is copied from
-    /// passes `JNI_OnLoad`'s own `res: *mut c_void` parameter (the
-    /// JNI spec's "reserved" argument, conventionally null) straight
-    /// through as `context_jobject` — the same pattern shown on the
-    /// real docs page verbatim. Whether that's actually a valid
-    /// Application `Context` in practice, or whether this needs a
-    /// separate real Context passed in from Kotlin some other way,
-    /// isn't something this pass could verify by running it — flagged
-    /// so a real device/emulator run's DNS-resolution behavior is what
-    /// confirms or corrects this, not blind trust in one docs example.
+    /// (One consequence worth naming rather than hiding: since iroh
+    /// 1.0.1, a missing/invalid Android DNS context is no longer fatal
+    /// — iroh falls back to Google's public DNS servers instead of
+    /// panicking, confirmed via iroh's own 1.0.1 release notes. So the
+    /// previous wrong guess likely never crashed this app; it just
+    /// silently never worked, always falling back. [`initAndroidContext`]
+    /// is what makes it actually work.)
     #[no_mangle]
-    pub extern "C" fn JNI_OnLoad(vm: jni::JavaVM, reserved: *mut std::ffi::c_void) -> jni::sys::jint {
-        let java_vm = match vm.get_java_vm_pointer() as *mut std::ffi::c_void {
-            ptr if !ptr.is_null() => ptr,
-            // JNI spec's well-known `JNI_ERR` value (-1) — used as a
-            // literal rather than a `jni::sys::JNI_ERR` constant this
-            // pass couldn't independently confirm exists under that
-            // exact name in the `jni` 0.21 crate.
-            _ => return -1,
-        };
-        unsafe {
-            iroh::dns::install_android_jni_context(java_vm, reserved);
-        }
+    pub extern "C" fn JNI_OnLoad(_vm: jni::JavaVM, _reserved: *mut std::ffi::c_void) -> jni::sys::jint {
         jni::JNIVersion::V6.into()
+    }
+
+    /// The real fix for what `JNI_OnLoad`'s own doc comment above used
+    /// to guess at: an explicit entry point Kotlin calls once, early —
+    /// `MainActivity.onCreate`, before [`bootstrap`] — with the real
+    /// `Context` it already has (`applicationContext`), matching the
+    /// standard fix a `uniffi-rs` maintainer gave for this exact
+    /// "native lib needs an Android Context but has no reliable way to
+    /// get one" problem: "expose a function that initializes the
+    /// Android context for you and make your app/library/kotlin
+    /// wrapper call that as the first thing."
+    ///
+    /// The `Context` object a JNI call hands this function is only
+    /// valid as a *local* reference — guaranteed good for the duration
+    /// of this one call, not beyond it — but `install_android_jni_context`
+    /// stores the pointer for reuse by DNS lookups that happen long
+    /// after this function returns. So it's promoted to a JNI *global*
+    /// reference first (`new_global_ref`), the standard fix for "this
+    /// needs to outlive the call that handed it to me," same reasoning
+    /// `ndk-context`'s own `AndroidContext` type stores a global rather
+    /// than local reference internally. That global ref is then
+    /// deliberately leaked (`std::mem::forget`), not released: this
+    /// process has exactly one Application `Context` for its entire
+    /// lifetime, so there is nothing to ever release it *to* — same
+    /// one-global-ref-per-process-lifetime shape `ndk-context` itself
+    /// uses. Same deliberate leak for the `JavaVM` handle, for the same
+    /// reason. The exact `new_global_ref`/`get_java_vm`/
+    /// `as_obj().as_raw()` shape below isn't a guess: it matches a
+    /// real, confirmed-working example (flutter_rust_bridge's own
+    /// `ndk-init` integration guide) that pins the identical `jni =
+    /// "0.21"` version this crate uses for this exact
+    /// Context-to-native-code problem, not this pass's own invention.
+    #[no_mangle]
+    pub extern "system" fn Java_com_siar_messaging_NativeMessagingBridge_initAndroidContext<'local>(
+        env: JNIEnv<'local>,
+        _class: JClass<'local>,
+        context: JObject<'local>,
+    ) {
+        let global_context = match env.new_global_ref(&context) {
+            Ok(g) => g,
+            Err(e) => {
+                tracing::error!(error = %e, "initAndroidContext: failed to create a global ref for the Context");
+                return;
+            }
+        };
+        let java_vm = match env.get_java_vm() {
+            Ok(vm) => vm,
+            Err(e) => {
+                tracing::error!(error = %e, "initAndroidContext: failed to obtain the JavaVM handle");
+                return;
+            }
+        };
+        let context_ptr = global_context.as_obj().as_raw() as *mut std::ffi::c_void;
+        let vm_ptr = java_vm.get_java_vm_pointer() as *mut std::ffi::c_void;
+        std::mem::forget(global_context); // deliberately leaked — see this function's own doc comment
+        std::mem::forget(java_vm); // deliberately leaked — see this function's own doc comment
+        unsafe {
+            iroh::dns::install_android_jni_context(vm_ptr, context_ptr);
+        }
     }
 
     #[no_mangle]
@@ -755,5 +1234,154 @@ mod jni_bridge {
         _class: JClass<'local>,
     ) {
         shutdown_inner();
+    }
+
+    #[no_mangle]
+    pub extern "system" fn Java_com_siar_messaging_NativeMessagingBridge_deviceId<'local>(
+        mut env: JNIEnv<'local>,
+        _class: JClass<'local>,
+    ) -> jstring {
+        let result = device_id_inner();
+        to_jstring(&mut env, result)
+    }
+
+    #[no_mangle]
+    pub extern "system" fn Java_com_siar_messaging_NativeMessagingBridge_accountId<'local>(
+        mut env: JNIEnv<'local>,
+        _class: JClass<'local>,
+    ) -> jstring {
+        let result = account_id_inner();
+        to_jstring(&mut env, result)
+    }
+
+    #[no_mangle]
+    pub extern "system" fn Java_com_siar_messaging_NativeMessagingBridge_groupKeyPackage<'local>(
+        mut env: JNIEnv<'local>,
+        _class: JClass<'local>,
+    ) -> jstring {
+        let result = group_key_package_inner();
+        to_jstring(&mut env, result)
+    }
+
+    #[no_mangle]
+    pub extern "system" fn Java_com_siar_messaging_NativeMessagingBridge_groupCreate<'local>(
+        mut env: JNIEnv<'local>,
+        _class: JClass<'local>,
+    ) -> jstring {
+        let result = group_create_inner();
+        to_jstring(&mut env, result)
+    }
+
+    #[no_mangle]
+    pub extern "system" fn Java_com_siar_messaging_NativeMessagingBridge_groupAddMember<'local>(
+        mut env: JNIEnv<'local>,
+        _class: JClass<'local>,
+        conversation: JString<'local>,
+        peer_ticket: JString<'local>,
+        peer_device_id: JString<'local>,
+        peer_account_id: JString<'local>,
+        key_package_b64: JString<'local>,
+    ) -> jstring {
+        let conversation = jstring_to_string(&mut env, &conversation);
+        let peer_ticket = jstring_to_string(&mut env, &peer_ticket);
+        let peer_device_id = jstring_to_string(&mut env, &peer_device_id);
+        let peer_account_id = jstring_to_string(&mut env, &peer_account_id);
+        let key_package_b64 = jstring_to_string(&mut env, &key_package_b64);
+        let result = group_add_member_inner(&conversation, &peer_ticket, &peer_device_id, &peer_account_id, &key_package_b64);
+        to_jstring(&mut env, result)
+    }
+
+    #[no_mangle]
+    pub extern "system" fn Java_com_siar_messaging_NativeMessagingBridge_groupSendText<'local>(
+        mut env: JNIEnv<'local>,
+        _class: JClass<'local>,
+        conversation: JString<'local>,
+        text: JString<'local>,
+    ) -> jstring {
+        let conversation = jstring_to_string(&mut env, &conversation);
+        let text = jstring_to_string(&mut env, &text);
+        let result = group_send_text_inner(&conversation, &text);
+        to_jstring(&mut env, result)
+    }
+
+    #[no_mangle]
+    pub extern "system" fn Java_com_siar_messaging_NativeMessagingBridge_groupJoin<'local>(
+        mut env: JNIEnv<'local>,
+        _class: JClass<'local>,
+        conversation: JString<'local>,
+        group_state_b64: JString<'local>,
+    ) -> jstring {
+        let conversation = jstring_to_string(&mut env, &conversation);
+        let group_state_b64 = jstring_to_string(&mut env, &group_state_b64);
+        let result = group_join_inner(&conversation, &group_state_b64).map(|()| "ok".to_string());
+        to_jstring(&mut env, result)
+    }
+
+    #[no_mangle]
+    pub extern "system" fn Java_com_siar_messaging_NativeMessagingBridge_groupDeclineInvite<'local>(
+        mut env: JNIEnv<'local>,
+        _class: JClass<'local>,
+        conversation: JString<'local>,
+    ) -> jstring {
+        let conversation = jstring_to_string(&mut env, &conversation);
+        // No natural `jboolean` return without a second marshalling
+        // convention alongside `to_jstring`'s `"error:"`-prefixed
+        // string one — kept to that one existing convention instead:
+        // `"true"`/`"false"` as plain text, same as every other
+        // success value this crate returns across JNI.
+        let result = group_decline_invite_inner(&conversation).map(|removed| removed.to_string());
+        to_jstring(&mut env, result)
+    }
+
+    /// `file_bytes_b64`, not a `jbyteArray` parameter — see this
+    /// module's own note on why attachment bytes move as base64 text
+    /// through the same `to_jstring`/`"error:"` convention as
+    /// everything else in this crate rather than introducing a second,
+    /// separately-unverified raw-byte-array JNI marshalling path.
+    #[no_mangle]
+    pub extern "system" fn Java_com_siar_messaging_NativeMessagingBridge_sendAttachment<'local>(
+        mut env: JNIEnv<'local>,
+        _class: JClass<'local>,
+        peer_ticket: JString<'local>,
+        file_bytes_b64: JString<'local>,
+        media_type: JString<'local>,
+    ) -> jstring {
+        let peer_ticket = jstring_to_string(&mut env, &peer_ticket);
+        let file_bytes_b64 = jstring_to_string(&mut env, &file_bytes_b64);
+        let media_type = jstring_to_string(&mut env, &media_type);
+        let result = base64_decode(&file_bytes_b64)
+            .and_then(|file_bytes| send_attachment_inner(&peer_ticket, file_bytes, &media_type));
+        to_jstring(&mut env, result)
+    }
+
+    /// Returns the decrypted plaintext as base64 text on success — same
+    /// reasoning as [`sendAttachment`] above. `"error:"`-prefixed on
+    /// failure, same as every other call in this crate; Kotlin decodes
+    /// with `android.util.Base64` on the success path.
+    #[no_mangle]
+    pub extern "system" fn Java_com_siar_messaging_NativeMessagingBridge_fetchAttachment<'local>(
+        mut env: JNIEnv<'local>,
+        _class: JClass<'local>,
+        peer_ticket: JString<'local>,
+        blob_hash_b64: JString<'local>,
+        encrypted_size_bytes: jni::sys::jlong,
+        media_type: JString<'local>,
+        attachment_key_b64: JString<'local>,
+    ) -> jstring {
+        let peer_ticket = jstring_to_string(&mut env, &peer_ticket);
+        let blob_hash_b64 = jstring_to_string(&mut env, &blob_hash_b64);
+        let media_type = jstring_to_string(&mut env, &media_type);
+        let attachment_key_b64 = jstring_to_string(&mut env, &attachment_key_b64);
+        // `jlong` (Kotlin `Long`) rather than an unsigned type — JNI/
+        // Kotlin have no unsigned integer primitive that crosses this
+        // boundary cleanly (`jni` 0.21 exposes signed types only, same
+        // as every other numeric parameter anywhere in this crate,
+        // which has none until this one) — cast to `u64` here since a
+        // real attachment size is never negative and `MAX_ATTACHMENT_BYTES`
+        // (200 MiB) is far below `i64::MAX` regardless.
+        let encrypted_size_bytes = encrypted_size_bytes as u64;
+        let result = fetch_attachment_inner(&peer_ticket, &blob_hash_b64, encrypted_size_bytes, &media_type, &attachment_key_b64)
+            .map(|bytes| base64_encode(&bytes));
+        to_jstring(&mut env, result)
     }
 }
