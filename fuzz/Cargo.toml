@@ -1,0 +1,26 @@
+[package]
+name = "siar-fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+siar-protocol = { path = "../crates/siar-protocol" }
+
+[[bin]]
+name = "decode_frame"
+path = "fuzz_targets/decode_frame.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "decode_blob_frame"
+path = "fuzz_targets/decode_blob_frame.rs"
+test = false
+doc = false
+bench = false
