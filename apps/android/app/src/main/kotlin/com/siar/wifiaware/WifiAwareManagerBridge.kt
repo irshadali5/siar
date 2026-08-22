@@ -14,6 +14,7 @@ import android.net.wifi.aware.SubscribeDiscoverySession
 import android.net.wifi.aware.WifiAwareManager
 import android.net.wifi.aware.WifiAwareNetworkInfo
 import android.net.wifi.aware.WifiAwareSession
+import android.os.Build
 import android.util.Log
 
 /**
@@ -103,6 +104,14 @@ class WifiAwareManagerBridge(private val context: Context) {
                 Log.i(TAG, "Wi-Fi Aware subscribe started for $serviceName")
             }
 
+            // `@Suppress` on this whole callback method rather than on
+            // the deprecated call site inside it — Kotlin only allows
+            // `@Suppress` on declarations, not on an arbitrary
+            // expression used as an `if`/`else` branch's value, which
+            // is what `createNetworkSpecifierOpen` below would
+            // otherwise need to be. The deprecation itself is
+            // explained inline where it occurs.
+            @Suppress("DEPRECATION")
             override fun onServiceDiscovered(
                 peerHandle: android.net.wifi.aware.PeerHandle,
                 serviceSpecificInfo: ByteArray?,
@@ -112,7 +121,18 @@ class WifiAwareManagerBridge(private val context: Context) {
                     Log.w(TAG, "service discovered before subscribe session was ready, dropping")
                     return
                 }
-                val networkSpecifier = discoveredSession.createNetworkSpecifierOpen(peerHandle)
+                // `createNetworkSpecifierOpen` is deprecated in favor of
+                // `WifiAwareNetworkSpecifier.Builder`, but that builder
+                // requires API 29+ — this app's `minSdk` is 26 (for
+                // Wi-Fi Aware itself, which the manifest already
+                // declares as available from 26), so the deprecated
+                // path is still the only option on API 26-28, not
+                // something to silently drop support for.
+                val networkSpecifier = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    android.net.wifi.aware.WifiAwareNetworkSpecifier.Builder(discoveredSession, peerHandle).build()
+                } else {
+                    discoveredSession.createNetworkSpecifierOpen(peerHandle)
+                }
                 val request = NetworkRequest.Builder()
                     .addTransportType(NetworkCapabilities.TRANSPORT_WIFI_AWARE)
                     .setNetworkSpecifier(networkSpecifier)

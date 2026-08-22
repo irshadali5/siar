@@ -109,7 +109,7 @@ fn bytes_to_jbyte_array(env: &mut JNIEnv, data: &[u8]) -> jbyteArray {
 /// this layer yet (next.md §25 flags that as real remaining work).
 #[no_mangle]
 pub extern "system" fn Java_com_siar_ble_NativeBleBridge_onFragmentReceived<'local>(
-    mut env: JNIEnv<'local>,
+    env: JNIEnv<'local>,
     _class: JClass<'local>,
     handle: jlong,
     data: JByteArray<'local>,
@@ -149,7 +149,7 @@ pub extern "system" fn Java_com_siar_ble_NativeBleBridge_nextReceivedEnvelope<'l
 /// interpreted by this crate.
 #[no_mangle]
 pub extern "system" fn Java_com_siar_ble_NativeBleBridge_queueEnvelopeToSend<'local>(
-    mut env: JNIEnv<'local>,
+    env: JNIEnv<'local>,
     _class: JClass<'local>,
     handle: jlong,
     data: JByteArray<'local>,

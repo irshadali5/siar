@@ -63,11 +63,13 @@ pub fn App() -> Element {
 
                     spawn(retry_scheduler_loop(boot.service.clone()));
                     spawn(command_loop(
-                        boot.service.clone(),
-                        boot.group_service.clone(),
-                        boot.device_directory.clone(),
-                        boot.contact_repo.clone(),
-                        boot.local_account,
+                        CommandLoopContext {
+                            service: boot.service.clone(),
+                            group_service: boot.group_service.clone(),
+                            device_directory: boot.device_directory.clone(),
+                            contact_repo: boot.contact_repo.clone(),
+                            local_account: boot.local_account,
+                        },
                         state,
                         active_peer.0,
                         cmd_rx,
@@ -107,6 +109,15 @@ pub fn App() -> Element {
 #[derive(Debug, Clone, Copy)]
 pub struct LocalIdentity {
     pub account: siar_domain::AccountId,
+    /// Carried alongside `account` for symmetry with `Bootstrapped`
+    /// (which has both) and for a future "show my device ID" / add-
+    /// this-device-to-an-existing-account UI — no component currently
+    /// reads it back out (only `account` is, via `CreateGroup`'s
+    /// `founder` field). `#[allow(dead_code)]` rather than dropping
+    /// real, intentionally-placed identity data on the strength of "no
+    /// UI needs it yet" — same reasoning as `Bootstrapped::
+    /// key_package_directory`'s own field-level comment.
+    #[allow(dead_code)]
     pub device_id: siar_domain::DeviceId,
 }
 
@@ -121,19 +132,32 @@ async fn retry_scheduler_loop(service: Arc<MessageService>) {
     }
 }
 
-/// Drains `AppCommand`s dispatched from components (via `AppState::dispatch`)
-/// and drives `MessageService` — the only place in this crate outside
-/// `main.rs` that calls into `siar-messaging` directly.
-async fn command_loop(
+/// Groups `command_loop`'s static, per-session dependencies — the
+/// pieces that get passed through once at bootstrap and never change
+/// for the life of the loop, as opposed to `state`/`active_peer`/
+/// `commands`, which are the loop's actual per-iteration inputs. Real
+/// fix for clippy's `too_many_arguments` (the function this replaces
+/// one parameter of had grown to 8), not a suppression: bundling
+/// related, always-passed-together dependencies into one type is the
+/// same refactor clippy's own lint documentation recommends.
+struct CommandLoopContext {
     service: Arc<MessageService>,
     group_service: Arc<GroupService>,
     device_directory: Arc<InMemoryDeviceDirectory>,
     contact_repo: Arc<dyn siar_storage::ContactRepository + Send + Sync>,
     local_account: siar_domain::AccountId,
+}
+
+/// Drains `AppCommand`s dispatched from components (via `AppState::dispatch`)
+/// and drives `MessageService` — the only place in this crate outside
+/// `main.rs` that calls into `siar-messaging` directly.
+async fn command_loop(
+    ctx: CommandLoopContext,
     mut state: AppState,
     active_peer: Signal<Option<PeerTicket>>,
     mut commands: mpsc::Receiver<AppCommand>,
 ) {
+    let CommandLoopContext { service, group_service, device_directory, contact_repo, local_account } = ctx;
     while let Some(command) = commands.recv().await {
         match command {
             AppCommand::SendMessage { conversation, text } => {

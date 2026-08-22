@@ -285,7 +285,7 @@ pub extern "system" fn Java_com_siar_media_NativeMediaBridge_nextEncodedFrameTim
 
 #[no_mangle]
 pub extern "system" fn Java_com_siar_media_NativeMediaBridge_onEncodedFrame<'local>(
-    mut env: JNIEnv<'local>,
+    env: JNIEnv<'local>,
     _class: JClass<'local>,
     handle: jlong,
     codec: jint,
@@ -310,7 +310,7 @@ pub extern "system" fn Java_com_siar_media_NativeMediaBridge_onEncodedFrame<'loc
 
 #[no_mangle]
 pub extern "system" fn Java_com_siar_media_NativeMediaBridge_onDecodedFrame<'local>(
-    mut env: JNIEnv<'local>,
+    env: JNIEnv<'local>,
     _class: JClass<'local>,
     handle: jlong,
     y: JByteArray<'local>,
@@ -366,7 +366,7 @@ pub extern "system" fn Java_com_siar_media_NativeMediaBridge_onCodecError<'local
 
 #[no_mangle]
 pub extern "system" fn Java_com_siar_media_NativeMediaBridge_reportCapabilities<'local>(
-    mut env: JNIEnv<'local>,
+    env: JNIEnv<'local>,
     _class: JClass<'local>,
     handle: jlong,
     payload: JByteArray<'local>,

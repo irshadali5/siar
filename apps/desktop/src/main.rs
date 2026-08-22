@@ -119,6 +119,18 @@ pub(crate) struct Bootstrapped {
     /// `apps/cli` uses (see `key_package_directory.rs`'s own doc
     /// comment on scope: this is a single-process placeholder, not
     /// next.md §41's real distribution system).
+    ///
+    /// Kept alive here (not just as a local in `bootstrap()`) for a
+    /// future "republish key package" UI action — `apps/cli` exposes
+    /// that as its own on-demand `publish-key-package` subcommand;
+    /// this desktop build only ever calls `publish_key_package` once,
+    /// eagerly, at startup (a few lines below), so nothing currently
+    /// reads this field back out of `Bootstrapped` after construction.
+    /// `#[allow(dead_code)]` rather than deleting real, intentionally-
+    /// placed infrastructure on the strength of "nothing calls it
+    /// yet" — the same reasoning this workspace applies to every
+    /// other "computation built, no real caller yet" gap.
+    #[allow(dead_code)]
     pub(crate) key_package_directory: Arc<InMemoryKeyPackageDirectory>,
     /// This device's own MLS key package, published once at startup
     /// (mirrors `apps/cli`'s `listen --publish-key-package` flow, just

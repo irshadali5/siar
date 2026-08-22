@@ -87,7 +87,7 @@ fn bytes_to_jbyte_array(env: &mut JNIEnv, data: &[u8]) -> jbyteArray {
 /// stance `framing.rs`'s own doc comment describes.
 #[no_mangle]
 pub extern "system" fn Java_com_siar_bluetoothclassic_NativeBluetoothClassicBridge_onBytesReceived<'local>(
-    mut env: JNIEnv<'local>,
+    env: JNIEnv<'local>,
     _class: JClass<'local>,
     handle: jlong,
     data: JByteArray<'local>,
@@ -131,7 +131,7 @@ pub extern "system" fn Java_com_siar_bluetoothclassic_NativeBluetoothClassicBrid
 /// bytes for `nextChunkToSend` to pull.
 #[no_mangle]
 pub extern "system" fn Java_com_siar_bluetoothclassic_NativeBluetoothClassicBridge_queueEnvelopeToSend<'local>(
-    mut env: JNIEnv<'local>,
+    env: JNIEnv<'local>,
     _class: JClass<'local>,
     handle: jlong,
     data: JByteArray<'local>,

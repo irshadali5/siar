@@ -16,6 +16,7 @@ import android.bluetooth.le.AdvertiseSettings
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.content.Context
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -222,11 +223,28 @@ class BleGattManager(private val context: Context) {
         pumpHandler.postDelayed({ pumpOutgoingFragments() }, PUMP_INTERVAL_MILLIS)
     }
 
+    /** `@Suppress("DEPRECATION")` covers the `else` branch below — the
+     * old `characteristic.value = ...`/`writeCharacteristic(characteristic)`
+     * pair is genuinely still the only option under API 33 (see the
+     * version check inside), not something to silently upgrade away
+     * and break minSdk 26 support. */
+    @Suppress("DEPRECATION")
     private fun writeFragment(gatt: BluetoothGatt, fragment: ByteArray) {
         val characteristic =
             gatt.getService(SERVICE_UUID)?.getCharacteristic(CHARACTERISTIC_UUID) ?: return
-        characteristic.value = fragment
-        gatt.writeCharacteristic(characteristic)
+        // `BluetoothGatt.writeCharacteristic(characteristic, value,
+        // writeType)` (API 33+) replaces the old `characteristic.value =
+        // ...; gatt.writeCharacteristic(characteristic)` pattern, which
+        // is deprecated but still the only option below API 33 — this
+        // app's `minSdk` is 26 (`app/build.gradle.kts`, for Wi-Fi
+        // Aware), so both paths are real, not just the new one with the
+        // old one kept for show.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            gatt.writeCharacteristic(characteristic, fragment, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+        } else {
+            characteristic.value = fragment
+            gatt.writeCharacteristic(characteristic)
+        }
     }
 
     /** Set by the caller (e.g. a service wiring this into the rest of

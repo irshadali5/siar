@@ -31,6 +31,7 @@ iroh.workspace = true
 # comment for why `mark_link_up`/`mark_link_down` are plain `pub`
 # functions, not only reachable via JNI.
 siar-android-connectivity = { path = "../rust-jni-glue" }
+uuid.workspace = true
 
 [target.'cfg(target_os = "android")'.dependencies]
 # jni 0.21, matching every other jni_bridge.rs in this workspace

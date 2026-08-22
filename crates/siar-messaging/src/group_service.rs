@@ -177,78 +177,6 @@ impl DeviceDirectory for InMemoryDeviceDirectory {
     }
 }
 
-#[cfg(test)]
-mod device_directory_tests {
-    use super::*;
-    use iroh::{EndpointAddr, EndpointId};
-
-    // Same construction `ticket.rs`'s own tests use — a syntactically
-    // valid `EndpointId`, distinguished per test case by `seed`; we only
-    // care that different `MemberDevice`s compare as different, not
-    // that any of these are routable.
-    fn member(seed: u8) -> MemberDevice {
-        let identity = siar_crypto::DeviceIdentity::generate();
-        let id = EndpointId::from_bytes(&[seed; 32]).unwrap();
-        MemberDevice {
-            device_id: DeviceId::new(),
-            ticket: PeerTicket {
-                endpoint_addr: EndpointAddr::new(id),
-                x25519_public: identity.x25519_public().to_bytes(),
-                ed25519_verifying: identity.verifying_key().to_bytes(),
-            },
-        }
-    }
-
-    #[test]
-    fn devices_for_unknown_account_is_empty() {
-        let dir = InMemoryDeviceDirectory::new();
-        assert!(dir.devices_for(AccountId::new()).is_empty());
-    }
-
-    #[test]
-    fn register_then_devices_for_finds_it() {
-        let dir = InMemoryDeviceDirectory::new();
-        let account = AccountId::new();
-        let device = member(1);
-        let device_id = device.device_id;
-
-        dir.register(account, device);
-
-        let found = dir.devices_for(account);
-        assert_eq!(found.len(), 1);
-        assert_eq!(found[0].device_id, device_id);
-    }
-
-    #[test]
-    fn re_registering_the_same_device_replaces_rather_than_duplicates() {
-        let dir = InMemoryDeviceDirectory::new();
-        let account = AccountId::new();
-        let mut device = member(1);
-        dir.register(account, device.clone());
-
-        // Same device_id, different endpoint (as if the peer's address
-        // changed) — a fresh EndpointId built from a different seed.
-        let new_id = EndpointId::from_bytes(&[9u8; 32]).unwrap();
-        device.ticket.endpoint_addr = EndpointAddr::new(new_id);
-        dir.register(account, device.clone());
-
-        let found = dir.devices_for(account);
-        assert_eq!(found.len(), 1);
-        assert_eq!(found[0].ticket.endpoint_addr.id, new_id);
-    }
-
-    #[test]
-    fn devices_for_different_accounts_dont_cross_over() {
-        let dir = InMemoryDeviceDirectory::new();
-        let alice = AccountId::new();
-        let bob = AccountId::new();
-        dir.register(alice, member(1));
-
-        assert!(dir.devices_for(bob).is_empty());
-        assert_eq!(dir.devices_for(alice).len(), 1);
-    }
-}
-
 pub struct GroupService {
     device_id: DeviceId,
     /// The `AccountId` `device_id` belongs to — previously absent (see
@@ -920,3 +848,83 @@ impl GroupService {
     }
 }
 
+
+// Moved here from right after `InMemoryDeviceDirectory`'s own `impl`
+// block — clippy's `items_after_test_module` flags a `#[cfg(test)]`
+// module followed by more non-test items in the same file as a real
+// readability smell (a reader scanning top-to-bottom hits "tests" and
+// reasonably assumes the file's real logic is done, then keeps finding
+// more of it below). `GroupService`'s own struct/impl/tests all follow
+// this module now, same "tests at the end" shape as every other file
+// in this workspace.
+#[cfg(test)]
+mod device_directory_tests {
+    use super::*;
+    use iroh::{EndpointAddr, EndpointId};
+
+    // Same construction `ticket.rs`'s own tests use — a syntactically
+    // valid `EndpointId`, distinguished per test case by `seed`; we only
+    // care that different `MemberDevice`s compare as different, not
+    // that any of these are routable.
+    fn member(seed: u8) -> MemberDevice {
+        let identity = siar_crypto::DeviceIdentity::generate();
+        let id = EndpointId::from_bytes(&[seed; 32]).unwrap();
+        MemberDevice {
+            device_id: DeviceId::new(),
+            ticket: PeerTicket {
+                endpoint_addr: EndpointAddr::new(id),
+                x25519_public: identity.x25519_public().to_bytes(),
+                ed25519_verifying: identity.verifying_key().to_bytes(),
+            },
+        }
+    }
+
+    #[test]
+    fn devices_for_unknown_account_is_empty() {
+        let dir = InMemoryDeviceDirectory::new();
+        assert!(dir.devices_for(AccountId::new()).is_empty());
+    }
+
+    #[test]
+    fn register_then_devices_for_finds_it() {
+        let dir = InMemoryDeviceDirectory::new();
+        let account = AccountId::new();
+        let device = member(1);
+        let device_id = device.device_id;
+
+        dir.register(account, device);
+
+        let found = dir.devices_for(account);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].device_id, device_id);
+    }
+
+    #[test]
+    fn re_registering_the_same_device_replaces_rather_than_duplicates() {
+        let dir = InMemoryDeviceDirectory::new();
+        let account = AccountId::new();
+        let mut device = member(1);
+        dir.register(account, device.clone());
+
+        // Same device_id, different endpoint (as if the peer's address
+        // changed) — a fresh EndpointId built from a different seed.
+        let new_id = EndpointId::from_bytes(&[9u8; 32]).unwrap();
+        device.ticket.endpoint_addr = EndpointAddr::new(new_id);
+        dir.register(account, device.clone());
+
+        let found = dir.devices_for(account);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].ticket.endpoint_addr.id, new_id);
+    }
+
+    #[test]
+    fn devices_for_different_accounts_dont_cross_over() {
+        let dir = InMemoryDeviceDirectory::new();
+        let alice = AccountId::new();
+        let bob = AccountId::new();
+        dir.register(alice, member(1));
+
+        assert!(dir.devices_for(bob).is_empty());
+        assert_eq!(dir.devices_for(alice).len(), 1);
+    }
+}

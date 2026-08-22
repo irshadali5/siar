@@ -7064,6 +7064,7 @@ dependencies = [
  "siar-transport",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]

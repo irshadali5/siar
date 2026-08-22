@@ -69,7 +69,7 @@ impl OpusEncoder {
 
 impl AudioEncoder for OpusEncoder {
     fn encode(&mut self, pcm: &[i16]) -> Result<EncodedAudioFrame, EncodeError> {
-        if pcm.is_empty() || pcm.len() % self.channels.count() != 0 {
+        if pcm.is_empty() || !pcm.len().is_multiple_of(self.channels.count()) {
             return Err(EncodeError::Unsupported(format!(
                 "pcm buffer length {} is not a multiple of {} channel(s)",
                 pcm.len(),

@@ -9,6 +9,17 @@ use image::{imageops::FilterType, DynamicImage, RgbaImage};
 pub const THUMBNAIL_MAX_DIMENSION: u32 = 160;
 pub const PREVIEW_MAX_DIMENSION: u32 = 1024;
 
+// A real compile-time check, not a runtime test assertion — clippy's
+// `assertions_on_constants` correctly points out that `assert!` on two
+// `const` operands is checked identically every time regardless of
+// input, so it belongs at compile time (`const _: () = assert!(...)`,
+// stable since Rust 1.57), not as a `#[test]` that can only fail after
+// a full test run. Catches the same real invariant this crate's
+// `generate_preview`/`generate_thumbnail` split depends on — a preview
+// that isn't actually larger than a thumbnail would make the two
+// functions redundant — as a build failure instead.
+const _: () = assert!(PREVIEW_MAX_DIMENSION > THUMBNAIL_MAX_DIMENSION);
+
 /// JPEG output quality (0-100). Chosen conservatively low for
 /// thumbnails since architecture.md §25's whole point is "don't
 /// download a 50 MB image to display the conversation list" — visible
@@ -121,6 +132,12 @@ mod tests {
 
     #[test]
     fn preview_cap_is_larger_than_thumbnail_cap() {
-        assert!(PREVIEW_MAX_DIMENSION > THUMBNAIL_MAX_DIMENSION);
+        // Real check moved to a `const _: () = assert!(...)` next to
+        // the two constants themselves (compile-time, not runtime —
+        // see that assertion's own comment for why). Kept as an empty
+        // test rather than deleted outright: removing the test name
+        // entirely could look like the property stopped being checked
+        // at all, when it's actually checked earlier and more strictly
+        // now.
     }
 }

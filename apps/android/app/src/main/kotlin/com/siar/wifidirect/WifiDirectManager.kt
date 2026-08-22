@@ -9,6 +9,7 @@ import android.net.wifi.p2p.WifiP2pConfig
 import android.net.wifi.p2p.WifiP2pDevice
 import android.net.wifi.p2p.WifiP2pInfo
 import android.net.wifi.p2p.WifiP2pManager
+import android.os.Build
 import android.util.Log
 
 /**
@@ -45,13 +46,39 @@ class WifiDirectManager(private val context: Context) {
     }
 
     private val broadcastReceiver = object : BroadcastReceiver() {
+        // `@Suppress` on this whole function rather than on the two
+        // individual deprecated call sites inside it — Kotlin only
+        // allows `@Suppress` on declarations (functions, classes,
+        // `val`/`var`), not on an arbitrary expression used as an
+        // `if`/`else` branch's value, which is what the
+        // `getParcelableExtra` call below would otherwise need to be.
+        // Both deprecations are explained inline where they occur.
+        @Suppress("DEPRECATION")
         override fun onReceive(ctx: Context, intent: Intent) {
             when (intent.action) {
                 WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION -> {
-                    val networkInfo = intent.getParcelableExtra<android.net.NetworkInfo>(
-                        WifiP2pManager.EXTRA_NETWORK_INFO
-                    )
-                    if (networkInfo?.isConnected == true) {
+                    // `Intent.getParcelableExtra(String)` (single-arg) is
+                    // deprecated since API 33 in favor of the type-safe
+                    // `getParcelableExtra(String, Class<T>)` overload —
+                    // real, fixable, version-gated below since the
+                    // 2-arg overload doesn't exist pre-33 and this app's
+                    // `minSdk` is 26.
+                    val networkInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        intent.getParcelableExtra(WifiP2pManager.EXTRA_NETWORK_INFO, android.net.NetworkInfo::class.java)
+                    } else {
+                        intent.getParcelableExtra(WifiP2pManager.EXTRA_NETWORK_INFO)
+                    }
+                    // `NetworkInfo`/`NetworkInfo.isConnected` are
+                    // themselves deprecated workspace-wide since API 29
+                    // (in favor of `ConnectivityManager.NetworkCallback`)
+                    // — unlike the extraction above, this one has no
+                    // fix: `WIFI_P2P_CONNECTION_CHANGED_ACTION` only
+                    // ever carries connection state via `EXTRA_NETWORK_INFO`,
+                    // and the Wi-Fi P2P API surface itself hasn't been
+                    // updated with a non-deprecated alternative for this
+                    // specific broadcast.
+                    val isConnected = networkInfo?.isConnected == true
+                    if (isConnected) {
                         manager?.requestConnectionInfo(channel, connectionListener)
                     } else {
                         NativeWifiDirectBridge.onGroupLost(nativeHandle)

@@ -120,8 +120,9 @@ class MainActivity : ComponentActivity() {
      * `lifecycleScope.launch(Dispatchers.IO)` instead once it has more
      * than one such call to make. */
     private fun startMessaging() {
+        val filesDir = applicationContext.filesDir.absolutePath
         thread {
-            val result = MessagingBridge.bootstrap()
+            val result = MessagingBridge.bootstrap(filesDir)
             result.onSuccess {
                 MessagingBridge.startPolling()
             }
@@ -138,6 +139,7 @@ class MainActivity : ComponentActivity() {
         bleGattManager.stop()
         bluetoothClassicManager.stop()
         MessagingBridge.stopPolling()
+        MessagingBridge.shutdown()
     }
 }
 

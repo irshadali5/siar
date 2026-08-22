@@ -521,7 +521,7 @@ async fn main() -> Result<()> {
                 // this pass.
                 device_routes.lock().expect("DeviceRoutes lock poisoned").record(
                     check_in.device,
-                    frame.from.clone(),
+                    frame.from,
                     siar_domain::now_millis(),
                 );
 
@@ -634,7 +634,7 @@ async fn main() -> Result<()> {
                     continue;
                 };
                 let relay_advertisement = RelayAdvertisement {
-                    via: frame.from.clone(),
+                    via: frame.from,
                     destination,
                     rtt_millis: advertisement.rtt_millis,
                     reliability: advertisement.reliability,

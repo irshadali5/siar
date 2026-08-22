@@ -24,8 +24,15 @@ object MessagingBridge {
      * incoming-event pump — call once, from a background thread (every
      * `Native*` call in this object blocks the calling thread on a
      * dedicated Tokio runtime; see the Rust side's own `runtime()` doc
-     * comment). Returns this device's own shareable ticket string. */
-    fun bootstrap(): Result<String> = callNative { NativeMessagingBridge.bootstrap() }
+     * comment). Returns this device's own shareable ticket string.
+     *
+     * `filesDir` should be the caller's `Context.filesDir.absolutePath`
+     * — app-private storage the OS already sandboxes per-app, no new
+     * permission needed. Identity/database now persist there across
+     * restarts (previously regenerated fresh every launch — the "no
+     * identity persistence" gap `siar-android-messaging`'s own doc
+     * comment used to name explicitly). */
+    fun bootstrap(filesDir: String): Result<String> = callNative { NativeMessagingBridge.bootstrap(filesDir) }
 
     /** Registers a peer's ticket so incoming messages from them can be
      * decrypted — must be called before any message from that peer
@@ -86,6 +93,14 @@ object MessagingBridge {
         pumping = false
     }
 
+    /** Reports this app's messaging layer as going away — see the Rust
+     * side's own `shutdown_inner` doc comment for exactly what this
+     * does and doesn't do (real connectivity-state update, not a full
+     * endpoint teardown). Call from `MainActivity.onDestroy`. */
+    fun shutdown() {
+        NativeMessagingBridge.shutdown()
+    }
+
     private fun pollEvents() {
         if (!pumping) return
         var line = NativeMessagingBridge.pollNextEvent()
@@ -143,11 +158,12 @@ private object NativeMessagingBridge {
         System.loadLibrary("siar_android_messaging")
     }
 
-    external fun bootstrap(): String
+    external fun bootstrap(filesDir: String): String
     external fun addPeer(ticket: String): String
     external fun sendText(peerTicket: String, text: String): String
     external fun checkMailbox(relayTicket: String): String
     external fun sendTextAnon(peerTicket: String, relayTicket: String, text: String): String
     external fun checkMailboxAnon(peerTicket: String, relayTicket: String): String
     external fun pollNextEvent(): String?
+    external fun shutdown()
 }

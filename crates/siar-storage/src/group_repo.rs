@@ -96,21 +96,29 @@ impl GroupRepository for StoolapGroupRepository {
         let conversation_id = conversation.as_uuid().to_string();
 
         let epoch = {
-            let rows = self
+            let mut rows = self
                 .db
                 .query(
                     "SELECT epoch FROM group_state WHERE conversation_id = $1",
                     (conversation_id.clone(),),
                 )
                 .map_err(StorageError::from_stoolap)?;
-            let mut found = None;
-            for row in rows {
-                let row = row.map_err(StorageError::from_stoolap)?;
-                let epoch: i64 = row.get(0).map_err(StorageError::from_stoolap)?;
-                found = Some(GroupEpoch::from_number(epoch as u64));
-                break;
+            // Was a `for row in rows { ...; break; }` — clippy's
+            // `never_loop` correctly flags that shape (an unconditional
+            // `break` at the end of every iteration means the loop
+            // itself never actually loops) even though this version
+            // already had the right *intent* (only the first row
+            // matters). Same clippy-suggested `rows.next()` fix as
+            // `message_repo.rs`/`blob_repo.rs`'s `get`, minus the
+            // now-unnecessary `found` accumulator.
+            match rows.next() {
+                Some(row) => {
+                    let row = row.map_err(StorageError::from_stoolap)?;
+                    let epoch: i64 = row.get(0).map_err(StorageError::from_stoolap)?;
+                    Some(GroupEpoch::from_number(epoch as u64))
+                }
+                None => None,
             }
-            found
         };
         let Some(epoch) = epoch else {
             return Ok(None);

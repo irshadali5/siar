@@ -133,7 +133,7 @@ impl MessageRepository for StoolapMessageRepository {
     }
 
     fn get(&self, message_id: MessageId) -> Result<Option<StoredMessage>, StorageError> {
-        let rows = self
+        let mut rows = self
             .db
             .query(
                 "SELECT message_id, conversation_id, sender_device, sequence,
@@ -144,7 +144,13 @@ impl MessageRepository for StoolapMessageRepository {
             )
             .map_err(StorageError::from_stoolap)?;
 
-        for row in rows {
+        // `for row in rows { ...; return ...; }` only ever runs its
+        // body once (a `LIMIT 1`-shaped query has at most one row) —
+        // clippy's `never_loop` is right to flag a `for` loop that can
+        // never actually iterate more than once as misleading; this is
+        // exactly the "first element only" case its own suggested fix
+        // covers.
+        if let Some(row) = rows.next() {
             let row = row.map_err(StorageError::from_stoolap)?;
             return Ok(Some(row_to_stored_message(&row)?));
         }

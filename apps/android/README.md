@@ -35,17 +35,20 @@ missing since they were built: "this workspace doesn't have an
 - A new Rust crate, `siar-android-messaging`
   (`apps/android/messaging-jni/`), the real `siar_messaging::
   MessageService` FFI surface this README used to name as entirely
-  missing. Bootstraps an identity + `SiarEndpoint`, sends/receives real
-  text messages (both the `DeviceId`-addressed path and — as of this
-  pass — the unlinkable token-mailbox path, matching `apps/cli`'s
+  missing. Bootstraps an identity + `SiarEndpoint` (both now persisted
+  under `Context.filesDir`, not regenerated fresh each launch), sends/
+  receives real text messages (both the `DeviceId`-addressed path and
+  the unlinkable token-mailbox path, matching `apps/cli`'s
   `send`/`send-anon`/`check-mailbox`/`check-mailbox-anon` one-for-one),
-  and reports `TransportLink::InternetDirect` up into
+  reports `TransportLink::InternetDirect` up into
   `siar-android-connectivity`'s shared `ConnectivityState` once its
-  `SiarEndpoint` successfully binds — see that crate's own `lib.rs` doc
-  comment for the exact scope and what's still not covered (no groups,
-  no attachments, no identity persistence, no shutdown-time
-  `mark_link_down`). `MainActivity.kt` calls `bootstrap()` off the main
-  thread (it blocks on real network I/O) and starts polling for
+  `SiarEndpoint` successfully binds, and reports it back down again via
+  `shutdown()` from `MainActivity.onDestroy` — see that crate's own
+  `lib.rs` doc comment for the exact scope and what's still not
+  covered (no groups, no attachments, and `shutdown()` updates
+  connectivity state without a full endpoint teardown — see its own
+  doc comment for why). `MainActivity.kt` calls `bootstrap()` off the
+  main thread (it blocks on real network I/O) and starts polling for
   incoming events.
 
 ## What's honestly NOT here
@@ -69,10 +72,12 @@ missing since they were built: "this workspace doesn't have an
   direct iroh connection apart from a relayed one or from LAN-local
   discovery (same honest approximation `apps/emergency-node`'s
   `send_and_record` helper makes on the Rust side).
-- **No identity persistence.** `siar-android-messaging` generates a
-  fresh `DeviceIdentity`/`AccountId` every process start — same
-  Phase-1 stand-in `apps/cli`'s own `bootstrap()` doc comment already
-  carries, not something this pass fixed on either platform.
+- **Identity/database now persist on Android.** `siar-android-messaging`
+  now load-or-creates its identity/device id/account id and opens a
+  real on-disk database under `Context.filesDir` (previously fresh
+  every process start) — `apps/cli` still regenerates fresh each run,
+  a Phase-1 stand-in its own `bootstrap()` doc comment already names as
+  known, not something this pass touched on that platform.
 - **No actual `.so` build pipeline.** `app/build.gradle.kts` expects
 
   pre-built native libraries under `app/src/main/jniLibs/<abi>/` — the

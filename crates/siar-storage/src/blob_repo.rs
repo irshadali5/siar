@@ -62,7 +62,7 @@ impl BlobRepository for StoolapBlobRepository {
     }
 
     fn get(&self, blob_hash: &[u8; 32]) -> Result<Option<Vec<u8>>, StorageError> {
-        let rows = self
+        let mut rows = self
             .db
             .query(
                 "SELECT ciphertext FROM blobs WHERE blob_hash = $1",
@@ -70,7 +70,9 @@ impl BlobRepository for StoolapBlobRepository {
             )
             .map_err(StorageError::from_stoolap)?;
 
-        for row in rows {
+        // See `message_repo.rs`'s `get`'s own comment — same
+        // never-loops-more-than-once shape, same clippy-suggested fix.
+        if let Some(row) = rows.next() {
             let row = row.map_err(StorageError::from_stoolap)?;
             let ciphertext_b64: String = row.get(0).map_err(StorageError::from_stoolap)?;
             return Ok(Some(decode_blob(&ciphertext_b64)?));

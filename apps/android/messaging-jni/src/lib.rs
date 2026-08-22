@@ -95,15 +95,37 @@
 //!   for that yet without designing a richer event line (or, more
 //!   likely, finally justifying a real serialization format — noted,
 //!   not decided here).
-//! - **No identity persistence.** A fresh `DeviceIdentity`/`AccountId`
-//!   every process start, same limitation `apps/cli`'s own `bootstrap`
-//!   doc comment already names — a real app needs to persist and reload
-//!   these (`siar-storage` already has the primitives; wiring them in
-//!   here is separate work).
-//! - **`mark_link_up` has no corresponding shutdown-time `mark_link_down`.**
-//!   This crate has no teardown path at all yet (nothing calls it when
-//!   the app backgrounds or the process dies) — a real gap, not just
-//!   this one signal's.
+//! - **Identity/database now persist across restarts.** `bootstrap`
+//!   takes a `base_dir` (Kotlin passes `Context.filesDir`) and
+//!   load-or-creates `DeviceIdentity`/`DeviceId`/`AccountId` there via
+//!   `DeviceIdentity::save_to_file`/`load_from_file` (already-existing
+//!   primitives, previously with no Android caller) plus two bare-UUID
+//!   text files, and opens a real on-disk database (`siar_storage::open`)
+//!   instead of `open_in_memory()` — the exact pattern `apps/desktop`'s
+//!   own `resolve_data_paths`/`load_or_create_id` already used,
+//!   applied here for the first time. `apps/cli` still regenerates a
+//!   fresh identity every run (its own `bootstrap()` doc comment
+//!   already names that as a known Phase-1 stand-in) — this crate no
+//!   longer does.
+//! - **`mark_link_up` now has a `mark_link_down` counterpart** —
+//!   [`shutdown_inner`], called (via JNI) from `MainActivity.onDestroy`.
+//!   Real, but genuinely partial: see that function's own doc comment
+//!   for why it updates connectivity state without actually tearing
+//!   down the endpoint or stopping the pump task (a `OnceLock`-shaped
+//!   limitation of this file's own storage, not attempted to fix here).
+
+// Everything below `AppMessaging` through `poll_next_event_inner` is
+// only ever called from `jni_bridge`, which is `#[cfg(target_os =
+// "android")]` — on a host `cargo check`/`cargo test` (this crate's
+// `rlib` output, not its `cdylib`), that whole module drops out and
+// every one of these becomes unreachable dead code by the compiler's
+// reckoning, despite being real, exercised logic on the platform this
+// crate actually ships on. Same reasoning, same fix shape,
+// `siar-android-connectivity::link_from_ordinal`'s own `cfg_attr`
+// already uses — applied once here at module scope instead of item by
+// item, since nearly everything in this file shares the exact same
+// android-only-caller situation.
+#![cfg_attr(not(target_os = "android"), allow(dead_code))]
 
 use siar_domain::{AccountId, ConversationId, DeviceId, MessageContent, MessageText};
 use siar_messaging::{IncomingEvent, MessageService, PeerTicket};
@@ -135,21 +157,86 @@ fn runtime() -> &'static tokio::runtime::Runtime {
     })
 }
 
+/// Where this device's identity/account id/database live on disk —
+/// same fix `apps/desktop`'s own `DataPaths`/`resolve_data_paths`
+/// already carries, applied here for the first time on Android: before
+/// this, `bootstrap_inner` regenerated a fresh `DeviceIdentity`/
+/// `AccountId`/`DeviceId` and opened an in-memory database on *every*
+/// launch, so nothing survived a process restart — the specific gap
+/// this crate's own doc comment and `apps/android/README.md` both
+/// named. `base_dir` is supplied by Kotlin (`Context.filesDir`,
+/// app-private storage the OS already sandboxes per-app — no new
+/// permission needed), since this crate has no `Context` of its own to
+/// resolve a directory from.
+struct AppDataPaths {
+    identity: std::path::PathBuf,
+    account_id: std::path::PathBuf,
+    device_id: std::path::PathBuf,
+    database: std::path::PathBuf,
+}
+
+impl AppDataPaths {
+    fn under(base_dir: &str) -> Self {
+        let base = std::path::PathBuf::from(base_dir);
+        Self {
+            identity: base.join("identity.bin"),
+            account_id: base.join("account_id.txt"),
+            device_id: base.join("device_id.txt"),
+            database: base.join("siar.db"),
+        }
+    }
+}
+
+/// Same "bare UUID text file, not postcard/JSON" reasoning
+/// `apps/desktop`'s own `load_or_create_id` doc comment gives —
+/// duplicated here rather than shared, since sharing it would mean
+/// either `apps/desktop` depending on this crate or a new shared crate
+/// for one ~10-line function, neither of which is worth the coupling.
+fn load_or_create_id<T>(
+    path: &std::path::Path,
+    from_uuid: impl Fn(uuid::Uuid) -> T,
+    to_uuid: impl Fn(&T) -> uuid::Uuid,
+    generate: impl Fn() -> T,
+) -> Result<T, String> {
+    if path.exists() {
+        let text = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+        let id = uuid::Uuid::parse_str(text.trim()).map_err(|e| e.to_string())?;
+        Ok(from_uuid(id))
+    } else {
+        let id = generate();
+        std::fs::write(path, to_uuid(&id).to_string()).map_err(|e| e.to_string())?;
+        Ok(id)
+    }
+}
+
 /// Real setup, real errors — every fallible step returns a `String`
 /// description rather than panicking, since a JNI function panicking
 /// unwinds into Kotlin as undefined behavior (documented Rust/JNI
 /// interop hazard, not specific to this crate) rather than a catchable
 /// exception.
-fn bootstrap_inner() -> Result<String, String> {
+fn bootstrap_inner(base_dir: &str) -> Result<String, String> {
     if APP.get().is_some() {
         return Ok(my_ticket_inner());
     }
     runtime().block_on(async {
-        let identity = siar_crypto::DeviceIdentity::generate();
-        let device_id = DeviceId::new();
-        let _local_account = AccountId::new(); // kept alive by MessageService's own device_id, not used directly here yet
+        std::fs::create_dir_all(base_dir).map_err(|e| e.to_string())?;
+        let paths = AppDataPaths::under(base_dir);
 
-        let db = siar_storage::open_in_memory().map_err(|e| e.to_string())?;
+        let identity = if paths.identity.exists() {
+            siar_crypto::DeviceIdentity::load_from_file(&paths.identity).map_err(|e| e.to_string())?
+        } else {
+            let identity = siar_crypto::DeviceIdentity::generate();
+            identity.save_to_file(&paths.identity).map_err(|e| e.to_string())?;
+            identity
+        };
+        let device_id = load_or_create_id(&paths.device_id, DeviceId::from_uuid, DeviceId::as_uuid, DeviceId::new)?;
+        let _local_account = load_or_create_id(&paths.account_id, AccountId::from_uuid, AccountId::as_uuid, AccountId::new)?; // kept alive by MessageService's own device_id, not used directly here yet
+
+        // Real on-disk database, not `open_in_memory()` — the other
+        // half of the persistence fix: an in-memory DB would have
+        // discarded every message/outbox row the moment the process
+        // exited regardless of how stable the identity above now is.
+        let db = siar_storage::open(&paths.database.display().to_string()).map_err(|e| e.to_string())?;
         let messages = Arc::new(siar_storage::StoolapMessageRepository::new(db.clone()));
         let outbox = Arc::new(siar_storage::StoolapOutboxRepository::new(db.clone()));
         let blobs: Arc<dyn siar_storage::BlobRepository + Send + Sync> =
@@ -371,6 +458,28 @@ fn poll_next_event_inner() -> Option<String> {
     APP.get()?.events.lock().expect("events lock poisoned").pop_front()
 }
 
+/// The `mark_link_up` counterpart this crate's own doc comment named
+/// as missing — reports `TransportLink::InternetDirect` down when
+/// Kotlin calls it (intended for `MainActivity.onDestroy`/`onStop`).
+///
+/// Real, but genuinely partial: `APP` is a `OnceLock`, which by design
+/// has no way to be reset once set, so this cannot actually tear down
+/// the bound `SiarEndpoint`, drop the `MessageService`, or stop the
+/// incoming-frame pump task — those keep running until the process
+/// itself is killed. What this *does* do for real: makes the shared
+/// `ConnectivityState` accurately reflect "this app's messaging layer
+/// is going away" the instant Kotlin calls it, rather than leaving a
+/// stale "up" reading until the OS eventually kills the process. A
+/// genuine teardown (stopping the pump task, closing the endpoint)
+/// would need `APP`/`RUNTIME` to hold `Option`s behind a `Mutex`
+/// instead of `OnceLock`s — a real, larger refactor of this file's own
+/// storage shape, not attempted here.
+fn shutdown_inner() {
+    if APP.get().is_some() {
+        siar_android_connectivity::mark_link_down(siar_domain::TransportLink::InternetDirect);
+    }
+}
+
 #[cfg(target_os = "android")]
 mod jni_bridge {
     use super::*;
@@ -401,8 +510,10 @@ mod jni_bridge {
     pub extern "system" fn Java_com_siar_messaging_NativeMessagingBridge_bootstrap<'local>(
         mut env: JNIEnv<'local>,
         _class: JClass<'local>,
+        base_dir: JString<'local>,
     ) -> jstring {
-        let result = bootstrap_inner();
+        let base_dir = jstring_to_string(&mut env, &base_dir);
+        let result = bootstrap_inner(&base_dir);
         to_jstring(&mut env, result)
     }
 
@@ -483,5 +594,13 @@ mod jni_bridge {
             Some(line) => env.new_string(line).expect("failed to allocate a JNI string").into_raw(),
             None => std::ptr::null_mut(),
         }
+    }
+
+    #[no_mangle]
+    pub extern "system" fn Java_com_siar_messaging_NativeMessagingBridge_shutdown<'local>(
+        _env: JNIEnv<'local>,
+        _class: JClass<'local>,
+    ) {
+        shutdown_inner();
     }
 }

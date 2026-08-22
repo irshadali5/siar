@@ -19,9 +19,14 @@
 
 use thiserror::Error;
 
-/// Fixed-size wire header: `protocol`(1) + `transfer_id`(4, big-endian)
-/// + `fragment_index`(2, BE) + `fragment_count`(2, BE) + `checksum`(2,
-/// BE) = 11 bytes, followed by `payload`.
+/// Fixed-size wire header: `protocol`(1) plus `transfer_id`(4,
+/// big-endian) plus `fragment_index`(2, BE) plus `fragment_count`(2,
+/// BE) plus `checksum`(2, BE) = 11 bytes, followed by `payload`.
+///
+/// (Spelled out as "plus" rather than `+` — a leading `+` on a doc-
+/// comment continuation line reads to rustdoc's Markdown parser as an
+/// unindented list-item continuation, which is exactly what clippy's
+/// `doc_lazy_continuation` lint flags.)
 const HEADER_LEN: usize = 11;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

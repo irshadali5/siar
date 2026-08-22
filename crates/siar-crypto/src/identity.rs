@@ -27,8 +27,14 @@ impl DeviceIdentity {
     /// plan.md §8).
     pub fn generate() -> Self {
         Self {
+            // clippy's `needless_borrows_for_generic_args` flagged only
+            // the `StaticSecret::random_from_rng` call below (line 31 in
+            // the original report) — `SigningKey::generate` genuinely
+            // requires `&mut R` (confirmed against a real compile
+            // error when this line was mistakenly changed too: "expected
+            // `&mut _`, found `OsRng`"), so it keeps its borrow.
             signing_key: SigningKey::generate(&mut OsRng),
-            x25519_secret: StaticSecret::random_from_rng(&mut OsRng),
+            x25519_secret: StaticSecret::random_from_rng(OsRng),
         }
     }
 
