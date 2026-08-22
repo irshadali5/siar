@@ -4,9 +4,21 @@
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](#build--compilation-tutorial)
 [![Platform Target](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20Android-lightgrey.svg)](#prerequisites--environment-setup)
 
-**SIAR** (*Secure Interoperable Autonomous Routing*) is a zero-infrastructure, multi-transport, offline-first decentralized messaging and delay-tolerant networking (DTN) platform. Designed to operate seamlessly across high-latency, degraded, or completely disconnected environments, SIAR eliminates reliance on central servers, cloud APIs, and traditional cellular/internet infrastructure.
+**SIAR** (*Secure Interoperable Autonomous Routing*) is a zero-infrastructure, multi-transport, offline-first decentralized messaging and delay-tolerant networking (DTN) platform. 
 
-It leverages peer-to-peer (P2P) mesh transports (**Bluetooth LE**, **Bluetooth Classic**, **Wi-Fi Direct**, **Wi-Fi Aware**, **P2P QUIC via Iroh**), strong cryptographic guarantees (**Ed25519**, **X25519**, **ChaCha20-Poly1305**, **MLS 1:1 and Group E2EE**), and pure-Rust zero-copy storage pipelines.
+### ⚙️ Core Architecture & Language Hierarchy
+- **Rust is the Primary & Core Engine**: 95%+ of the SIAR codebase is written in pure, modern Rust. All core cryptography, binary protocol framing, DTN store-carry-forward queues, path routing, storage engines, and multi-transport socket management are implemented entirely in Rust for maximum memory safety and bare-metal performance.
+- **Kotlin for Android UI Only**: Kotlin is strictly used in `apps/android` for the Jetpack Compose User Interface and native Android OS permissions/hardware bindings, interfacing directly with the Rust core engine via zero-copy C-ABI JNI bridges.
+
+### 📡 Deployment Modes: Standalone App & Headless Off-Grid Repeater/Booster
+SIAR is engineered to deploy in two distinct operating forms:
+1. **Standalone User Applications**:
+   - **Android App** (Jetpack Compose UI)
+   - **Desktop GUI** (Slint UI for Linux / Windows)
+   - **Terminal Messenger** (`siar-cli`)
+2. **Headless Off-Grid Repeater & Signal Booster Daemon (`siar-emergency-node`)**:
+   - Can be deployed as a headless daemon on **any device**—Raspberry Pi, Linux servers, embedded router hardware, solar-powered field nodes, or dedicated mobile repeater boosters.
+   - Functions as an **autonomous store-carry-forward mesh repeater**, receiving, buffering, and re-transmitting encrypted messages across disconnected network partitions during **complete internet blackouts, emergency outages, and off-grid disaster scenarios**.
 
 ---
 
@@ -14,6 +26,7 @@ It leverages peer-to-peer (P2P) mesh transports (**Bluetooth LE**, **Bluetooth C
 
 - [About SIAR](#about-siar)
   - [Core Philosophy](#core-philosophy)
+  - [Deployment Modes](#deployment-modes-standalone-app--headless-off-grid-repeaterbooster)
   - [SIAR vs Traditional Messengers](#siar-vs-traditional-messengers)
 - [System Architecture](#system-architecture)
   - [High-Level Architecture Diagram](#high-level-architecture-diagram)
@@ -30,7 +43,7 @@ It leverages peer-to-peer (P2P) mesh transports (**Bluetooth LE**, **Bluetooth C
   - [3. Headless Emergency Relay Node (`siar-emergency-node`)](#3-headless-emergency-relay-node-siar-emergency-node)
   - [4. Android Messenger App (`apps/android`)](#4-android-messenger-app-appsandroid)
 - [Testing & Fuzzing](#testing--fuzzing)
-- [License & Contributing](#license--contributing)
+- [License & Duality Model](#license--duality-model)
 
 ---
 
@@ -38,11 +51,11 @@ It leverages peer-to-peer (P2P) mesh transports (**Bluetooth LE**, **Bluetooth C
 
 ### Core Philosophy
 
-1. **Zero Central Dependencies**: Communication must function directly between devices without requiring centralized identity registries, DNS servers, or cloud relays.
-2. **Multi-Transport Opportunistic Mesh**: Devices dynamically discover and switch between available physical links—local Wi-Fi Direct, Wi-Fi Aware, BLE, Bluetooth Classic, LAN, and Internet QUIC endpoints—without dropping application-level sessions.
-3. **Delay-Tolerant Networking (DTN)**: Messages and attachments automatically store, carry, and forward across nodes in disconnected network partitions until reachability is established.
-4. **Cryptographic Autonomy**: Every device self-generates its cryptographic identity (`DeviceIdentity` with Ed25519 signing keys and X25519 key exchange keys). MLS (Messaging Layer Security) provides strong forward secrecy and post-compromise security for 1:1 and group conversations.
-5. **Pure-Rust & Native Hardware Acceleration**: High-level abstractions are built in safe, modern Rust (with zero OpenSSL/C runtime dependencies in core crates), while Android platforms utilize zero-copy JNI bridges into `MediaCodec` hardware video/audio encoders.
+1. **Rust-First Primary Core**: Complete business logic, crypto, routing, and networking are unified in pure-Rust core crates. Kotlin is used exclusively for the Android UI.
+2. **Zero Central Dependencies**: Communication functions directly between devices without requiring centralized identity registries, DNS servers, or cloud relays.
+3. **Multi-Transport Opportunistic Mesh**: Devices dynamically discover and switch between available physical links—local Wi-Fi Direct, Wi-Fi Aware, BLE, Bluetooth Classic, LAN, and Internet QUIC endpoints—without dropping application-level sessions.
+4. **Off-Grid Store-Carry-Forward (DTN)**: Headless repeater daemons (`siar-emergency-node`) and client nodes store, carry, and boost-forward messages across disconnected physical environments during severe internet outages.
+5. **Cryptographic Autonomy**: Every device self-generates its cryptographic identity (`DeviceIdentity` with Ed25519 signing keys and X25519 key exchange keys). MLS (Messaging Layer Security) provides strong forward secrecy and post-compromise security for 1:1 and group conversations.
 
 ### SIAR vs Traditional Messengers
 

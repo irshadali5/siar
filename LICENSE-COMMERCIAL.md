@@ -13,6 +13,8 @@
 ### 🕊️ Free for Humanity Commitment
 **SIAR is, and will always remain, 100% free and open-source software for all of humanity.** 
 
+Built primarily in pure **Rust** (core engine, 95%+ codebase) with **Kotlin** strictly for Android UI bindings, SIAR ships both as **standalone applications** (Android/Desktop/CLI) and as **headless off-grid repeater daemons (`siar-emergency-node`)** deployable on Raspberry Pi, Linux servers, embedded hardware, and router boosters to transmit messages during severe internet blackouts and disaster outages.
+
 The software is created to empower individuals, civil society, humanitarian efforts, disaster responders, academic researchers, and public open-source developers worldwide with resilient, zero-infrastructure messaging capabilities without cost or commercial barriers.
 
 ### 💡 Fueling Development via Commercial Reinvestment
@@ -20,8 +22,8 @@ Permissive open-source licenses (such as MIT or Apache 2.0) allow large technolo
 
 To prevent uncompensated enterprise exploitation while guaranteeing perpetual freedom for humanity, SIAR employs a **Dual Licensing Model**:
 
-1. **Open Source & Humanitarian Path (GNU AGPLv3)**: **100% gratis for everyone**. Under Section 13 of the AGPLv3, any entity deploying SIAR as a network service must publish its complete source code under AGPLv3.
-2. **Commercial Exemption Path (SIAR-CEEL-1.0)**: Commercial enterprises using SIAR within closed-source applications or proprietary SaaS platforms pay a commercial subscription fee to lift AGPLv3 copyleft restrictions.
+1. **Open Source & Humanitarian Path (GNU AGPLv3)**: **100% gratis for everyone**. Under Section 13 of the AGPLv3, any entity deploying SIAR standalone applications or headless repeater daemons as a network service must publish its complete source code under AGPLv3.
+2. **Commercial Exemption Path (SIAR-CEEL-1.0)**: Commercial enterprises using SIAR within closed-source applications, hardware booster nodes, or proprietary SaaS platforms pay a commercial subscription fee to lift AGPLv3 copyleft restrictions.
 
 **100% of commercial licensing revenues are directly reinvested to fuel the core engineering, security auditing, multi-platform maintenance, and ongoing development of SIAR for the benefit of humanity.**
 
