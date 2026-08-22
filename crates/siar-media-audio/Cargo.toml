@@ -1,0 +1,22 @@
+[package]
+name = "siar-media-audio"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+siar-media-core.workspace = true
+# There is no mature pure-Rust Opus codec — every option in the
+# ecosystem wraps `libopus` via `unsafe extern "C"` FFI. Per explicit
+# instruction: unsafe Rust calling into a compiled library is
+# acceptable here; we're not hand-writing C. The `opus` crate's `unsafe`
+# is confined to `audiopus_sys`'s generated bindings — nothing in this
+# workspace writes its own `unsafe extern "C"` block for libopus.
+opus = "0.3"
+# Cross-platform audio device I/O (ALSA/PulseAudio/CoreAudio/WASAPI/
+# AAudio) — also FFI-backed per-platform, also permitted per the same
+# instruction, and this is exactly the "platform-specific code" that
+# instruction was about: real device access has no pure-Rust path on
+# any of our target platforms.
+cpal = "0.18"
+tracing.workspace = true
