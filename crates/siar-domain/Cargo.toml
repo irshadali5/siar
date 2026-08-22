@@ -1,0 +1,15 @@
+[package]
+name = "siar-domain"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde.workspace = true
+uuid.workspace = true
+thiserror.workspace = true
+
+# Domain must stay platform/infra-free: no dioxus, no stoolap, no iroh here.
+
+[dev-dependencies]
+postcard.workspace = true
