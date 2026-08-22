@@ -1,0 +1,20 @@
+[package]
+name = "siar-protocol"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+siar-domain.workspace = true
+serde.workspace = true
+postcard.workspace = true
+thiserror.workspace = true
+bytes.workspace = true
+# Added for MailboxCheckIn's signature verification (mailbox.rs) — the
+# same already-adopted Ed25519 primitive every signed message in this
+# workspace uses via siar-crypto, not a new dependency chosen for this
+# one purpose. siar-crypto itself depends on neither siar-protocol nor
+# siar-domain (checked its own Cargo.toml before adding this), so this
+# is a plain downward dependency, not a cycle.
+siar-crypto.workspace = true
+ed25519-dalek.workspace = true
