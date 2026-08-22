@@ -1,0 +1,27 @@
+[package]
+name = "siar-android-connectivity"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+# The piece every one of the four transport bridge crates' own doc
+# comments named as missing: "this workspace doesn't have an apps/
+# android crate yet to own [a shared ConnectivityState]." This crate
+# is that owner — a thin JNI surface Kotlin reports link up/down events
+# into, backed by `siar_domain::connectivity::ConnectivityState`
+# (already built, already tested, previously with no real caller on
+# any platform). Deliberately its own crate rather than folding into
+# one of the four transport crates: none of them should depend on each
+# other or know the others exist, and this crate is the one place that
+# legitimately needs all four.
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+siar-domain.workspace = true
+
+[target.'cfg(target_os = "android")'.dependencies]
+# jni 0.21, matching every other jni_bridge.rs in this workspace
+# exactly — see siar-transport-wifi-direct's Cargo.toml for the full
+# rationale (not repeated here).
+jni = "0.21"
