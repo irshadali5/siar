@@ -107,12 +107,14 @@
 //!   `apps/cli` too (see that binary's own `resolve_data_paths`/
 //!   `load_or_create_id`) — all three of this workspace's client
 //!   entry points now persist identity the same way.
-//! - **`mark_link_up` now has a `mark_link_down` counterpart** —
+//! - **`mark_link_up` now has a real `mark_link_down` counterpart** —
 //!   [`shutdown_inner`], called (via JNI) from `MainActivity.onDestroy`.
-//!   Real, but genuinely partial: see that function's own doc comment
-//!   for why it updates connectivity state without actually tearing
-//!   down the endpoint or stopping the pump task (a `OnceLock`-shaped
-//!   limitation of this file's own storage, not attempted to fix here).
+//!   `APP` moved from a `OnceLock` to `Mutex<Option<Arc<AppMessaging>>>`
+//!   specifically so this could stop the pump task
+//!   (`JoinHandle::abort`) and let the bound endpoint drop for real,
+//!   instead of only updating connectivity state — see
+//!   [`shutdown_inner`]'s own doc comment for the one remaining
+//!   caveat (abort isn't synchronous).
 
 // Everything below `AppMessaging` through `poll_next_event_inner` is
 // only ever called from `jni_bridge`, which is `#[cfg(target_os =
@@ -143,10 +145,39 @@ struct AppMessaging {
     /// incoming `V1` envelope from them can be decrypted.
     known_peers: Mutex<HashMap<iroh::EndpointId, PeerTicket>>,
     events: Mutex<VecDeque<String>>,
+    /// The incoming-frame pump's own handle, so [`shutdown_inner`] can
+    /// actually stop it via [`tokio::task::JoinHandle::abort`] instead
+    /// of leaving it running until process exit — the specific
+    /// limitation this field exists to close. `Mutex<Option<_>>`
+    /// rather than a bare field since it's populated right after
+    /// `tokio::spawn` returns, one step after this struct itself is
+    /// constructed (see [`bootstrap_inner`]).
+    pump_handle: Mutex<Option<tokio::task::JoinHandle<()>>>,
 }
 
+// `RUNTIME` stays a `OnceLock`: a Tokio multi-thread runtime is a real
+// thread pool, and tearing it down and rebuilding it on every
+// bootstrap/shutdown cycle is neither how any real Android app treats
+// its executor nor something a `shutdown()` call driven from
+// `onDestroy` needs — the process is going away regardless once that
+// fires for real. `APP` is the piece that actually needed to become
+// resettable: it holds the per-session `SiarEndpoint`/`MessageService`/
+// pump task, which a real `shutdown()` must be able to tear down and
+// let a later `bootstrap()` recreate from scratch, which a `OnceLock`
+// can never do once set. `Arc` (not a bare `AppMessaging`) so the pump
+// task can hold its own strong reference independent of the slot in
+// `APP`, which [`shutdown_inner`] can empty out from under it.
 static RUNTIME: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
-static APP: OnceLock<AppMessaging> = OnceLock::new();
+static APP: Mutex<Option<Arc<AppMessaging>>> = Mutex::new(None);
+
+/// Clones the current app handle out of the lock and releases it
+/// immediately — every caller below needs the `Arc` for the duration
+/// of a `block_on`/lock elsewhere, not the `APP` mutex itself, so
+/// nothing holds `APP`'s lock across an `.await` or another lock
+/// acquisition.
+fn app_handle() -> Option<Arc<AppMessaging>> {
+    APP.lock().expect("APP lock poisoned").clone()
+}
 
 fn runtime() -> &'static tokio::runtime::Runtime {
     RUNTIME.get_or_init(|| {
@@ -215,10 +246,10 @@ fn load_or_create_id<T>(
 /// interop hazard, not specific to this crate) rather than a catchable
 /// exception.
 fn bootstrap_inner(base_dir: &str) -> Result<String, String> {
-    if APP.get().is_some() {
-        return Ok(my_ticket_inner());
+    if let Some(app) = app_handle() {
+        return Ok(app.my_ticket.encode());
     }
-    runtime().block_on(async {
+    let app_arc: Arc<AppMessaging> = runtime().block_on(async {
         std::fs::create_dir_all(base_dir).map_err(|e| e.to_string())?;
         let paths = AppDataPaths::under(base_dir);
 
@@ -259,12 +290,8 @@ fn bootstrap_inner(base_dir: &str) -> Result<String, String> {
         // successfully bound `SiarEndpoint` is real evidence this
         // device has Internet/LAN connectivity via iroh, reported into
         // the same shared `ConnectivityState` the four transport
-        // bridges already feed. Marked up here, once, right after a
-        // successful bind — there's no corresponding `mark_link_down`
-        // call anywhere in this crate, because nothing here currently
-        // detects the endpoint going away (no shutdown/teardown path
-        // exists in this crate at all yet, not just for this one
-        // signal) — named honestly rather than left implicit.
+        // bridges already feed. [`shutdown_inner`] now has a real
+        // `mark_link_down` counterpart to this.
         siar_android_connectivity::mark_link_up(siar_domain::TransportLink::InternetDirect);
 
         let service = MessageService::new(device_id, identity, endpoint.clone(), messages, outbox, blobs);
@@ -275,17 +302,24 @@ fn bootstrap_inner(base_dir: &str) -> Result<String, String> {
             my_ticket: my_ticket.clone(),
             known_peers: Mutex::new(HashMap::new()),
             events: Mutex::new(VecDeque::new()),
+            pump_handle: Mutex::new(None),
         };
-        APP.set(app).map_err(|_| "bootstrap called concurrently — one caller lost the race".to_string())?;
+        let app = Arc::new(app);
 
         // The incoming-frame pump — see this module's top doc comment
         // for why this drains continuously into a poll queue instead
-        // of pushing into Kotlin directly.
-        tokio::spawn(async move {
+        // of pushing into Kotlin directly. Captures its own `Arc`
+        // clone of `app` directly rather than looking it up via a
+        // global on every frame — the pump no longer depends on `APP`
+        // being populated at all, which is what makes it possible for
+        // [`shutdown_inner`] to empty `APP` out from under it and stop
+        // it independently via the handle stored just below.
+        let pump_app = app.clone();
+        let pump_handle = tokio::spawn(async move {
+            let app = pump_app;
             let mut mailbox_batch_count: u32 = 0;
             loop {
                 let Some(frame) = rx.recv().await else { break };
-                let app = APP.get().expect("pump task outlived APP being set, which should be impossible");
                 match frame.message {
                     siar_protocol::WireMessage::V1(envelope) => {
                         let peer_ticket = {
@@ -370,31 +404,46 @@ fn bootstrap_inner(base_dir: &str) -> Result<String, String> {
                 }
             }
         });
+        *app.pump_handle.lock().expect("pump_handle lock poisoned") = Some(pump_handle);
 
-        // Explicit turbofish on the block's final `Ok` — rustc's own
-        // fix suggestion for this exact E0282/E0283: nothing inside
-        // this async block ever produces an `Err`, so there's nothing
-        // else for type inference to pin the error type down from
-        // before the `?` below converts it via `From<E> for String`.
-        Ok::<(), String>(())
+        Ok::<Arc<AppMessaging>, String>(app)
     })?;
 
-    Ok(my_ticket_inner())
+    // Installed only now that everything above succeeded — `APP` never
+    // sees a partially-built `AppMessaging`. If another call already
+    // won the race and installed first, this call's own endpoint/pump
+    // are real but redundant: stop its pump immediately and let its
+    // `Arc` drop (see `shutdown_inner`'s own comment on why `abort`
+    // doesn't guarantee the drop lands synchronously — same caveat
+    // here) rather than erroring the caller out, since the winner's
+    // ticket is just as valid an answer to "what's my ticket".
+    let mut guard = APP.lock().expect("APP lock poisoned");
+    if let Some(existing) = guard.as_ref() {
+        let ticket = existing.my_ticket.encode();
+        drop(guard);
+        if let Some(handle) = app_arc.pump_handle.lock().expect("pump_handle lock poisoned").take() {
+            handle.abort();
+        }
+        return Ok(ticket);
+    }
+    let ticket = app_arc.my_ticket.encode();
+    *guard = Some(app_arc);
+    Ok(ticket)
 }
 
 fn my_ticket_inner() -> String {
-    APP.get().expect("bootstrap must run before my_ticket").my_ticket.encode()
+    app_handle().expect("bootstrap must run before my_ticket").my_ticket.encode()
 }
 
 fn add_peer_inner(ticket: &str) -> Result<(), String> {
-    let app = APP.get().ok_or("bootstrap must run before add_peer")?;
+    let app = app_handle().ok_or("bootstrap must run before add_peer")?;
     let peer = PeerTicket::decode(ticket).map_err(|e| e.to_string())?;
     app.known_peers.lock().expect("known_peers lock poisoned").insert(peer.endpoint_addr.id, peer);
     Ok(())
 }
 
 fn send_text_inner(peer_ticket: &str, text: &str) -> Result<String, String> {
-    let app = APP.get().ok_or("bootstrap must run before send_text")?;
+    let app = app_handle().ok_or("bootstrap must run before send_text")?;
     let peer = PeerTicket::decode(peer_ticket).map_err(|e| e.to_string())?;
     let text = MessageText::parse(text.to_string()).map_err(|e| e.to_string())?;
     // Real evidence-based link classification, replacing the bootstrap-
@@ -412,7 +461,7 @@ fn send_text_inner(peer_ticket: &str, text: &str) -> Result<String, String> {
 }
 
 fn check_mailbox_inner(relay_ticket: &str) -> Result<(), String> {
-    let app = APP.get().ok_or("bootstrap must run before check_mailbox")?;
+    let app = app_handle().ok_or("bootstrap must run before check_mailbox")?;
     let relay = PeerTicket::decode(relay_ticket).map_err(|e| e.to_string())?;
     let check_in = app.service.sign_mailbox_check_in(siar_domain::now_millis());
     runtime().block_on(async {
@@ -429,7 +478,7 @@ fn check_mailbox_inner(relay_ticket: &str) -> Result<(), String> {
 /// path, in particular). `peer_ticket` is who the message is *for*;
 /// `relay_ticket` is who it's handed to for pickup.
 fn send_text_anon_inner(peer_ticket: &str, relay_ticket: &str, text: &str) -> Result<String, String> {
-    let app = APP.get().ok_or("bootstrap must run before send_text_anon")?;
+    let app = app_handle().ok_or("bootstrap must run before send_text_anon")?;
     let peer = PeerTicket::decode(peer_ticket).map_err(|e| e.to_string())?;
     let relay = PeerTicket::decode(relay_ticket).map_err(|e| e.to_string())?;
     let text = MessageText::parse(text.to_string()).map_err(|e| e.to_string())?;
@@ -454,7 +503,7 @@ fn send_text_anon_inner(peer_ticket: &str, relay_ticket: &str, text: &str) -> Re
 /// already be registered via [`add_peer_inner`] — the pump can't try
 /// decrypting against a peer it doesn't know about.
 fn check_mailbox_anon_inner(peer_ticket: &str, relay_ticket: &str) -> Result<(), String> {
-    let app = APP.get().ok_or("bootstrap must run before check_mailbox_anon")?;
+    let app = app_handle().ok_or("bootstrap must run before check_mailbox_anon")?;
     let peer = PeerTicket::decode(peer_ticket).map_err(|e| e.to_string())?;
     let relay = PeerTicket::decode(relay_ticket).map_err(|e| e.to_string())?;
     let check_in = app.service.build_anonymous_check_in(&peer, siar_domain::now_millis());
@@ -466,30 +515,63 @@ fn check_mailbox_anon_inner(peer_ticket: &str, relay_ticket: &str) -> Result<(),
     })
 }
 
+/// Real, previously-missing piece the chat UI needs: Kotlin has no way
+/// to decode a `PeerTicket` string itself (that's real Rust-side
+/// decoding logic, not duplicated here), so without this there was no
+/// way for a contact added via [`add_peer_inner`] to be matched back
+/// against [`poll_next_event_inner`]'s `text\t<sender endpoint id
+/// hex>\t...` lines — those two strings (a `PeerTicket` and a
+/// `{:?}`-formatted `iroh::EndpointId`) look nothing alike even though
+/// they can identify the same peer. This decodes a ticket and returns
+/// the exact same `{:?}` (Debug) formatting the incoming-frame pump
+/// already uses for `frame.from`, so a Kotlin-side contact list can
+/// key its threads by this value and actually match incoming messages
+/// to the contact that sent them. Pure — doesn't require [`bootstrap`]
+/// to have run first, since it only decodes the ticket string itself.
+fn ticket_endpoint_debug_inner(ticket: &str) -> Result<String, String> {
+    let peer = PeerTicket::decode(ticket).map_err(|e| e.to_string())?;
+    Ok(format!("{:?}", peer.endpoint_addr.id))
+}
+
 fn poll_next_event_inner() -> Option<String> {
-    APP.get()?.events.lock().expect("events lock poisoned").pop_front()
+    app_handle()?.events.lock().expect("events lock poisoned").pop_front()
 }
 
 /// The `mark_link_up` counterpart this crate's own doc comment named
 /// as missing — reports `TransportLink::InternetDirect` down when
 /// Kotlin calls it (intended for `MainActivity.onDestroy`/`onStop`).
 ///
-/// Real, but genuinely partial: `APP` is a `OnceLock`, which by design
-/// has no way to be reset once set, so this cannot actually tear down
-/// the bound `SiarEndpoint`, drop the `MessageService`, or stop the
-/// incoming-frame pump task — those keep running until the process
-/// itself is killed. What this *does* do for real: makes the shared
-/// `ConnectivityState` accurately reflect "this app's messaging layer
-/// is going away" the instant Kotlin calls it, rather than leaving a
-/// stale "up" reading until the OS eventually kills the process. A
-/// genuine teardown (stopping the pump task, closing the endpoint)
-/// would need `APP`/`RUNTIME` to hold `Option`s behind a `Mutex`
-/// instead of `OnceLock`s — a real, larger refactor of this file's own
-/// storage shape, not attempted here.
+/// Now a genuine teardown, not just a connectivity-state update: `APP`
+/// holding `Mutex<Option<Arc<AppMessaging>>>` instead of a `OnceLock`
+/// (see that static's own comment for why) means this can actually
+/// take the app out of the slot, stop its pump task, and let its
+/// `Arc<SiarEndpoint>` drop instead of leaking until process exit.
+/// Concretely: `.take()` empties `APP` immediately, so every other
+/// function in this file (`app_handle`) sees "not bootstrapped" from
+/// this point on and a later `bootstrap` call genuinely builds a fresh
+/// endpoint/service/pump rather than silently handing back the old
+/// ticket. The pump is stopped via `JoinHandle::abort`, which
+/// schedules cancellation rather than guaranteeing it lands
+/// synchronously — Tokio drops an aborted task's captured state
+/// (including its own `Arc<AppMessaging>` clone, the last thing
+/// keeping the endpoint alive once this function's local `app` binding
+/// also drops at the end of this function) at its own next scheduling
+/// point, not necessarily before this function returns. That's a real
+/// limitation worth naming, not a gap papered over: this function's
+/// synchronous, verifiable guarantee is that `APP` is empty and the
+/// pump has been told to stop the instant it returns; full resource
+/// release (the endpoint's own `Drop`, whatever that does) follows
+/// shortly after on the runtime's own schedule.
 fn shutdown_inner() {
-    if APP.get().is_some() {
-        siar_android_connectivity::mark_link_down(siar_domain::TransportLink::InternetDirect);
+    let Some(app) = APP.lock().expect("APP lock poisoned").take() else { return };
+    if let Some(handle) = app.pump_handle.lock().expect("pump_handle lock poisoned").take() {
+        handle.abort();
     }
+    siar_android_connectivity::mark_link_down(siar_domain::TransportLink::InternetDirect);
+    // `app` drops here — the slot's own strong reference to
+    // `AppMessaging` (and, through it, `Arc<SiarEndpoint>`) is gone;
+    // only the aborted pump task's clone remains until Tokio finishes
+    // dropping that task, per the comment above.
 }
 
 #[cfg(target_os = "android")]
@@ -574,6 +656,17 @@ mod jni_bridge {
     ) -> jstring {
         let base_dir = jstring_to_string(&mut env, &base_dir);
         let result = bootstrap_inner(&base_dir);
+        to_jstring(&mut env, result)
+    }
+
+    #[no_mangle]
+    pub extern "system" fn Java_com_siar_messaging_NativeMessagingBridge_ticketEndpointDebug<'local>(
+        mut env: JNIEnv<'local>,
+        _class: JClass<'local>,
+        ticket: JString<'local>,
+    ) -> jstring {
+        let ticket = jstring_to_string(&mut env, &ticket);
+        let result = ticket_endpoint_debug_inner(&ticket);
         to_jstring(&mut env, result)
     }
 

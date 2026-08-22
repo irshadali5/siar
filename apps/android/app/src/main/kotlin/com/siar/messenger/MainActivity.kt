@@ -7,6 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -29,40 +30,41 @@ import kotlin.concurrent.thread
  * Wires together the four transport bridges this pass built
  * ([WifiDirectManager], [WifiAwareManagerBridge], [BleGattManager],
  * [BluetoothClassicManager]), the shared connectivity state
- * ([ConnectivityBridge]), and — as of this pass — a real
- * [MessagingBridge] wrapping `siar-messaging::MessageService`. Every
- * one of those Rust crates' own doc comments named this activity as
- * the missing real consumer.
+ * ([ConnectivityBridge]), and a real [MessagingBridge] wrapping
+ * `siar-messaging::MessageService` — plus, as of this pass, an actual
+ * chat UI ([MessengerScreen]/[ChatStore]) on top of it: a contact
+ * list, an add-contact flow (paste a peer's ticket), and a per-contact
+ * conversation screen. Every one of those Rust crates' own doc
+ * comments named this activity as the missing real consumer, and
+ * `apps/android`'s own former "no chat UI at all" gap is what
+ * [MessengerScreen] closes.
  *
- * ## What this activity deliberately does NOT do
+ * ## What this activity still deliberately does NOT do
  *
- * [MessagingBridge] is a genuine send/receive text-message surface
- * now (see that class's and `siar-android-messaging`'s own doc
- * comments for the exact scope), but there is still no UI for it here
- * — no conversation screen, no contact list, no way to actually type
- * in a peer ticket and see a chat thread. `apps/cli`/`apps/desktop`
- * remain this workspace's only chat clients with an actual UI; what
- * this activity proves is that the four radios can come up, report
- * into `ConnectivityState`, and that a real message can now be sent
- * and received from this process — a real, necessary, but still
- * partial step, named honestly rather than presented as a finished
- * app. `LocalLan`/`InternetDirect`/`InternetRelay` also aren't
- * reported into [ConnectivityBridge] from anywhere in this activity —
+ * No groups/MLS, no attachments — [ChatStore]/[MessagingBridge] cover
+ * text-only 1:1 conversations, matching exactly what
+ * `siar-android-messaging`'s own doc comment says it exposes (that
+ * crate has no `GroupService`/attachment FFI to call into yet, a
+ * separate, larger follow-up). Contacts and message history live only
+ * in this process's memory — nothing here reads back the message
+ * history the native side already persists to `siar.db`, since no FFI
+ * exists yet to read it (see `ChatStore`'s own doc comment).
+ * `LocalLan`/`InternetDirect`/`InternetRelay` also aren't reported
+ * into [ConnectivityBridge] from anywhere in this activity —
  * `MessagingBridge`'s own `SiarEndpoint` isn't threaded through to
  * `ConnectivityBridge` yet, a real remaining gap between these two
  * bridges this pass didn't close.
  *
  * ## What could not be verified this pass
-
  *
  * No Android SDK, NDK, Gradle, or emulator exists in this sandbox —
  * every line here is written against the real, current Android SDK
- * API shapes (checked against actual API surfaces where genuinely
- * uncertain — see `WifiAwareManagerBridge.kt`'s own note on
- * `WifiAwareNetworkInfo.getPort()`'s undocumented default), but none of
- * it has been compiled or run. Same honesty this workspace has applied
- * to every iroh-touching Rust crate all along, now applying to the
- * Kotlin/Android side for the first time.
+ * and Compose Material3 API shapes (checked against actual API
+ * surfaces where genuinely uncertain — e.g. `Divider` being deprecated
+ * in favor of `HorizontalDivider` as of Material3 1.2, confirmed via
+ * real docs, not guessed), but none of it has been compiled or run.
+ * Same honesty this workspace has applied to every iroh-touching Rust
+ * crate all along, now applying to the Kotlin/Android side too.
  */
 class MainActivity : ComponentActivity() {
     private lateinit var wifiDirectManager: WifiDirectManager
@@ -85,10 +87,24 @@ class MainActivity : ComponentActivity() {
         bleGattManager = BleGattManager(this)
         bluetoothClassicManager = BluetoothClassicManager(this)
 
+        // Wired before `startMessaging()` below so no incoming event
+        // from the very first poll tick onward is ever missed —
+        // `ChatStore.recordIncoming` is what makes an incoming message
+        // actually show up in a conversation thread; without this the
+        // native side would still receive and decrypt messages (see
+        // `siar-android-messaging`'s own doc comment) with nothing in
+        // this app ever finding out.
+        MessagingBridge.onTextReceived = { sender, text -> ChatStore.recordIncoming(sender, text, anon = false) }
+        MessagingBridge.onAnonTextReceived = { sender, text -> ChatStore.recordIncoming(sender, text, anon = true) }
+
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    ConnectivityScreen()
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        ConnectivityScreen()
+                        HorizontalDivider()
+                        MessengerScreen()
+                    }
                 }
             }
         }
@@ -123,7 +139,8 @@ class MainActivity : ComponentActivity() {
         val filesDir = applicationContext.filesDir.absolutePath
         thread {
             val result = MessagingBridge.bootstrap(filesDir)
-            result.onSuccess {
+            result.onSuccess { ticket ->
+                ChatStore.myTicket.value = ticket
                 MessagingBridge.startPolling()
             }
             result.onFailure { e ->
@@ -138,8 +155,7 @@ class MainActivity : ComponentActivity() {
         wifiAwareManager.stop()
         bleGattManager.stop()
         bluetoothClassicManager.stop()
-        MessagingBridge.stopPolling()
-        MessagingBridge.shutdown()
+        MessagingBridge.shutdown() // stops polling itself too — see that function's own doc comment
     }
 }
 

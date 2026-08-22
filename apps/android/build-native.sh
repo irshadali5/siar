@@ -49,17 +49,18 @@ for abi in "${ABIS[@]}"; do
     TARGET_ARGS+=(-t "$abi")
 done
 
+JNI_LIBS_DIR="$(pwd)/app/src/main/jniLibs"
+mkdir -p "$JNI_LIBS_DIR"
+
 (
     cd ..
-    cargo ndk "${TARGET_ARGS[@]}" -P "$MIN_API" build --release "${PACKAGE_ARGS[@]}"
+    cargo ndk "${TARGET_ARGS[@]}" -o "$JNI_LIBS_DIR" -P "$MIN_API" build --release "${PACKAGE_ARGS[@]}"
 )
 
-# cargo-ndk's own -o flag can place outputs directly under
-# jniLibs/<abi>/ in one step — left as a documented improvement rather
-# than added here, since verifying the exact output layout cargo-ndk
-# produces needs a real run of this script, which this sandbox can't
-# do (no NDK, no Android toolchain — same limitation named throughout
-# this workspace's history). Run this script for real, then adjust the
-# `cargo ndk` invocation above to add `-o app/src/main/jniLibs` once
-# you've confirmed the layout it produces matches what
-# app/build.gradle.kts expects.
+# cargo-ndk's -o flag places outputs directly as
+# <dir>/<abi>/lib<crate>.so per its own documented behaviour (confirmed
+# via crates.io/docs.rs, not guessed), which is exactly the layout
+# Android's jniLibs expects — no manual copy step needed. Re-running
+# this script overwrites previous .so files in place, so no stale-file
+# cleanup step is needed either.
+echo "Native libraries written to: $JNI_LIBS_DIR"

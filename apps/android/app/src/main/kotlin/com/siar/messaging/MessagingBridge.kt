@@ -42,6 +42,18 @@ object MessagingBridge {
      * invented for this crate). */
     fun addPeer(ticket: String): Result<Unit> = callNative { NativeMessagingBridge.addPeer(ticket) }.map { }
 
+    /** Decodes a `PeerTicket` string into the same sender key
+     * [onTextReceived] and [onAnonTextReceived] deliver — a
+     * `PeerTicket` and a `{:?}`-formatted `iroh::EndpointId` look
+     * nothing alike as strings even when they identify the same peer,
+     * and Kotlin has no way to decode a ticket on its own (that's real
+     * Rust-side logic). A contact list needs this to match an incoming
+     * message back to the contact that sent it — call it once when a
+     * contact's ticket is added and store the result alongside the
+     * contact, not the raw ticket, as the thread key. */
+    fun ticketEndpointDebug(ticket: String): Result<String> =
+        callNative { NativeMessagingBridge.ticketEndpointDebug(ticket) }
+
     fun sendText(peerTicket: String, text: String): Result<String> =
         callNative { NativeMessagingBridge.sendText(peerTicket, text) }
 
@@ -93,11 +105,15 @@ object MessagingBridge {
         pumping = false
     }
 
-    /** Reports this app's messaging layer as going away — see the Rust
-     * side's own `shutdown_inner` doc comment for exactly what this
-     * does and doesn't do (real connectivity-state update, not a full
-     * endpoint teardown). Call from `MainActivity.onDestroy`. */
+    /** Tears down this app's messaging layer for real — stops the
+     * native incoming-event pump and drops the bound endpoint, then
+     * updates connectivity state (see the Rust side's own
+     * `shutdown_inner` doc comment for the one remaining timing
+     * caveat: pump teardown is scheduled, not guaranteed synchronous).
+     * Also stops this bridge's own polling loop, since there's nothing
+     * left to poll after this call. Call from `MainActivity.onDestroy`. */
     fun shutdown() {
+        stopPolling()
         NativeMessagingBridge.shutdown()
     }
 
@@ -160,6 +176,7 @@ private object NativeMessagingBridge {
 
     external fun bootstrap(filesDir: String): String
     external fun addPeer(ticket: String): String
+    external fun ticketEndpointDebug(ticket: String): String
     external fun sendText(peerTicket: String, text: String): String
     external fun checkMailbox(relayTicket: String): String
     external fun sendTextAnon(peerTicket: String, relayTicket: String, text: String): String
