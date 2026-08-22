@@ -1,0 +1,17 @@
+[package]
+name = "siar-transport-ble"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+
+# Deliberately no `jni`, no `siar-media-android`-style Android gate, and
+# no dependency on `siar-transport`/`siar-domain` at all: everything in
+# this crate (fragment framing, reassembly, the discovery beacon wire
+# format) is pure byte-level logic with no I/O and no platform surface —
+# next.md §22-26's BLE GATT central/peripheral operations themselves
+# (BluetoothLeScanner/BluetoothGattServer) are a separate, not-yet-built
+# Android JNI boundary this crate's types are meant to be handed to, the
+# same relationship `siar-media-core` has to `siar-media-android`.
