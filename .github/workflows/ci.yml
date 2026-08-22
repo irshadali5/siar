@@ -1,0 +1,93 @@
+# plan.md §105's pipeline: fmt -> clippy -> unit -> protocol -> DB ->
+# integration -> fuzz smoke -> build matrix.
+#
+# Notes on what's actually enforceable today (2026-08), given this
+# workspace's real dependency floors — see each crate's module docs for
+# the specifics:
+#   - iroh needs rustc >= 1.91; stoolap and openmls (once wired) need
+#     >= 1.87. `rust-toolchain.toml` pins `channel = "stable"`, so CI
+#     runners always get whatever's current — no version pin to update
+#     here as those floors move.
+#   - `apps/desktop` (Dioxus) additionally needs a system webview
+#     (webkit2gtk on Linux) — the linux job installs it explicitly;
+#     macOS/Windows runners have their platform webview preinstalled.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all -- --check
+
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev
+      # Unit + protocol + DB + integration tests all run through the
+      # normal `cargo test` tree — plan.md §98's separation is by test
+      # module/crate (e.g. siar-protocol's codec tests, siar-storage's
+      # repository tests), not by a separate CI stage per category.
+      - run: cargo test --workspace
+
+  fuzz-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - run: cargo install cargo-fuzz
+      # A short smoke run, not a full fuzzing campaign (plan.md §105
+      # distinguishes "fuzz smoke tests" in CI from real fuzzing, which
+      # runs longer and out-of-band).
+      - run: cd fuzz && cargo fuzz run decode_frame -- -max_total_time=30
+      - run: cd fuzz && cargo fuzz run decode_blob_frame -- -max_total_time=30
+
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo install cargo-audit cargo-deny
+      - run: cargo audit
+      - run: cargo deny check
+
+  build-matrix:
+    needs: [fmt, clippy, test]
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: macos-latest
+            target: aarch64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev
+      - run: cargo build --workspace --target ${{ matrix.target }} --release
