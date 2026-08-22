@@ -1,0 +1,106 @@
+[workspace]
+resolver = "2"
+exclude = ["fuzz"]
+members = [
+    "crates/siar-domain",
+    "crates/siar-protocol",
+    "crates/siar-crypto",
+    "crates/siar-crypto-mls",
+    "crates/siar-storage",
+    "crates/siar-transport",
+    "crates/siar-messaging",
+    "crates/siar-ui-state",
+    "crates/siar-media-core",
+    "crates/siar-media-av1",
+    "crates/siar-media-audio",
+    "crates/siar-media-android",
+    "crates/siar-media-image",
+    "crates/siar-calls",
+    "crates/siar-transport-wifi-direct",
+    "crates/siar-transport-wifi-aware",
+    "crates/siar-transport-bluetooth-classic",
+    "crates/siar-transport-ble",
+    "crates/siar-transport-ble-android",
+    "crates/siar-dtn",
+    "crates/siar-routing",
+    "crates/siar-emergency",
+    "crates/siar-testkit",
+    "crates/siar-connectivity",
+    "apps/cli",
+    "apps/desktop",
+    "apps/emergency-node",
+    "apps/android/rust-jni-glue",
+    "apps/android/messaging-jni",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.91"
+
+[workspace.dependencies]
+siar-domain = { path = "crates/siar-domain" }
+siar-protocol = { path = "crates/siar-protocol" }
+siar-crypto = { path = "crates/siar-crypto" }
+siar-crypto-mls = { path = "crates/siar-crypto-mls" }
+siar-storage = { path = "crates/siar-storage" }
+siar-transport = { path = "crates/siar-transport" }
+siar-messaging = { path = "crates/siar-messaging" }
+siar-ui-state = { path = "crates/siar-ui-state" }
+siar-media-core = { path = "crates/siar-media-core" }
+siar-dtn = { path = "crates/siar-dtn" }
+siar-routing = { path = "crates/siar-routing" }
+siar-connectivity = { path = "crates/siar-connectivity" }
+siar-transport-ble = { path = "crates/siar-transport-ble" }
+siar-media-image = { path = "crates/siar-media-image" }
+
+# --- pure-Rust, zero-overhead-first choices ---
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "net", "io-std", "io-util"] }
+serde = { version = "1", features = ["derive"] }
+postcard = { version = "1", features = ["alloc"] }
+bytes = "1"
+thiserror = "2"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+zeroize = { version = "1", features = ["derive"] }
+
+# crypto: RustCrypto (pure Rust, audited-lineage, no OpenSSL/C)
+ed25519-dalek = { version = "2", features = ["rand_core", "serde", "zeroize"] }
+x25519-dalek = { version = "2", features = ["static_secrets", "zeroize"] }
+chacha20poly1305 = { version = "0.10", features = ["std"] }
+rand_core = { version = "0.6", features = ["std"] }
+blake3 = "1"
+
+# storage: pure-Rust embedded SQL (replaces SQLite/rusqlite per explicit instruction)
+stoolap = "0.4"
+# stoolap 0.4's `Value`/`ToParam`/`FromValue` have no blob variant yet —
+# `BLOB` columns are parsed but stored as `DataType::Text` internally
+# (confirmed in stoolap's own `executor/ddl.rs`). Ciphertext therefore
+# goes in as base64 text, not raw bytes — see siar-storage's blob_codec.rs.
+base64 = "0.22"
+
+# Cross-platform data/config directory resolution (XDG on Linux, Known
+# Folder API on Windows, Standard Directory on macOS) — added for
+# `apps/desktop`'s persistent identity/database/contact-book work.
+# Pure Rust, tiny, no unsafe beyond what `dirs-sys` itself needs for the
+# underlying OS calls — picked over hand-rolling `$HOME/.local/share`
+# parsing, which would silently ignore `XDG_DATA_HOME` and break outright
+# on Windows, a real correctness gap given this project's stated
+# Linux+Windows+Android target set.
+directories = "5.0"
+
+async-trait = "0.1"
+# 0.95.1 pulled in iroh-base 0.95.1, which pins ed25519-dalek "=3.0.0-pre.1"
+# exactly — a pre-release with a real upstream bug (pkcs8::Error::KeyMalformed
+# used as a fn instead of being constructed, and `?` can't convert KeyError to
+# pkcs8::Error). Fixed from iroh-base 1.0.0 onward, which depends on the
+# stable ed25519-dalek 3.0.0. Bumping the whole iroh line to stable 1.x here.
+iroh = "1.0.3"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
