@@ -1,0 +1,20 @@
+[package]
+name = "siar-transport-bluetooth-classic"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+# Same reasoning as every other Android-JNI crate in this workspace:
+# `System.loadLibrary("siar_transport_bluetooth_classic")` needs a
+# `.so` (cdylib); `rlib` stays so `framing.rs`'s pure logic remains a
+# normal, unit-testable workspace dependency on every platform, not
+# just Android.
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+thiserror = { workspace = true }
+
+[target.'cfg(target_os = "android")'.dependencies]
+# Same pin as every other jni_bridge.rs in this workspace.
+jni = "0.21"
