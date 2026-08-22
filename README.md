@@ -179,32 +179,43 @@ siar/
 
 ## System Architecture Topics (Specifications Index)
 
-The `sys-arch/` directory contains detailed design documents defining every architectural subsystem:
+The `sys-arch/` directory contains 33 comprehensive design documents defining every architectural subsystem of the SIAR platform:
 
-| Document | Topic | Description |
-| :--- | :--- | :--- |
-| [`01-protocol-extension`](sys-arch/01-protocol-extension-system-architecture.md) | **Protocol Extensions** | TLV frame framing and extensible wire header specifications |
-| [`02-multi-device-identity`](sys-arch/02-multi-device-identity-architecture.md) | **Multi-Device Identity** | Ed25519 master keys, subkey derivation, device provisioning |
-| [`03-transport-routing-policy`](sys-arch/03-transport-routing-policy-engine-architecture.md) | **Routing Engine** | Cost metrics, latency/bandwidth scoring, link quality selection |
-| [`04-offline-event-log`](sys-arch/04-offline-event-log-architecture.md) | **Offline Log** | Append-only event log, sequence vectors, state synchronization |
-| [`05-robust-file-blob`](sys-arch/05-robust-file-blob-subsystem-architecture.md) | **Blob Subsystem** | Chunking, BLAKE3 content-addressable storage, AES-GCM encryption |
-| [`06-dtn-store-carry-forward`](sys-arch/06-dtn-store-carry-forward-architecture.md) | **DTN Core** | Opportunistic epidemic routing, TTL expiry, anti-entropy sync |
-| [`07-capability-negotiation`](sys-arch/07-capability-negotiation-architecture.md) | **Capabilities** | Version handshake, media codec negotiation, link parameters |
-| [`08-resource-limits`](sys-arch/08-resource-limits-backpressure-architecture.md) | **Backpressure** | Flow control, queue bounds, priority dropping under congestion |
-| [`09-crash-recovery`](sys-arch/09-crash-recovery-architecture.md) | **Crash Safety** | WAL recovery, transactional checkpoints, corrupt state isolation |
-| [`10-fuzzing-protocol`](sys-arch/10-fuzzing-protocol-test-suite-architecture.md) | **Fuzz Testing** | AFL/libFuzzer strategies for Postcard frames and video blobs |
-| [`11-relay-infrastructure`](sys-arch/11-relay-self-hosted-infrastructure-architecture.md) | **Relay Nodes** | Unlinkable token-mailbox relaying and TURN/DERP traversal |
-| [`12-multipath-networking`](sys-arch/12-multipath-networking-architecture.md) | **Multipath** | Concurrent multi-socket striping across Wi-Fi + BLE + Cellular |
-| [`13-battery-aware`](sys-arch/13-battery-aware-scheduling-architecture.md) | **Power Management** | Battery level polling, BLE duty cycle adjustment, wake lock management |
-| [`14-proximity-abstraction`](sys-arch/14-proximity-abstraction-architecture.md) | **Proximity** | Unified API for BLE RSSI, Wi-Fi Aware distance, and LAN discovery |
-| [`15-qr-nfc-bootstrap`](sys-arch/15-qr-nfc-bootstrap-pairing-architecture.md) | **Out-of-Band Pairing** | QR code / NFC payload format for PeerTicket exchange |
-| [`16-daemon-headless`](sys-arch/16-daemon-headless-runtime-architecture.md) | **Headless Runtime** | UNIX domain socket / IPC control surface for background daemons |
-| [`17-emergency-priority`](sys-arch/17-emergency-priority-classes-architecture.md) | **Emergency Priority** | High-priority SOS broadcast preemption over normal traffic |
-| [`18-network-diagnostics`](sys-arch/18-network-diagnostics-path-visualization-architecture.md) | **Path Diagnostics** | Route tracing, RTT measurement, graph visualization metrics |
-| [`19-c-abi-ffi`](sys-arch/19-c-abi-ffi-architecture.md) | **C/FFI Layer** | Stable C ABI header definitions for iOS/C++ integration |
-| [`20-embedded-linux`](sys-arch/20-embedded-linux-node-architecture.md) | **Embedded Linux** | Low-footprint compilation flags for Raspberry Pi / OpenWrt |
-| [`25-android-hardware-surface`](sys-arch/25-android-direct-hardware-surface-zero-copy-media-architecture.md) | **Android Hardware Media** | Zero-copy `Surface` / `GraphicBuffer` pipeline into MediaCodec |
-| [`28-production-security`](sys-arch/28-production-security-e2ee-key-management-privacy-architecture.md) | **Security & Privacy** | Threat model, identity blinding, MLS key package rotation |
+| Part | Document | Topic | Description |
+| :---: | :--- | :--- | :--- |
+| **01** | [`01-protocol-extension`](sys-arch/01-protocol-extension-system-architecture.md) | **Protocol Extensions** | TLV frame framing, extensible wire headers, backward/forward compatibility |
+| **02** | [`02-multi-device-identity`](sys-arch/02-multi-device-identity-architecture.md) | **Multi-Device Identity** | Ed25519 master keys, subkey derivation, device provisioning, key revocation |
+| **03** | [`03-transport-routing-policy`](sys-arch/03-transport-routing-policy-engine-architecture.md) | **Routing Engine** | Cost metrics, latency/bandwidth scoring, dynamic link quality selection |
+| **04** | [`04-offline-event-log`](sys-arch/04-offline-event-log-architecture.md) | **Offline Event Log** | Append-only event log, sequence vectors, state synchronization |
+| **05** | [`05-robust-file-blob`](sys-arch/05-robust-file-blob-subsystem-architecture.md) | **Blob Subsystem** | Chunking, BLAKE3 content-addressable storage, AES-GCM streaming encryption |
+| **06** | [`06-dtn-store-carry-forward`](sys-arch/06-dtn-store-carry-forward-architecture.md) | **DTN Core** | Opportunistic epidemic routing, TTL expiry, anti-entropy sync for off-grid meshes |
+| **07** | [`07-capability-negotiation`](sys-arch/07-capability-negotiation-architecture.md) | **Capabilities** | Version handshakes, media codec capability matrix, link parameters |
+| **08** | [`08-resource-limits`](sys-arch/08-resource-limits-backpressure-architecture.md) | **Backpressure** | Flow control, memory bounds, priority queue dropping under congestion |
+| **09** | [`09-crash-recovery`](sys-arch/09-crash-recovery-architecture.md) | **Crash Safety** | WAL recovery, transactional checkpoints, corrupt state isolation |
+| **10** | [`10-fuzzing-protocol`](sys-arch/10-fuzzing-protocol-test-suite-architecture.md) | **Fuzz Testing** | AFL/libFuzzer strategies for Postcard frames, blob decoders, and fuzz targets |
+| **11** | [`11-relay-infrastructure`](sys-arch/11-relay-self-hosted-infrastructure-architecture.md) | **Relay Nodes** | Unlinkable token-mailbox relaying, DERP/STUN/TURN NAT traversal |
+| **12** | [`12-multipath-networking`](sys-arch/12-multipath-networking-architecture.md) | **Multipath** | Concurrent multi-socket striping across Wi-Fi, BLE, and cellular interfaces |
+| **13** | [`13-battery-aware`](sys-arch/13-battery-aware-scheduling-architecture.md) | **Power Management** | Battery level polling, BLE duty cycle adjustment, wake lock lifecycle control |
+| **14** | [`14-proximity-abstraction`](sys-arch/14-proximity-abstraction-architecture.md) | **Proximity** | Unified API for BLE RSSI, Wi-Fi Aware distance, and mDNS discovery |
+| **15** | [`15-qr-nfc-bootstrap`](sys-arch/15-qr-nfc-bootstrap-pairing-architecture.md) | **Out-of-Band Pairing** | QR code / NFC payload format for PeerTicket exchange |
+| **16** | [`16-daemon-headless`](sys-arch/16-daemon-headless-runtime-architecture.md) | **Headless Runtime** | UNIX domain socket IPC, systemd daemonization, and CLI control surfaces |
+| **17** | [`17-emergency-priority`](sys-arch/17-emergency-priority-classes-architecture.md) | **Emergency Priority** | High-priority SOS broadcast preemption over normal traffic |
+| **18** | [`18-network-diagnostics`](sys-arch/18-network-diagnostics-path-visualization-architecture.md) | **Path Diagnostics** | Route tracing, RTT latency measurement, graph visualization metrics |
+| **19** | [`19-c-abi-ffi`](sys-arch/19-c-abi-ffi-architecture.md) | **C/FFI Layer** | Stable C ABI header definitions for iOS/C++ integration |
+| **20** | [`20-embedded-linux`](sys-arch/20-embedded-linux-node-architecture.md) | **Embedded Linux** | Low-footprint compilation flags for Raspberry Pi, OpenWrt, and field nodes |
+| **21** | [`21-third-party-protocol-extensions`](sys-arch/21-third-party-protocol-extensions-architecture.md) | **Third-Party Extensions** | Sandboxed custom protocol handlers, frame registration, and hooks |
+| **22** | [`22-wasm-compatible-components`](sys-arch/22-wasm-compatible-components-architecture.md) | **WASM Components** | Compiling cryptographic and protocol verification filters to WebAssembly |
+| **23** | [`23-external-interoperability-suite`](sys-arch/23-external-interoperability-suite-architecture.md) | **Interoperability Suite** | Conformance testing, cross-client golden files, and compatibility test vectors |
+| **24** | [`24-plugin-module-ecosystem`](sys-arch/24-plugin-module-ecosystem-architecture.md) | **Plugin Ecosystem** | Dynamic extension modules, capability permissions, and lifecycle isolation |
+| **25** | [`25-android-hardware-surface`](sys-arch/25-android-direct-hardware-surface-zero-copy-media-architecture.md) | **Android Hardware Media** | Zero-copy `Surface` / `GraphicBuffer` pipeline into MediaCodec |
+| **26** | [`26-rust-first-audio-dsp`](sys-arch/26-rust-first-audio-dsp-resampling-aec-ns-agc-architecture.md) | **Rust Audio DSP** | Pure-Rust audio processing, acoustic echo cancellation, noise suppression, AGC |
+| **27** | [`27-rust-driven-android-native-build`](sys-arch/27-rust-driven-android-native-build-packaging-automation.md) | **Android Build Automation** | Automated `cargo-ndk` multi-ABI `.so` packaging and CI pipeline |
+| **28** | [`28-production-security`](sys-arch/28-production-security-e2ee-key-management-privacy-architecture.md) | **Security & Privacy** | Threat model, identity blinding, MLS key package rotation, abuse resistance |
+| **29** | [`29-realtime-calls-media-session`](sys-arch/29-realtime-calls-media-session-protocol-architecture.md) | **Realtime Call Sessions** | P2P audio/video call signaling, jitter buffering, and RTP session control |
+| **30** | [`30-presence-availability`](sys-arch/30-presence-availability-typing-read-receipts-ephemeral-state-architecture.md) | **Presence & Ephemeral State** | Typing indicators, read receipts, peer availability heartbeats, TTL state |
+| **31** | [`31-notifications-push-lifecycle`](sys-arch/31-notifications-push-background-delivery-lifecycle-architecture.md) | **Notifications & Lifecycle** | Unified push wake, background packet scheduling, battery-safe OS lifecycle |
+| **32** | [`32-search-indexing`](sys-arch/32-search-indexing-local-knowledge-privacy-architecture.md) | **Search & Local Knowledge** | Zero-knowledge local inverted index, encrypted text search, fast indexing |
+| **33** | [`33-backup-restore`](sys-arch/33-backup-restore-export-import-archival-portability-architecture.md) | **Backup & Portability** | Encrypted archival vaults, incremental snapshots, cross-platform export/import |
 
 ---
 
