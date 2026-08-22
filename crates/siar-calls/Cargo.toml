@@ -1,0 +1,23 @@
+[package]
+name = "siar-calls"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+siar-domain.workspace = true
+siar-media-core.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+
+# Deliberately NOT a dependency on siar-media-av1 or siar-media-audio:
+# pipeline.rs's spawn_* functions take an already-constructed
+# `Box<dyn VideoEncoder>`/`Box<dyn AudioEncoder>` etc, so this crate
+# only ever needs siar-media-core's traits. Constructing the concrete
+# Av1SoftwareEncoder/OpusEncoder/etc and boxing it is the caller's job
+# (apps/desktop, apps/android) — that's where "which concrete codec"
+# actually gets decided, one layer up from here.
+
+[target.'cfg(target_os = "android")'.dependencies]
+siar-media-android = { path = "../siar-media-android" }
