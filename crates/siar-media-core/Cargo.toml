@@ -1,0 +1,12 @@
+[package]
+name = "siar-media-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+# Deliberately nothing else. This crate is the trait/negotiation layer
+# calls.rs's doc comment describes: "the calls crate should know about
+# VideoEncoder/VideoDecoder/VideoCapabilities but not whether the
+# implementation is AV1 software or Android MediaCodec." Pulling in a
+# codec crate here would violate that on day one.
