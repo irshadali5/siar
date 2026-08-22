@@ -1,0 +1,26 @@
+[package]
+name = "siar-cli"
+version.workspace = true
+edition.workspace = true
+rust-version = "1.91"
+
+[[bin]]
+name = "siar"
+path = "src/main.rs"
+
+[dependencies]
+siar-domain.workspace = true
+siar-crypto.workspace = true
+siar-storage.workspace = true
+siar-transport.workspace = true
+siar-messaging.workspace = true
+siar-protocol.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true
+iroh.workspace = true
+uuid.workspace = true
+base64.workspace = true
+postcard.workspace = true
+rand_core = "0.9"
