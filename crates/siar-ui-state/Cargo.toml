@@ -1,0 +1,8 @@
+[package]
+name = "siar-ui-state"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+siar-domain.workspace = true
