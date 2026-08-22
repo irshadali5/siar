@@ -1,0 +1,27 @@
+[package]
+name = "siar-media-av1"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+siar-media-core.workspace = true
+# default-features off: rav1e's defaults pull in "binaries" (clap, a CLI
+# we don't want) and "asm" (hand-written assembly requiring the `nasm`
+# toolchain to be installed — an extra system dependency this library
+# shouldn't force on every consumer). Pure-Rust encode paths still work
+# without "asm"; it only disables the hand-optimized routines. Add
+# "asm" back once `nasm` is confirmed available in the release build
+# environment (architecture doc §37's dependency-pinning concern).
+rav1e = { version = "0.8", default-features = false }
+# Real AV1 decode via libdav1d's C API. `dav1d-sys`'s FFI declarations
+# were read directly from its published source (0.8.3) to write
+# decoder.rs, not bindgen'd blind in this session — see that module's
+# doc comment. `system-deps` (dav1d-sys's own build-dependency) looks
+# for libdav1d via pkg-config first; if it's not installed, dav1d-sys's
+# build.rs falls back to cloning and building dav1d from source with
+# meson/ninja, which needs git/meson/ninja/a C compiler on the build
+# machine. Installing `libdav1d-dev` (Debian/Ubuntu) / `dav1d` (Arch,
+# Homebrew) ahead of time avoids that fallback build entirely.
+dav1d-sys = "0.8"
+libc = "0.2"
