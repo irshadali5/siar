@@ -1,0 +1,31 @@
+[package]
+name = "siar-transport-wifi-direct"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+# `System.loadLibrary("siar_transport_wifi_direct")` in
+# NativeWifiDirectBridge.kt loads a `.so` — that only gets produced
+# with `cdylib`. `rlib` stays too so this crate remains a normal
+# workspace dependency other Rust crates can `use
+# siar_transport_wifi_direct::...` against (e.g. whatever eventually
+# owns the shared `ConnectivityState` this crate's `group_info` feeds —
+# see `lib.rs`'s doc comment).
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[target.'cfg(target_os = "android")'.dependencies]
+# jni 0.21, not the newer 0.22 — matches siar-media-android's own
+# jni_bridge.rs exactly, same rationale: 0.21's `extern "system" fn
+# Java_...(env: JNIEnv<'local>, ...)` is the long-established,
+# widely-documented entry-point convention; every signature this
+# crate's jni_bridge.rs uses mirrors that file's already-verified
+# usage, not written from memory independently.
+jni = "0.21"
+
+# On non-Android targets this crate has no cfg-gated content at all —
+# lib.rs is Android-only, so there's nothing here for it to depend on.
+# The crate still needs to exist and build (as an empty crate) on
+# every workspace target so `cargo build --workspace` succeeds from a
+# Linux/macOS/Windows dev machine without an Android target installed
+# — same reasoning as siar-media-android's own Cargo.toml.
