@@ -115,12 +115,17 @@ class WifiDirectManager(private val context: Context) {
     }
 
     /**
-     * Begins peer discovery. Requires [android.Manifest.permission.ACCESS_FINE_LOCATION]
-     * to already be granted — see the manifest's own comment on why
-     * that permission is required by the platform for this, not chosen
-     * by this app.
+     * Begins peer discovery — now actually guarded by
+     * [com.siar.messenger.PermissionsHelper.hasNearbyWifiDevices]
+     * rather than just documented as a precondition (`ACCESS_FINE_LOCATION`
+     * pre-API-33, `NEARBY_WIFI_DEVICES` on API 33+ — see the manifest's
+     * own comment on why both exist).
      */
     fun discoverPeers(onFailure: (reason: Int) -> Unit = {}) {
+        if (!com.siar.messenger.PermissionsHelper.hasNearbyWifiDevices(context)) {
+            Log.w(TAG, "nearby Wi-Fi devices permission not granted, skipping peer discovery")
+            return
+        }
         manager?.discoverPeers(channel, object : WifiP2pManager.ActionListener {
             override fun onSuccess() = Unit
             override fun onFailure(reason: Int) = onFailure(reason)
@@ -128,6 +133,10 @@ class WifiDirectManager(private val context: Context) {
     }
 
     fun connect(device: WifiP2pDevice, onFailure: (reason: Int) -> Unit = {}) {
+        if (!com.siar.messenger.PermissionsHelper.hasNearbyWifiDevices(context)) {
+            Log.w(TAG, "nearby Wi-Fi devices permission not granted, skipping connect")
+            return
+        }
         val config = WifiP2pConfig().apply { deviceAddress = device.deviceAddress }
         manager?.connect(channel, config, object : WifiP2pManager.ActionListener {
             override fun onSuccess() = Unit

@@ -17,8 +17,31 @@
          peer discovery and BLE scanning, not something this app wants
          for its own purposes — Android ties peer-scan results to
          location permission at the OS level; there is no way around
-         declaring it if either transport is used. -->
+         declaring it if either transport is used. ACCESS_COARSE_LOCATION
+         alongside it is mandatory as of Android 12/API 31 — the
+         platform requires any app requesting ACCESS_FINE_LOCATION to
+         also request the coarse variant (a real lint-caught
+         requirement, not a redundant declaration: fine-only was
+         rejected by `lintDebug`'s `CoarseFineLocation` check). -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- API 33+ replacement for ACCESS_FINE_LOCATION's role in Wi-Fi
+         peer discovery (Wi-Fi Direct/Wi-Fi Aware) — `neverForLocation`
+         since this app uses Wi-Fi scanning for peer discovery, never
+         geolocation, same claim BLUETOOTH_SCAN already makes below.
+         Declared alongside ACCESS_FINE_LOCATION, not instead of it:
+         this app's `minSdk` is 26, so the fine-location path still
+         has to work on API 26-32 where NEARBY_WIFI_DEVICES doesn't
+         exist — the OS itself ignores an unrecognized permission
+         constant on older API levels, so no `maxSdkVersion`/
+         `minSdkVersion` gate is needed on the tag (there is no
+         `minSdkVersion` attribute for `<uses-permission>`; only
+         `maxSdkVersion` exists — `tools:targetApi` below is purely a
+         lint hint that this constant needs `compileSdk` >= 33, which
+         this app's `compileSdk` 35 already satisfies). -->
+    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="33" />
 
     <!-- Wi-Fi Aware / NAN (next.md §18-20), API 26+ — no separate
          ACCESS_WIFI_STATE declaration needed here: it's already

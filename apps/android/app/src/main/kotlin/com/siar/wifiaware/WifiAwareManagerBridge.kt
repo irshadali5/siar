@@ -69,6 +69,10 @@ class WifiAwareManagerBridge(private val context: Context) {
     /** Advertises this device under `serviceName` — next.md §19's
      * publish role. */
     fun publish(serviceName: String) {
+        if (!com.siar.messenger.PermissionsHelper.hasNearbyWifiDevices(context)) {
+            Log.w(TAG, "nearby Wi-Fi devices permission not granted, skipping publish")
+            return
+        }
         val config = PublishConfig.Builder().setServiceName(serviceName).build()
         session?.publish(config, object : DiscoverySessionCallback() {
             override fun onPublishStarted(publishSession: PublishDiscoverySession) {
@@ -86,6 +90,10 @@ class WifiAwareManagerBridge(private val context: Context) {
      * is actually up (not merely discovered), [onNetworkAvailable]
      * reports it into the native bridge. */
     fun subscribe(serviceName: String) {
+        if (!com.siar.messenger.PermissionsHelper.hasNearbyWifiDevices(context)) {
+            Log.w(TAG, "nearby Wi-Fi devices permission not granted, skipping subscribe")
+            return
+        }
         val config = SubscribeConfig.Builder().setServiceName(serviceName).build()
         // `onSubscribeStarted` and `onServiceDiscovered` are two
         // separate callback methods on the same anonymous
@@ -151,6 +159,20 @@ class WifiAwareManagerBridge(private val context: Context) {
     fun networkCallback(isPublisher: Boolean): ConnectivityManager.NetworkCallback =
         object : ConnectivityManager.NetworkCallback() {
             override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+                // `NetworkCapabilities.transportInfo`, `WifiAwareNetworkInfo`,
+                // `.peerIpv6Addr`, and `.port` all require API 29 —
+                // this app's `minSdk` is 26 (for Wi-Fi Aware itself,
+                // available from 26), so this whole data-path-address
+                // extraction has to be skipped, not attempted, below
+                // API 29. A data path can still come up below API 29
+                // (Wi-Fi Aware's baseline is 26), but this class has no
+                // API-26-compatible way to read the resulting address —
+                // `NetworkCapabilities`/`ConnectivityManager` offered no
+                // pre-29 accessor for Aware-specific network info.
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                    Log.w(TAG, "Wi-Fi Aware data path came up but this API level has no way to read its address (requires API 29)")
+                    return
+                }
                 val info = capabilities.transportInfo as? WifiAwareNetworkInfo ?: return
                 val address = info.peerIpv6Addr?.hostAddress ?: return
                 // `siar-transport-wifi-aware`'s Rust side treats any

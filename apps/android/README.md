@@ -78,13 +78,32 @@ missing since they were built: "this workspace doesn't have an
   every process start) — `apps/cli` still regenerates fresh each run,
   a Phase-1 stand-in its own `bootstrap()` doc comment already names as
   known, not something this pass touched on that platform.
-- **No actual `.so` build pipeline.** `app/build.gradle.kts` expects
-
-  pre-built native libraries under `app/src/main/jniLibs/<abi>/` — the
-  standard Android layout for this — but nothing in this pass runs
-  `cargo-ndk` (or any cross-compiler) to actually produce them. No NDK,
-  no Android build tools, and no way to cross-compile for Android exist
-  in the sandbox this was written in.
+- **`.so` build script now exists**: `build-native.sh` runs a real,
+  explicitly-scoped `cargo ndk` invocation across all 4 ABIs, for
+  exactly the 7 Android-relevant crates — a real build/error report
+  against this workspace confirmed that scoping is both necessary
+  (`siar-media-audio`/`siar-media-av1`'s C dependencies genuinely can't
+  cross-compile for Android without real toolchain setup this
+  workspace doesn't own) and sufficient (all 7 crates build cleanly
+  across all 4 ABIs). The script still doesn't place `.so` outputs
+  directly into `jniLibs/<abi>/` — see its own trailing comment for
+  why that step is left for a real run to verify rather than guessed.
+- **Real runtime permission checks, not just declarations.** A real
+  `./gradlew lintDebug` run against this workspace found 26 lint
+  errors this codebase had never actually been checked against before:
+  20 `MissingPermission` sites (every Bluetooth/Wi-Fi platform call in
+  `BleGattManager`/`BluetoothClassicManager`/`WifiAwareManagerBridge`/
+  `WifiDirectManager` now has a real `PermissionsHelper.has*` guard in
+  front of it — genuine defensive code, not lint appeasement, since
+  these permissions can be revoked by the user mid-session), 5 `NewApi`
+  errors (`WifiAwareManagerBridge`'s data-path address extraction needs
+  API 29; now version-gated with an early return below that, same
+  pattern already used elsewhere in this file for API-gated Bluetooth
+  calls), and 1 `CoarseFineLocation` error (the manifest declared
+  `ACCESS_FINE_LOCATION` without the `ACCESS_COARSE_LOCATION` API 31+
+  requires alongside it — now declared). Also added `NEARBY_WIFI_DEVICES`
+  (API 33+'s real replacement for using fine location to gate Wi-Fi
+  peer discovery), which the manifest was missing entirely.
 - **Nothing here has been compiled or run.** No Android SDK, Gradle
   wrapper, or emulator exists in this sandbox. Every Kotlin file is
   written against real, current Android SDK API shapes — checked

@@ -70,10 +70,16 @@ class BleGattManager(private val context: Context) {
 
     fun stop() {
         pumping = false
-        adapter?.bluetoothLeScanner?.stopScan(scanCallback)
-        adapter?.bluetoothLeAdvertiser?.stopAdvertising(advertiseCallback)
-        gattServer?.close()
-        connectedGatts.values.forEach { it.close() }
+        if (com.siar.messenger.PermissionsHelper.hasBluetoothScan(context)) {
+            adapter?.bluetoothLeScanner?.stopScan(scanCallback)
+        }
+        if (com.siar.messenger.PermissionsHelper.hasBluetoothAdvertise(context)) {
+            adapter?.bluetoothLeAdvertiser?.stopAdvertising(advertiseCallback)
+        }
+        if (com.siar.messenger.PermissionsHelper.hasBluetoothConnect(context)) {
+            gattServer?.close()
+            connectedGatts.values.forEach { it.close() }
+        }
         connectedGatts.clear()
         nativeHandles.values.forEach { NativeBleBridge.destroyBridge(it) }
         nativeHandles.clear()
@@ -85,6 +91,10 @@ class BleGattManager(private val context: Context) {
         }
 
     private fun startGattServer(serviceUuid: UUID) {
+        if (!com.siar.messenger.PermissionsHelper.hasBluetoothConnect(context)) {
+            Log.w(TAG, "BLUETOOTH_CONNECT not granted, skipping GATT server start")
+            return
+        }
         val service = BluetoothGattService(serviceUuid, BluetoothGattService.SERVICE_TYPE_PRIMARY)
         val characteristic = BluetoothGattCharacteristic(
             CHARACTERISTIC_UUID,
@@ -115,15 +125,21 @@ class BleGattManager(private val context: Context) {
                 value: ByteArray,
             ) {
                 NativeBleBridge.onFragmentReceived(handleFor(device), value)
-                if (responseNeeded) {
+                if (responseNeeded && com.siar.messenger.PermissionsHelper.hasBluetoothConnect(context)) {
                     gattServer?.sendResponse(device, requestId, 0, offset, null)
                 }
             }
         })
-        gattServer?.addService(service)
+        if (com.siar.messenger.PermissionsHelper.hasBluetoothConnect(context)) {
+            gattServer?.addService(service)
+        }
     }
 
     private fun advertise(serviceUuid: UUID) {
+        if (!com.siar.messenger.PermissionsHelper.hasBluetoothAdvertise(context)) {
+            Log.w(TAG, "BLUETOOTH_ADVERTISE not granted, skipping advertise start")
+            return
+        }
         val settings = AdvertiseSettings.Builder()
             .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
             .setConnectable(true)
@@ -142,6 +158,10 @@ class BleGattManager(private val context: Context) {
     }
 
     private fun scan(serviceUuid: UUID) {
+        if (!com.siar.messenger.PermissionsHelper.hasBluetoothScan(context)) {
+            Log.w(TAG, "BLUETOOTH_SCAN not granted, skipping scan start")
+            return
+        }
         val filter = android.bluetooth.le.ScanFilter.Builder()
             .setServiceUuid(android.os.ParcelUuid(serviceUuid))
             .build()
@@ -155,6 +175,7 @@ class BleGattManager(private val context: Context) {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             val device = result.device
             if (connectedGatts.containsKey(device.address)) return
+            if (!com.siar.messenger.PermissionsHelper.hasBluetoothConnect(context)) return
             val gatt = device.connectGatt(context, false, gattCallback)
             connectedGatts[device.address] = gatt
         }
@@ -163,7 +184,9 @@ class BleGattManager(private val context: Context) {
     private val gattCallback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
-                gatt.discoverServices()
+                if (com.siar.messenger.PermissionsHelper.hasBluetoothConnect(context)) {
+                    gatt.discoverServices()
+                }
                 if (nativeHandles.isEmpty()) {
                     com.siar.connectivity.ConnectivityBridge.markUp(com.siar.connectivity.TransportLinkKind.Ble)
                 }
@@ -230,6 +253,7 @@ class BleGattManager(private val context: Context) {
      * and break minSdk 26 support. */
     @Suppress("DEPRECATION")
     private fun writeFragment(gatt: BluetoothGatt, fragment: ByteArray) {
+        if (!com.siar.messenger.PermissionsHelper.hasBluetoothConnect(context)) return
         val characteristic =
             gatt.getService(SERVICE_UUID)?.getCharacteristic(CHARACTERISTIC_UUID) ?: return
         // `BluetoothGatt.writeCharacteristic(characteristic, value,

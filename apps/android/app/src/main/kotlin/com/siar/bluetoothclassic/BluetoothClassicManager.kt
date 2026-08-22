@@ -24,7 +24,7 @@ import java.util.concurrent.Executors
  * conventional pattern for `BluetoothSocket` since its streams are
  * blocking, not `Handler`-postable the way BLE's GATT callbacks are.
  */
-class BluetoothClassicManager(context: Context) {
+class BluetoothClassicManager(private val context: Context) {
     private val adapter: BluetoothAdapter? =
         (context.getSystemService(Context.BLUETOOTH_SERVICE) as? android.bluetooth.BluetoothManager)?.adapter
     private val ioExecutor = Executors.newCachedThreadPool()
@@ -37,6 +37,10 @@ class BluetoothClassicManager(context: Context) {
      * server socket out from under it (the conventional way to
      * interrupt a blocking `accept()` on this API). */
     fun listen() {
+        if (!com.siar.messenger.PermissionsHelper.hasBluetoothConnect(context)) {
+            Log.w(TAG, "BLUETOOTH_CONNECT not granted, skipping RFCOMM listen")
+            return
+        }
         ioExecutor.execute {
             val serverSocket = try {
                 adapter?.listenUsingRfcommWithServiceRecord(SERVICE_NAME, SERVICE_UUID)
@@ -58,6 +62,10 @@ class BluetoothClassicManager(context: Context) {
 
     /** Initiates an outgoing RFCOMM connection to `device`. */
     fun connect(device: BluetoothDevice) {
+        if (!com.siar.messenger.PermissionsHelper.hasBluetoothConnect(context)) {
+            Log.w(TAG, "BLUETOOTH_CONNECT not granted, skipping RFCOMM connect")
+            return
+        }
         ioExecutor.execute {
             val socket = try {
                 device.createRfcommSocketToServiceRecord(SERVICE_UUID).also { it.connect() }
