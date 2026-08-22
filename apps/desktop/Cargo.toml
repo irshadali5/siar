@@ -1,0 +1,30 @@
+[package]
+name = "siar-desktop"
+version.workspace = true
+edition.workspace = true
+rust-version = "1.91"   # inherits the iroh/stoolap floor via siar-messaging
+
+[[bin]]
+name = "siar-desktop"
+path = "src/main.rs"
+
+[dependencies]
+siar-domain.workspace = true
+siar-ui-state.workspace = true
+siar-crypto.workspace = true
+siar-storage.workspace = true
+siar-transport.workspace = true
+siar-messaging.workspace = true
+siar-protocol.workspace = true
+siar-media-image.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true
+iroh.workspace = true
+rand_core = "0.9"
+base64.workspace = true
+postcard.workspace = true
+directories.workspace = true
+uuid.workspace = true
+dioxus = { version = "0.7", features = ["desktop"] }
