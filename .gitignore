@@ -4,3 +4,5 @@ target/
 .DS_Store
 .gradle/
 **/build/
+*.tar.gz
+*.zip
