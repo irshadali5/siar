@@ -10,14 +10,20 @@
 
 ## 1. Preamble & Dual-Licensing Rationale
 
-The SIAR project represents a major engineering effort in decentralized mesh networking, delay-tolerant routing, zero-copy media processing, and Messaging Layer Security (MLS). 
+### 🕊️ Free for Humanity Commitment
+**SIAR is, and will always remain, 100% free and open-source software for all of humanity.** 
 
-Permissive open-source licenses (such as MIT or Apache 2.0) allow commercial entities and large technology corporations to incorporate software into revenue-generating, closed-source SaaS offerings or embedded products without contributing back to the open-source creators or compensating the maintainers. 
+The software is created to empower individuals, civil society, humanitarian efforts, disaster responders, academic researchers, and public open-source developers worldwide with resilient, zero-infrastructure messaging capabilities without cost or commercial barriers.
 
-To prevent uncompensated exploitation while preserving complete freedom for the global open-source community, SIAR enforces a **Dual Licensing Model**:
+### 💡 Fueling Development via Commercial Reinvestment
+Permissive open-source licenses (such as MIT or Apache 2.0) allow large technology conglomerates and commercial enterprises to incorporate open software into billion-dollar closed-source platforms without contributing back to the project maintainers or compensating the open-source creators.
 
-1. **Open Source Path (AGPLv3)**: Gratis for open-source developers, academic research, non-commercial emergency response, and GPL/AGPL-compliant projects. Under Section 13 of the AGPLv3, any network-accessible service running modified or unmodified SIAR software **must publish its complete corresponding source code** to all network users.
-2. **Commercial Exemption Path (SIAR-CEEL)**: Designed for commercial enterprises, SaaS providers, cloud vendors, and proprietary software developers. Purchasing an active SIAR Commercial License lifts all copyleft requirements, source-disclosure mandates, and AGPLv3 Section 13 restrictions.
+To prevent uncompensated enterprise exploitation while guaranteeing perpetual freedom for humanity, SIAR employs a **Dual Licensing Model**:
+
+1. **Open Source & Humanitarian Path (GNU AGPLv3)**: **100% gratis for everyone**. Under Section 13 of the AGPLv3, any entity deploying SIAR as a network service must publish its complete source code under AGPLv3.
+2. **Commercial Exemption Path (SIAR-CEEL-1.0)**: Commercial enterprises using SIAR within closed-source applications or proprietary SaaS platforms pay a commercial subscription fee to lift AGPLv3 copyleft restrictions.
+
+**100% of commercial licensing revenues are directly reinvested to fuel the core engineering, security auditing, multi-platform maintenance, and ongoing development of SIAR for the benefit of humanity.**
 
 ---
 

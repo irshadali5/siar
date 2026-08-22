@@ -392,21 +392,27 @@ cargo fuzz run decode_blob_frame
 
 SIAR is dual-licensed under the **GNU Affero General Public License Version 3 (AGPLv3)** and the **SIAR Commercial License & Enterprise Exemption Agreement (SIAR-CEEL-1.0)**.
 
-### Why Dual AGPLv3 + Commercial License?
+### 🕊️ Free & Open Source for Humanity
 
-Under permissive licenses (such as MIT or Apache 2.0), commercial corporations and big-tech entities can incorporate open-source mesh routing, cryptographic protocols, and core engine code into proprietary, revenue-generating SaaS platforms and embedded closed-source products without contributing back to the project maintainers or compensating the open-source creators.
+**SIAR is, and will always remain, 100% free and open-source software for everyone for humanity.**
 
-To prevent uncompensated enterprise exploitation while preserving 100% freedom for the open-source community:
+This software is built to guarantee resilient, decentralized communication for individuals, civil society, emergency response, humanitarian missions, academic research, and public open-source developers worldwide—completely gratis and without restriction.
 
-1. **GNU AGPLv3 (Open Source & Non-Commercial)**:
-   - Gratis for non-commercial projects, academic research, open-source developers, emergency responders, and GPL/AGPL-compliant applications.
-   - **Section 13 (Network Copyleft Trigger)**: Any cloud service, SaaS application, or network node running SIAR must release its complete corresponding source code under AGPLv3 to all network users.
+### 💡 Commercial Reinvestment to Fuel Core Development
+
+Under permissive open-source licenses (such as MIT or Apache 2.0), big-tech conglomerates can package open-source infrastructure into closed-source commercial platforms without contributing back. 
+
+SIAR's commercial exemption lifts the AGPLv3 Section 13 network copyleft for enterprise SaaS providers in exchange for commercial licensing fees. **100% of commercial licensing revenues are directly reinvested to fuel ongoing R&D, independent security audits, and continuous open-source development of SIAR for humanity.**
+
+1. **GNU AGPLv3 (Open Source & Humanitarian Path)**:
+   - **100% Gratis for Humanity**: Free for personal, non-commercial, emergency response, educational, and open-source use.
+   - **Section 13 (Network Copyleft Trigger)**: Any network service or cloud provider running SIAR must release its complete source code under AGPLv3.
    - Full text available in [`LICENSE-AGPLv3`](file:///home/irshad/Projects/siar/LICENSE-AGPLv3).
 
 2. **SIAR Commercial License (SIAR-CEEL-1.0)**:
-   - Designed for commercial enterprise integration, closed-source application bundling (iOS/Android/Desktop), cloud SaaS deployment, and big-tech infrastructure.
-   - **Lifts AGPLv3 Section 13 Network Copyleft**: Allows embedding, static/dynamic linking, and cloud hosting without disclosing proprietary application code or infrastructure backend sources.
-   - **Conditioned on Active Recurring Subscription**: Granted in exchange for monthly or annual commercial licensing fees.
+   - Designed for commercial enterprises, closed-source app bundling (iOS/Android/Desktop), and big-tech cloud infrastructure.
+   - **Lifts AGPLv3 Section 13 Copyleft**: Enables proprietary linking and SaaS hosting without exposing internal backend source code.
+   - **Conditioned on Active Subscription**: Granted via recurring commercial subscription fees that fuel SIAR's development.
    - Full legal contract available in [`LICENSE-COMMERCIAL.md`](file:///home/irshad/Projects/siar/LICENSE-COMMERCIAL.md).
 
 ### Commercial Subscription Tiers
