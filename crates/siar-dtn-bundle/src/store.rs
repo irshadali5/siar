@@ -1,0 +1,214 @@
+//! §15 "Durable Store", §16 "Bundle Store Interface".
+
+use async_trait::async_trait;
+use std::collections::HashMap;
+use std::sync::Mutex;
+use thiserror::Error;
+
+use crate::bundle::DtnBundle;
+use crate::state::BundleState;
+use crate::types::BundleId;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StoredBundle {
+    pub bundle: DtnBundle,
+    pub state: BundleState,
+}
+
+/// §16's own query type — not detailed further in the source text
+/// beyond `ForwardQuery`'s name and use in `list_candidates`; this
+/// crate's own reasonable reading: candidates for forwarding are ones
+/// in [`BundleState::Eligible`] (or already `Forwarded`, for
+/// SprayAndWait's multiple-hop case) that haven't expired as of `now`.
+#[derive(Debug, Clone, Copy)]
+pub struct ForwardQuery {
+    pub now_millis: u64,
+    pub limit: usize,
+}
+
+#[derive(Debug, Error, PartialEq, Eq)]
+pub enum DtnStoreError {
+    #[error("bundle {0:?} not found")]
+    NotFound(BundleId),
+}
+
+/// §16, verbatim method set plus one real addition: `mark_eligible`.
+/// The spec's own snippet elides `mark_forwarded`/`mark_delivered`'s
+/// parameters with `...` and doesn't show a method for the
+/// `Stored → Eligible` transition at all — but §18 lists `Eligible` as
+/// a real state between `Stored` and `Forwarded`, and without some way
+/// to reach it, [`BundleStore::list_candidates`] could never return
+/// anything (confirmed by this crate's own test suite hitting exactly
+/// that gap while exercising the trait for real). Added rather than
+/// silently worked around.
+#[async_trait]
+pub trait BundleStore: Send + Sync {
+    async fn put(&self, bundle: DtnBundle) -> Result<(), DtnStoreError>;
+    async fn get(&self, id: BundleId) -> Result<Option<StoredBundle>, DtnStoreError>;
+    async fn mark_eligible(&self, id: BundleId) -> Result<(), DtnStoreError>;
+    async fn mark_forwarded(&self, id: BundleId) -> Result<(), DtnStoreError>;
+    async fn mark_delivered(&self, id: BundleId) -> Result<(), DtnStoreError>;
+    async fn remove(&self, id: BundleId) -> Result<(), DtnStoreError>;
+    async fn list_candidates(&self, query: ForwardQuery) -> Result<Vec<StoredBundle>, DtnStoreError>;
+}
+
+/// §15: "Every accepted DTN bundle must be persisted before claiming it
+/// is being carried" — real, if in-memory: [`InMemoryBundleStore::put`]
+/// stores the bundle in `Stored` state (not yet `Eligible`) before
+/// returning, matching §15's own two-step "write durable record →
+/// eligible for forwarding" sequence rather than collapsing them.
+///
+/// Genuinely in-memory only — the actual durable half of §15's own
+/// requirement (surviving process death) needs real disk/SQLite
+/// storage this crate doesn't implement; see this crate's own top doc
+/// comment.
+#[derive(Default)]
+pub struct InMemoryBundleStore {
+    bundles: Mutex<HashMap<BundleId, StoredBundle>>,
+}
+
+impl InMemoryBundleStore {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+#[async_trait]
+impl BundleStore for InMemoryBundleStore {
+    async fn put(&self, bundle: DtnBundle) -> Result<(), DtnStoreError> {
+        let mut bundles = self.bundles.lock().expect("InMemoryBundleStore lock poisoned");
+        bundles.insert(bundle.bundle_id, StoredBundle { bundle, state: BundleState::Stored });
+        Ok(())
+    }
+
+    async fn get(&self, id: BundleId) -> Result<Option<StoredBundle>, DtnStoreError> {
+        let bundles = self.bundles.lock().expect("InMemoryBundleStore lock poisoned");
+        Ok(bundles.get(&id).cloned())
+    }
+
+    async fn mark_eligible(&self, id: BundleId) -> Result<(), DtnStoreError> {
+        let mut bundles = self.bundles.lock().expect("InMemoryBundleStore lock poisoned");
+        let stored = bundles.get_mut(&id).ok_or(DtnStoreError::NotFound(id))?;
+        stored.state = stored.state.transition(crate::state::BundleEvent::BecomeEligible).unwrap_or(stored.state);
+        Ok(())
+    }
+
+    async fn mark_forwarded(&self, id: BundleId) -> Result<(), DtnStoreError> {
+        let mut bundles = self.bundles.lock().expect("InMemoryBundleStore lock poisoned");
+        let stored = bundles.get_mut(&id).ok_or(DtnStoreError::NotFound(id))?;
+        stored.state = stored.state.transition(crate::state::BundleEvent::Forward).unwrap_or(stored.state);
+        Ok(())
+    }
+
+    async fn mark_delivered(&self, id: BundleId) -> Result<(), DtnStoreError> {
+        let mut bundles = self.bundles.lock().expect("InMemoryBundleStore lock poisoned");
+        let stored = bundles.get_mut(&id).ok_or(DtnStoreError::NotFound(id))?;
+        stored.state = stored.state.transition(crate::state::BundleEvent::ReachDestination).unwrap_or(stored.state);
+        Ok(())
+    }
+
+    async fn remove(&self, id: BundleId) -> Result<(), DtnStoreError> {
+        let mut bundles = self.bundles.lock().expect("InMemoryBundleStore lock poisoned");
+        bundles.remove(&id);
+        Ok(())
+    }
+
+    async fn list_candidates(&self, query: ForwardQuery) -> Result<Vec<StoredBundle>, DtnStoreError> {
+        let bundles = self.bundles.lock().expect("InMemoryBundleStore lock poisoned");
+        let mut candidates: Vec<StoredBundle> = bundles
+            .values()
+            .filter(|stored| {
+                matches!(stored.state, BundleState::Eligible | BundleState::Forwarded)
+                    && !stored.bundle.is_expired(query.now_millis)
+            })
+            .cloned()
+            .collect();
+        candidates.truncate(query.limit);
+        Ok(candidates)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::payload::PayloadReference;
+    use crate::types::{DtnDestination, DtnPriority, DtnSource, ForwardingClass, PayloadTypeId, RouteToken};
+    use crate::bundle::BundleIntegrity;
+
+    fn bundle(expires_at_millis: u64) -> DtnBundle {
+        DtnBundle {
+            bundle_id: BundleId::new(),
+            source: DtnSource(RouteToken(vec![1])),
+            destination: DtnDestination::DeviceOpaque(RouteToken(vec![2])),
+            payload_type: PayloadTypeId(1),
+            created_at_millis: 0,
+            expires_at_millis,
+            priority: DtnPriority::Normal,
+            hop_limit: 4,
+            replication_budget: 2,
+            forwarding_class: ForwardingClass::SprayAndWait,
+            payload_ref: PayloadReference::Inline(vec![9]),
+            integrity: BundleIntegrity { payload_hash: [0u8; 32], origin_signature: None },
+        }
+    }
+
+    #[tokio::test]
+    async fn a_put_bundle_is_retrievable_and_starts_in_stored_state() {
+        let store = InMemoryBundleStore::new();
+        let b = bundle(1_000);
+        let id = b.bundle_id;
+        store.put(b).await.unwrap();
+        let stored = store.get(id).await.unwrap().unwrap();
+        assert_eq!(stored.state, BundleState::Stored);
+    }
+
+    #[tokio::test]
+    async fn an_eligible_unexpired_bundle_is_a_forward_candidate() {
+        let store = InMemoryBundleStore::new();
+        let b = bundle(1_000);
+        let id = b.bundle_id;
+        store.put(b).await.unwrap();
+        store.mark_eligible(id).await.unwrap();
+
+        let candidates = store.list_candidates(ForwardQuery { now_millis: 0, limit: 10 }).await.unwrap();
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].state, BundleState::Eligible);
+    }
+
+    #[tokio::test]
+    async fn a_stored_but_not_yet_eligible_bundle_is_not_a_forward_candidate() {
+        let store = InMemoryBundleStore::new();
+        store.put(bundle(1_000)).await.unwrap();
+        let candidates = store.list_candidates(ForwardQuery { now_millis: 0, limit: 10 }).await.unwrap();
+        assert!(candidates.is_empty()); // Stored, not Eligible
+    }
+
+    #[tokio::test]
+    async fn an_eligible_but_expired_bundle_is_never_a_forward_candidate() {
+        let store = InMemoryBundleStore::new();
+        let b = bundle(500);
+        let id = b.bundle_id;
+        store.put(b).await.unwrap();
+        store.mark_eligible(id).await.unwrap();
+
+        let candidates = store.list_candidates(ForwardQuery { now_millis: 999, limit: 10 }).await.unwrap();
+        assert!(candidates.is_empty()); // §20: expired bundles are never forwarded
+    }
+
+    #[tokio::test]
+    async fn removing_a_bundle_makes_it_unretrievable() {
+        let store = InMemoryBundleStore::new();
+        let b = bundle(1_000);
+        let id = b.bundle_id;
+        store.put(b).await.unwrap();
+        store.remove(id).await.unwrap();
+        assert!(store.get(id).await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn marking_an_unknown_bundle_forwarded_is_a_real_error() {
+        let store = InMemoryBundleStore::new();
+        let result = store.mark_forwarded(BundleId::new()).await;
+        assert!(matches!(result, Err(DtnStoreError::NotFound(_))));
+    }
+}
