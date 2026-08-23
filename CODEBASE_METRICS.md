@@ -1,6 +1,6 @@
 # SIAR Codebase Metrics & Lines of Code Report
 
-> **Last Updated:** `2026-08-22 22:54:51 UTC`
+> **Last Updated:** `2026-08-23 12:06:56 UTC`
 
 ---
 
@@ -8,12 +8,12 @@
 
 | Language / Format | Files | Code Lines (Non-blank) | Blank Lines | Total Lines |
 | :--- | :---: | :---: | :---: | :---: |
-| **Rust (`.rs`)** | 162 | 23,289 | 2,294 | 25,583 |
+| **Rust (`.rs`)** | 184 | 25,289 | 2,526 | 27,815 |
 | **Kotlin (`.kt`, `.kts`)** | 20 | 2,889 | 269 | 3,158 |
-| **Markdown / Specs (`.md`)** | 42 | 72,526 | 35,220 | 107,746 |
-| **Configuration (`.toml`, `.yml`, `.xml`, `.properties`)** | 42 | 1,103 | 87 | 1,190 |
+| **Markdown / Specs (`.md`)** | 48 | 73,331 | 35,397 | 108,728 |
+| **Configuration (`.toml`, `.yml`, `.xml`, `.properties`)** | 45 | 1,157 | 92 | 1,249 |
 | **Legal, Shell & Config (`LICENSE-*`, `.sh`, `.gitignore`)** | 5 | 742 | 145 | 887 |
-| **Total Codebase** | **271** | **100,549** | **38,015** | **138,564** |
+| **Total Codebase** | **302** | **103,408** | **38,429** | **141,837** |
 
 ---
 
@@ -37,6 +37,14 @@
 | [siar-protocol-ext](crates/siar-protocol-ext) | 8 | 887 | 987 | Capability negotiation, descriptors, registries |
 | **Subtotal** | **17** | **1,920** | **2,109** | |
 
+### Offline Event Log & Robust Blob Subsystem
+
+| Component / Module | Files | Code Lines | Total Lines | Description |
+| :--- | :---: | :---: | :---: | :--- |
+| [siar-event-log](crates/siar-event-log) | 7 | 508 | 575 | Offline append-only event log, version envelopes, causal gap detection |
+| [siar-blob-manifest](crates/siar-blob-manifest) | 10 | 754 | 842 | Chunked file transfers, Merkle tree verification, resumable bitmaps |
+| **Subtotal** | **17** | **1,262** | **1,417** | |
+
 ### Storage, Messaging & UI State
 
 | Component / Module | Files | Code Lines | Total Lines | Description |
@@ -46,13 +54,14 @@
 | [siar-ui-state](crates/siar-ui-state) | 10 | 887 | 1,014 | Reactive state models, timelines, composers |
 | **Subtotal** | **27** | **3,922** | **4,373** | |
 
-### Mesh Networking, Transports & Routing Policy
+### Mesh Networking, DTN & Routing Policy
 
 | Component / Module | Files | Code Lines | Total Lines | Description |
 | :--- | :---: | :---: | :---: | :--- |
 | [siar-routing-policy](crates/siar-routing-policy) | 14 | 1,454 | 1,597 | Transport routing policy engine, path scoring, multi-path failover |
-| [siar-routing](crates/siar-routing) | 7 | 1,420 | 1,547 | Path scoring, multipath transport router |
+| [siar-dtn-bundle](crates/siar-dtn-bundle) | 8 | 786 | 868 | Store-carry-forward DTN bundle engine, Spray-and-Wait & Epidemic replication |
 | [siar-dtn](crates/siar-dtn) | 5 | 562 | 630 | Store-and-forward bundle delivery & dedup |
+| [siar-routing](crates/siar-routing) | 7 | 1,420 | 1,547 | Path scoring, multipath transport router |
 | [siar-transport](crates/siar-transport) | 8 | 537 | 602 | Iroh transport abstraction & peer pool |
 | [siar-transport-ble](crates/siar-transport-ble) | 5 | 546 | 607 | Pure Rust BLE discovery & frame fragmentation |
 | [siar-transport-ble-android](crates/siar-transport-ble-android) | 3 | 229 | 246 | Android BLE GATT JNI bridge |
@@ -60,7 +69,7 @@
 | [siar-transport-wifi-aware](crates/siar-transport-wifi-aware) | 3 | 190 | 205 | Wi-Fi NAN / Aware JNI bridge |
 | [siar-transport-wifi-direct](crates/siar-transport-wifi-direct) | 3 | 193 | 208 | Wi-Fi P2P / Direct JNI bridge |
 | [siar-connectivity](crates/siar-connectivity) | 3 | 227 | 248 | Link monitor & rank-ordered interface selection |
-| **Subtotal** | **55** | **5,737** | **6,310** | |
+| **Subtotal** | **63** | **6,523** | **7,178** | |
 
 ### Realtime Calls, Media & Codecs
 
@@ -101,5 +110,5 @@
 | Document Category | Files | Content Lines | Total Lines | Scope |
 | :--- | :---: | :---: | :---: | :--- |
 | [sys-arch](sys-arch) | 33 | 70,907 | 105,732 | Complete 33-part system architecture specifications |
-| Root Docs & Legal (`README`, `CLA`, `CONTRIBUTING`, `LICENSE-*`) | 11 | 2,158 | 2,685 | Setup guides, system evaluations & dual licensing |
-| **Subtotal** | **44** | **73,065** | **108,417** | |
+| Root Docs & Legal (`README`, `CLA`, `CONTRIBUTING`, `LICENSE-*`) | 17 | 2,963 | 3,667 | Architecture status, evaluations, UI/UX & off-grid guides |
+| **Subtotal** | **50** | **73,870** | **109,399** | |
