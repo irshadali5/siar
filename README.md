@@ -4,21 +4,7 @@
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](#build--compilation-tutorial)
 [![Platform Target](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20Android-lightgrey.svg)](#prerequisites--environment-setup)
 
-**SIAR** (*Survivable Identity & Autonomous Routing*) is a zero-infrastructure, multi-transport, offline-first decentralized messaging and delay-tolerant networking (DTN) platform. 
-
-### ⚙️ Core Architecture & Language Hierarchy
-- **Rust is the Primary & Core Engine**: 95%+ of the SIAR codebase is written in pure, modern Rust. All core cryptography, binary protocol framing, DTN store-carry-forward queues, path routing, storage engines, and multi-transport socket management are implemented entirely in Rust for maximum memory safety and bare-metal performance.
-- **Kotlin for Android UI Only**: Kotlin is strictly used in `apps/android` for the Jetpack Compose User Interface and native Android OS permissions/hardware bindings, interfacing directly with the Rust core engine via zero-copy C-ABI JNI bridges.
-
-### 📡 Deployment Modes: Standalone App & Headless Off-Grid Repeater/Booster
-SIAR is engineered to deploy in two distinct operating forms:
-1. **Standalone User Applications**:
-   - **Android App** (Jetpack Compose UI)
-   - **Desktop GUI** (Dioxus Desktop UI for Linux / Windows)
-   - **Terminal Messenger** (`siar-cli`)
-2. **Headless Off-Grid Repeater & Signal Booster Daemon (`siar-emergency-node`)**:
-   - Can be deployed as a headless daemon on **any device**—Raspberry Pi, Linux servers, embedded router hardware, solar-powered field nodes, or dedicated mobile repeater boosters.
-   - Functions as an **autonomous store-carry-forward mesh repeater**, receiving, buffering, and re-transmitting encrypted messages across disconnected network partitions during **complete internet blackouts, emergency outages, and off-grid disaster scenarios**.
+**SIAR** (*Survivable Identity & Autonomous Routing*) is a zero-infrastructure, multi-transport, offline-first decentralized messaging and delay-tolerant networking (DTN) platform.
 
 ---
 
@@ -26,7 +12,8 @@ SIAR is engineered to deploy in two distinct operating forms:
 
 - [About SIAR](#about-siar)
   - [Core Philosophy](#core-philosophy)
-  - [Deployment Modes](#deployment-modes-standalone-app--headless-off-grid-repeaterbooster)
+  - [Core Architecture & Language Hierarchy](#core-architecture--language-hierarchy)
+  - [Deployment Modes: Standalone App & Headless Off-Grid Repeater/Booster](#deployment-modes-standalone-app--headless-off-grid-repeaterbooster)
   - [SIAR vs Traditional Messengers](#siar-vs-traditional-messengers)
 - [System Architecture](#system-architecture)
   - [High-Level Architecture Diagram](#high-level-architecture-diagram)
@@ -56,6 +43,22 @@ SIAR is engineered to deploy in two distinct operating forms:
 3. **Multi-Transport Opportunistic Mesh**: Devices dynamically discover and switch between available physical links—local Wi-Fi Direct, Wi-Fi Aware, BLE, Bluetooth Classic, LAN, and Internet QUIC endpoints—without dropping application-level sessions.
 4. **Off-Grid Store-Carry-Forward (DTN)**: Headless repeater daemons (`siar-emergency-node`) and client nodes store, carry, and boost-forward messages across disconnected physical environments during severe internet outages.
 5. **Cryptographic Autonomy**: Every device self-generates its cryptographic identity (`DeviceIdentity` with Ed25519 signing keys and X25519 key exchange keys). MLS (Messaging Layer Security) provides strong forward secrecy and post-compromise security for 1:1 and group conversations.
+
+### Core Architecture & Language Hierarchy
+
+- **Rust is the Primary & Core Engine**: 95%+ of the SIAR codebase is written in pure, modern Rust. All core cryptography, binary protocol framing, DTN store-carry-forward queues, path routing, storage engines, and multi-transport socket management are implemented entirely in Rust for maximum memory safety and bare-metal performance.
+- **Kotlin for Android UI Only**: Kotlin is strictly used in `apps/android` for the Jetpack Compose User Interface and native Android OS permissions/hardware bindings, interfacing directly with the Rust core engine via zero-copy C-ABI JNI bridges.
+
+### Deployment Modes: Standalone App & Headless Off-Grid Repeater/Booster
+
+SIAR is engineered to deploy in two distinct operating forms:
+1. **Standalone User Applications**:
+   - **Android App** (Jetpack Compose UI)
+   - **Desktop GUI** (Dioxus Desktop UI for Linux / Windows)
+   - **Terminal Messenger** (`siar-cli`)
+2. **Headless Off-Grid Repeater & Signal Booster Daemon (`siar-emergency-node`)**:
+   - Can be deployed as a headless daemon on **any device**—Raspberry Pi, Linux servers, embedded router hardware, solar-powered field nodes, or dedicated mobile repeater boosters.
+   - Functions as an **autonomous store-carry-forward mesh repeater**, receiving, buffering, and re-transmitting encrypted messages across disconnected network partitions during **complete internet blackouts, emergency outages, and off-grid disaster scenarios**.
 
 ### SIAR vs Traditional Messengers
 
