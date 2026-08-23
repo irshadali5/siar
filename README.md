@@ -1,10 +1,10 @@
-# SIAR: Secure Interoperable Autonomous Routing & Messaging
+# SIAR: Survivable Identity & Autonomous Routing
 
 [![License: MIT / Apache-2.0 (Libraries) & AGPLv3 (Apps)](https://img.shields.io/badge/license-MIT%20%2F%20Apache--2.0%20(Libs)%20%7C%20AGPLv3%20(Apps)-blue.svg)](#license--duality-model)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](#build--compilation-tutorial)
 [![Platform Target](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20Android-lightgrey.svg)](#prerequisites--environment-setup)
 
-**SIAR** (*Secure Interoperable Autonomous Routing*) is a zero-infrastructure, multi-transport, offline-first decentralized messaging and delay-tolerant networking (DTN) platform. 
+**SIAR** (*Survivable Identity & Autonomous Routing*) is a zero-infrastructure, multi-transport, offline-first decentralized messaging and delay-tolerant networking (DTN) platform. 
 
 ### ⚙️ Core Architecture & Language Hierarchy
 - **Rust is the Primary & Core Engine**: 95%+ of the SIAR codebase is written in pure, modern Rust. All core cryptography, binary protocol framing, DTN store-carry-forward queues, path routing, storage engines, and multi-transport socket management are implemented entirely in Rust for maximum memory safety and bare-metal performance.

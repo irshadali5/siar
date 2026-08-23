@@ -1,6 +1,6 @@
 # Contributing to SIAR
 
-First off, thank you for considering contributing to **SIAR** (*Secure Interoperable Autonomous Routing*)! 🚀
+First off, thank you for considering contributing to **SIAR** (*Survivable Identity & Autonomous Routing*)! 🚀
 
 SIAR is a zero-infrastructure, multi-transport, offline-first decentralized messaging and delay-tolerant networking (DTN) platform built to guarantee private, autonomous communications for humanity.
 

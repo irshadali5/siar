@@ -2,7 +2,7 @@
 
 **Version 1.0 — Effective August 2026**
 
-Thank you for your interest in contributing to **SIAR** (*Secure Interoperable Autonomous Routing*).
+Thank you for your interest in contributing to **SIAR** (*Survivable Identity & Autonomous Routing*).
 
 To clarify the intellectual property terms for contributions and to ensure the perpetual freedom and legal security of the SIAR platform for humanity, all contributors must accept this Contributor License Agreement ("Agreement").
 
