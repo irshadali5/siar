@@ -1,8 +1,14 @@
-# SIAR: Survivable Identity & Autonomous Routing
+<p align="center">
+  <img src="assets/branding/logo.png" alt="SIAR Logo" width="600"/>
+</p>
 
-[![License: MIT / Apache-2.0 (Libraries) & AGPLv3 (Apps)](https://img.shields.io/badge/license-MIT%20%2F%20Apache--2.0%20(Libs)%20%7C%20AGPLv3%20(Apps)-blue.svg)](#license--duality-model)
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](#build--compilation-tutorial)
-[![Platform Target](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20Android-lightgrey.svg)](#prerequisites--environment-setup)
+<h1 align="center">SIAR: Survivable Identity & Autonomous Routing</h1>
+
+<p align="center">
+  <a href="#license--duality-model"><img src="https://img.shields.io/badge/license-MIT%20%2F%20Apache--2.0%20(Libs)%20%7C%20AGPLv3%20(Apps)-blue.svg" alt="License"/></a>
+  <a href="#build--compilation-tutorial"><img src="https://img.shields.io/badge/build-passing-brightgreen.svg" alt="Build Status"/></a>
+  <a href="#prerequisites--environment-setup"><img src="https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20Android-lightgrey.svg" alt="Platform Target"/></a>
+</p>
 
 **SIAR** (*Survivable Identity & Autonomous Routing*) is a zero-infrastructure, multi-transport, offline-first decentralized messaging and delay-tolerant networking (DTN) platform.
 
