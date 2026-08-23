@@ -1,0 +1,13 @@
+[package]
+name = "siar-blob-manifest"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+siar-domain = { path = "../siar-domain" }
+serde.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+blake3.workspace = true
