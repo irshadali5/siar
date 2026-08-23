@@ -1,0 +1,23 @@
+[package]
+name = "siar-dtn-bundle"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+# siar-blob-manifest/siar-event-log for payload.rs's real BlobId/EventId
+# integration (§7) — no siar-domain direct dependency needed beyond
+# what those two already re-export; no siar-dtn (the existing,
+# differently-modeled next.md-era crate — see lib.rs's own doc comment
+# for how the two relate) and no siar-transport/iroh (no wire/encounter
+# transport integration — see lib.rs's own scope section).
+siar-blob-manifest = { path = "../siar-blob-manifest" }
+siar-event-log = { path = "../siar-event-log" }
+serde.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+async-trait.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
