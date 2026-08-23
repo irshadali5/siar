@@ -7071,6 +7071,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "siar-blob-manifest"
+version = "0.1.0"
+dependencies = [
+ "blake3",
+ "serde",
+ "siar-domain",
+ "thiserror 2.0.19",
+ "uuid",
+]
+
+[[package]]
 name = "siar-calls"
 version = "0.1.0"
 dependencies = [
@@ -7188,6 +7199,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "siar-dtn-bundle"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "serde",
+ "siar-blob-manifest",
+ "siar-event-log",
+ "thiserror 2.0.19",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "siar-emergency"
 version = "0.1.0"
 dependencies = [
@@ -7214,6 +7238,19 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "siar-event-log"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "blake3",
+ "serde",
+ "siar-domain",
+ "thiserror 2.0.19",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]
