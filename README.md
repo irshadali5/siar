@@ -227,6 +227,38 @@ The `sys-arch/` directory contains 33 comprehensive design documents defining ev
 | **32** | [`32-search-indexing`](sys-arch/32-search-indexing-local-knowledge-privacy-architecture.md) | **Search & Local Knowledge** | Zero-knowledge local inverted index, encrypted text search, fast indexing |
 | **33** | [`33-backup-restore`](sys-arch/33-backup-restore-export-import-archival-portability-architecture.md) | **Backup & Portability** | Encrypted archival vaults, incremental snapshots, cross-platform export/import |
 
+### UI/UX Architecture Specifications (27 Topics)
+
+| # | Specification Document | Domain | Scope & Technical Implementation |
+| :---: | :--- | :--- | :--- |
+| **01** | [`ui-ux-01-product-foundation`](sys-arch/ui-ux-01-product-foundation-cross-platform-interaction-architecture.md) | **Product Foundation** | Cross-platform interaction model, mental model, trust surfaces |
+| **02** | [`ui-ux-02-desktop-dioxus-app-shell`](sys-arch/ui-ux-02-desktop-dioxus-app-shell-navigation-window-architecture.md) | **Desktop Dioxus Shell** | Multi-window management, tray icon, responsive navigation rail |
+| **03** | [`ui-ux-03-android-jetpack-compose`](sys-arch/ui-ux-03-android-jetpack-compose-app-shell-navigation-lifecycle-architecture.md) | **Android Compose Shell** | Material You dynamic theming, background radio lifecycle, edge-to-edge |
+| **04** | [`ui-ux-04-conversation-list-inbox`](sys-arch/ui-ux-04-conversation-list-inbox-architecture.md) | **Inbox & Conversations** | Virtualized list, unread badges, route indicators (mesh, mule, relay) |
+| **05** | [`ui-ux-05-conversation-message-timeline`](sys-arch/ui-ux-05-conversation-message-timeline-architecture.md) | **Message Timeline** | Delivery status ticks, voice note waveforms, optimistic state bubbles |
+| **06** | [`ui-ux-06-message-composer-attachments`](sys-arch/ui-ux-06-message-composer-attachments-voice-notes-drafts-architecture.md) | **Composer & Attachments** | Live Opus voice note recorder, rich Markdown preview, draft auto-save |
+| **07** | [`ui-ux-07-calls-realtime-media`](sys-arch/ui-ux-07-calls-realtime-media-architecture.md) | **Realtime Calls UI** | P2P audio/video in-call interface, zero-copy video surfaces, audio controls |
+| **08** | [`ui-ux-08-contacts-requests-verification`](sys-arch/ui-ux-08-contacts-requests-verification-identity-architecture.md) | **Contacts & Verification** | SAS 6-digit codes, out-of-band trust levels, contact requests |
+| **09** | [`ui-ux-09-groups-membership-roles`](sys-arch/ui-ux-09-groups-membership-roles-architecture.md) | **Group Management** | MLS group roles, invite proposals, epoch ratchet indicators |
+| **10** | [`ui-ux-10-files-media-gallery`](sys-arch/ui-ux-10-files-media-gallery-transfer-architecture.md) | **Media Gallery & Transfers** | Merkle DAG swarming progress bars, chunk retry controls, media viewer |
+| **11** | [`ui-ux-11-search-local-knowledge`](sys-arch/ui-ux-11-search-local-knowledge-retrieval-architecture.md) | **Search & Knowledge** | Privacy-first offline BM25 search, vector embeddings, field manual lookup |
+| **12** | [`ui-ux-12-nearby-qr-nfc-pairing`](sys-arch/ui-ux-12-nearby-qr-nfc-pairing-device-linking-architecture.md) | **Nearby Pairing & Radar** | Dynamic fountain QR codes, NFC touch pairing, visual mesh radar UI |
+| **13** | [`ui-ux-13-notifications-background`](sys-arch/ui-ux-13-notifications-background-incoming-call-architecture.md) | **Notifications & Wakeup** | Full-screen incoming call wake, priority notification badges |
+| **14** | [`ui-ux-14-presence-typing-receipts`](sys-arch/ui-ux-14-presence-typing-receipts-status-architecture.md) | **Presence & Typing** | Debounced ephemeral typing state, ghost mode, verified-only availability |
+| **15** | [`ui-ux-15-security-center-devices`](sys-arch/ui-ux-15-security-center-devices-keys-recovery-architecture.md) | **Security Center** | Linked device manager, emergency lockdown broadcast, recovery phrases |
+| **16** | [`ui-ux-16-backup-restore-export`](sys-arch/ui-ux-16-backup-restore-export-migration-architecture.md) | **Backup & Migration** | Encrypted `.siarbackup` archive export, P2P direct device migration |
+| **17** | [`ui-ux-17-emergency-sos-offline-mesh`](sys-arch/ui-ux-17-emergency-sos-offline-mesh-architecture.md) | **Emergency SOS Hub** | Priority 0 life-safety beaconing, disaster triage, battery survival UI |
+| **18** | [`ui-ux-18-settings-privacy-data`](sys-arch/ui-ux-18-settings-privacy-notifications-data-controls-architecture.md) | **Settings & Privacy** | Radio transport toggles, telemetry controls, database encryption keys |
+| **19** | [`ui-ux-19-plugin-module-ecosystem`](sys-arch/ui-ux-19-plugin-module-ecosystem-architecture.md) | **Plugin Ecosystem UI** | WASM plugin manager, capability permission prompts, bot interfaces |
+| **20** | [`ui-ux-20-diagnostics-network-paths`](sys-arch/ui-ux-20-diagnostics-network-paths-advanced-developer-architecture.md) | **Network Diagnostics** | Multi-hop route visualizer, packet loss heatmap, live radio telemetry |
+| **21** | [`ui-ux-21-accessibility-inclusive`](sys-arch/ui-ux-21-accessibility-inclusive-interaction-architecture.md) | **Accessibility** | WCAG 2.1 AA contrast, screen reader semantics, high-DPI scaling |
+| **22** | [`ui-ux-22-design-system-tokens`](sys-arch/ui-ux-22-design-system-tokens-typography-icons-motion-architecture.md) | **Design System Tokens** | Design tokens, typography hierarchy, motion timing, dark theme palette |
+| **23** | [`ui-ux-23-responsive-adaptive-layout`](sys-arch/ui-ux-23-responsive-adaptive-desktop-tablet-foldable-phone-layout-architecture.md) | **Adaptive Layouts** | 5-tier responsive breakpoints (compact phone, tablet, foldable, desktop) |
+| **24** | [`ui-ux-24-error-loading-empty-state`](sys-arch/ui-ux-24-error-loading-empty-offline-degraded-state-architecture.md) | **State Architecture** | Skeleton loaders, empty states, offline mesh banners, error boundaries |
+| **25** | [`ui-ux-25-onboarding-first-run`](sys-arch/ui-ux-25-onboarding-first-run-permission-education-architecture.md) | **Onboarding & Education** | Zero-account creation wizard, StrongBox setup, radio permission flows |
+| **26** | [`ui-ux-26-performance-virtualization`](sys-arch/ui-ux-26-performance-virtualization-large-data-ui-architecture.md) | **UI Virtualization** | 120 FPS windowing, zero GC stutter, async texture decoding |
+| **27** | [`ui-ux-27-ui-testing-quality-gates`](sys-arch/ui-ux-27-ui-testing-screenshot-interaction-release-quality-gates-architecture.md) | **Quality Gates & Testing** | Automated screenshot regression testing, interaction fuzzing, release gates |
+
 ---
 
 ## Prerequisites & Environment Setup
