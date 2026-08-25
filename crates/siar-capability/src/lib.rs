@@ -6,7 +6,27 @@
 //! against the spec's own section numbers rather than a shallow first
 //! pass across all 164 sections.
 //!
-//! ## This pass — Phase 1, Core Types (§161)
+//! ## This pass — Phase 2 slice: policy + negotiate() (§18-24, §72-73)
+//!
+//! Building directly on Phase 1's types:
+//!
+//! - [`policy`] — §20-23 "Policy Filter" / "Hard Policy" / "User
+//!   Policy" / "Application Policy": [`policy::CapabilityPolicy`],
+//!   modeling the three per-id disable layers as the shape §21-23's
+//!   own examples actually show
+//! - [`mod@negotiate`] — §19 "Intersection Rule", §24's Validate →
+//!   Intersect → PolicyFilter → RequiredCheck pipeline, §72
+//!   "Negotiation Determinism", §73 "Selection Function":
+//!   [`negotiate::negotiate`], a pure function (no I/O) combining two
+//!   [`set::CapabilitySet`]s via registry validation, per-parameter
+//!   intersection (boolean/bitset AND, range overlap, min-of-limits,
+//!   equality for opaque bytes), policy filtering that runs *after*
+//!   intersection so hard policy genuinely can't be overridden by
+//!   mutual peer support (§21), and required-capability enforcement
+//!   in both directions — tested for the swapped-input symmetry §72
+//!   actually requires, not just one direction
+//!
+//! ## Earlier pass — Phase 1, Core Types (§161)
 //!
 //! - [`id`] — §5 "Capability Identifier", §6 "Capability Namespace":
 //!   [`id::CapabilityId`], [`id::CapabilityNamespace`], [`id::NamespaceId`]
@@ -40,24 +60,24 @@
 //!   reconciled against §103's overlapping sketch (see that module's
 //!   doc comment)
 //!
-//! ## Deliberately not attempted this pass
+//! ## Deliberately not attempted yet
 //!
-//! Everything in §161 Phase 2 onward: `CapabilityAdvertisement` (§13)
-//! and the authenticated-session binding it needs (§13-15, needs Part
-//! 02 identity types this crate doesn't depend on yet), the actual
-//! `negotiate()` intersection/policy-filter pipeline (§18-24, §157's
-//! `CapabilityClient`/`CapabilityPolicy`/`CapabilityQuery`), the
-//! two-phase confirmation and transcript-hash handshake (§25-26), the
-//! extension negotiator trait and its files/DTN/media integrations
-//! (§33-41, needs Parts 01/05/06 wiring), dynamic capability updates
-//! and epochs (§45-53), the capability cache (§49-52), and the wire
-//! format (§100-102). None of these are guessed at here — the module
-//! list above is genuinely everything built and verified this pass.
+//! `CapabilityAdvertisement` and the authenticated-session binding it
+//! needs (§13-15, needs Part 02 wiring), two-phase confirmation and
+//! the transcript-hash handshake (§25-26), the extension negotiator
+//! trait and its files/DTN/media integrations (§33-41, needs Parts
+//! 01/05/06 wiring), dynamic capability updates and epochs (§45-53),
+//! the capability cache (§49-52), and the wire format (§100-102). The
+//! full §18 `NegotiatedCapabilities` struct is also not built —
+//! [`negotiate::negotiate`]'s module doc explains why and what a
+//! caller does instead. None of these are guessed at here.
 
 pub mod descriptor;
 pub mod error;
 pub mod hash;
 pub mod id;
+pub mod negotiate;
+pub mod policy;
 pub mod registry;
 pub mod set;
 pub mod version;
@@ -69,6 +89,8 @@ pub use descriptor::{
 pub use error::CapabilityNegotiationError;
 pub use hash::CapabilitySetHash;
 pub use id::{CapabilityId, CapabilityNamespace, NamespaceId};
+pub use negotiate::negotiate;
+pub use policy::CapabilityPolicy;
 pub use registry::{
     CapabilityDefinition, CapabilityDependency, CapabilityRegistry, ParameterSchema, SecurityClass,
 };
