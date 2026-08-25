@@ -68,6 +68,27 @@ impl DeviceDirectory {
     pub fn active_devices(&self) -> impl Iterator<Item = &DeviceDirectoryEntry> {
         self.devices.iter().filter(|d| d.status == DeviceStatus::Active)
     }
+
+    /// §26 "Revocation Semantics": the single check every one of the
+    /// four things revocation must prevent — "future session
+    /// establishment, future group key delivery, future device
+    /// synchronization, future account-authorized operations" — reduces
+    /// to. A caller enforcing any of those four should call this once
+    /// per operation rather than re-deriving "is this device still
+    /// active" locally each time. A device this directory has never
+    /// heard of at all (never certified) is also untrusted — absence
+    /// isn't a special case a caller needs to check separately from
+    /// revocation.
+    ///
+    /// §26 also states plainly what this function's `true` result does
+    /// NOT mean: it "cannot guarantee deletion of data already copied
+    /// to the revoked device." That's a real limitation of what
+    /// revocation *is*, not something any function here could close —
+    /// it belongs in documentation and UI copy, per §26's own words,
+    /// not in code.
+    pub fn is_device_trusted(&self, device_id: DeviceId) -> bool {
+        self.devices.iter().any(|d| d.device_id == device_id && d.status == DeviceStatus::Active)
+    }
 }
 
 #[cfg(test)]
@@ -98,5 +119,8 @@ mod tests {
         assert!(dir.verify_signature(&root.root_public_key()).is_ok());
         let active: Vec<DeviceId> = dir.active_devices().map(|d| d.device_id).collect();
         assert_eq!(active, vec![active_device]);
+        assert!(dir.is_device_trusted(active_device));
+        assert!(!dir.is_device_trusted(revoked_device));
+        assert!(!dir.is_device_trusted(DeviceId::new())); // never certified at all
     }
 }

@@ -40,10 +40,69 @@
 //!   it — including, per a dedicated test, the spec's own named attack
 //!   scenario: a revoked device regaining authority by replaying a
 //!   stale, pre-revocation directory.
+//! - [`link_key`] — §16/§17's `ephemeral_link_key`:
+//!   [`link_key::EphemeralLinkKeyPair`], a real X25519 keypair
+//!   generated fresh per linking attempt, with real Diffie-Hellman
+//!   agreement (mirrors `siar_crypto::DeviceIdentity`'s own
+//!   `x25519_dalek` usage, duplicated rather than imported — this
+//!   crate stays independent of `siar-crypto`, see below).
+//! - [`invite`] — §16 "Device Linking Invitation":
+//!   [`invite::DeviceLinkInvite`], root-key-signed, with a real,
+//!   internally-generated nonce (a caller can't accidentally reuse
+//!   one — §16's "one-time" requirement) and
+//!   [`invite::DeviceLinkInvite::contains_no_secret_material`] making
+//!   §17's "the QR should not contain private/session keys" rule a
+//!   checkable property, not just a followed convention.
+//! - [`verification_code`] — §19 "Numeric Verification":
+//!   [`verification_code::derive_verification_code`] is a real
+//!   transcript-derived (not random) 6-digit code — the invite's own
+//!   signed content plus both ephemeral public keys plus the derived
+//!   Diffie-Hellman shared secret, so an attacker observing only the
+//!   public handshake traffic can't precompute it.
+//! - [`approval`] — §20 "Linking Trust Decision":
+//!   [`approval::LinkingApprovalPrompt`] carries every field §20 says
+//!   must be shown before approval, with a real, if narrow, guardrail
+//!   against "silent device addition" — the ordinary constructor can
+//!   only produce a `NumericCodeConfirmed` prompt; an unverified one
+//!   requires calling a differently-named, harder-to-reach-by-accident
+//!   function instead.
+//! - [`revocation`] — §25 "Device Revocation", §26 "Revocation
+//!   Semantics" (the check half —
+//!   [`directory::DeviceDirectory::is_device_trusted`]), §27
+//!   "Immediate Local Revocation": [`revocation::revoke_device`] is the
+//!   piece that was missing before this round — `DeviceStatus::Revoked`
+//!   was a value a directory could hold, and
+//!   [`trust_store::TrustedAccountStore`] already rejected a stale
+//!   directory trying to un-revoke a device (§29, tested since the
+//!   original session), but nothing actually *produced* a revocation
+//!   until now. [`revocation::verify_revocation`] independently
+//!   double-checks the result (generation advanced, target really
+//!   revoked, every other device's status untouched) rather than
+//!   trusting `revoke_device`'s own return value blindly.
+//! - [`device_keys`] — §21 "New Device Key Generation": the piece
+//!   sitting between [`link_key`]'s ephemeral handshake key and
+//!   [`certificate::DeviceCertificate::issue`]'s signature — before
+//!   this round, nothing generated the actual permanent keys a
+//!   newly-linked device would use going forward.
+//!   [`device_keys::NewDeviceKeys`] bundles every key §21 lists (device
+//!   signing key, transport key, local database key); only
+//!   [`device_keys::NewDeviceKeys::public_keys`]'s output is meant to
+//!   leave the device — there's no function anywhere in that module
+//!   that returns or serializes a private key, matching §21's own
+//!   "private keys remain local" rule structurally, not just by
+//!   convention. A dedicated test runs the real §21 → §8 pipeline
+//!   end to end: generate keys locally, certify only the public
+//!   signing key, verify the resulting certificate.
 //!
 //! Every one of the above is covered by tests that exercise the actual
-//! cryptographic round trip (real Ed25519 keys, real signatures, real
-//! rejection of tampered/forged/stale input) — not just type shapes.
+//! cryptographic round trip (real Ed25519/X25519 keys, real signatures,
+//! real Diffie-Hellman agreement, real rejection of tampered/forged/
+//! stale/mismatched input) — not just type shapes. One test runs the
+//! full realistic flow end to end: revoke a real device, accept the
+//! result into a real `TrustedAccountStore`, then confirm a stale
+//! pre-revocation directory is rejected — §29's own scenario, now
+//! exercised against this round's real output instead of a hand-built
+//! fixture standing in for one.
 //!
 //! ## A real, deliberate divergence: two device-certificate models
 //!
@@ -81,39 +140,78 @@
 //! - **No persistent storage.** [`trust_store::TrustedAccountStore`] is
 //!   in-memory (a `HashMap`) — real durability (§56: "or stronger state
 //!   continuity") would mean a `siar-storage` repository, not attempted
-//!   here.
-//! - **No linking flow.** §15–20 (QR linking, NFC linking, numeric
-//!   verification, linking trust decisions) — the actual UX/protocol by
-//!   which a new device *obtains* a certificate — isn't implemented;
-//!   this crate only covers what a certificate/directory *is* and how
-//!   it's verified once issued.
-//! - **No revocation event log, no offline propagation.** §22 "Device
-//!   Addition Event" (a `DeviceEvent` enum distinct from
-//!   `siar_domain::device::DeviceEvent`), §27–29's live propagation
-//!   mechanics, §40 multi-device fan-out beyond the directory-filtering
-//!   already in [`directory::DeviceDirectory::active_devices`], §33–39
+//!   here (and, separately, `siar-storage` itself needs rustc 1.87 —
+//!   past what this pass's own sandbox environment could verify a
+//!   build against, an additional real reason this wasn't attempted
+//!   blind this round).
+//! - **Linking flow covers §16-17/§19-20 only.** §18 NFC linking has no
+//!   real proximity-transport code (NFC needs platform bindings this
+//!   crate doesn't have — the same "no wire integration" posture every
+//!   crate in this series takes); [`approval::LinkMethod::Nfc`] exists
+//!   as a value an NFC-based flow would report, nothing constructs one.
+//!   §21's key *generation* is real now (see [`device_keys`] above) —
+//!   what's still not attempted is binding the generated transport
+//!   public key into anything a root key signs (see
+//!   [`device_keys::NewDeviceKeys::transport_public_key_bytes`]'s own
+//!   doc comment for the real reason: `DeviceCertificate` only
+//!   certifies one key today). §16's own "replay-resistant"
+//!   requirement is only half-real: the nonce contributes real entropy
+//!   to the signed payload, but nothing tracks *used* nonces to reject
+//!   an actual replay — that needs a persistent store, the same gap
+//!   [`trust_store::TrustedAccountStore`] already has.
+//! - **No revocation event log, no offline propagation transport.**
+//!   §25-27's revocation *operation* is real now (see
+//!   [`revocation`] above) — what's still not attempted is §22's
+//!   `DeviceEvent` audit-trail enum (distinct from
+//!   `siar_domain::device::DeviceEvent`; a real audit trail would use
+//!   this same workspace's `siar_event_log::EventStore` rather than a
+//!   redundant event system inside this crate, given §52's own
+//!   "signed snapshot over event log" choice this crate already made —
+//!   see `directory.rs`'s own doc comment) and §28's actual propagation
+//!   transport (direct sync/relay/DTN/linked-device sync — this crate
+//!   has no wire integration for any of it, same posture every crate
+//!   in this series takes). §40 multi-device fan-out beyond the
+//!   directory-filtering already in
+//!   [`directory::DeviceDirectory::active_devices`], §33–39
 //!   root key rotation/recovery, §41–51 (sender attribution,
 //!   organizations, application namespaces), §57 fork detection, §60
 //!   onward (linking authority, device roles, presence, secure storage,
 //!   recovery, migration, and everything past — the spec runs to 204
 //!   sections; this crate stops at a deliberately small, real Phase
-//!   1/2 slice per its own §201 "Implementation Phases").
+//!   1/2 slice per its own §201 "Implementation Phases", now extended
+//!   with real slices of both the linking flow and revocation, neither
+//!   of which that Phase list separately numbers).
+//!   1/2 slice per its own §201 "Implementation Phases", now extended
+//!   with a real slice of the linking flow that Phase list doesn't
+//!   separately number).
 //! - **Parts 01's remaining ~90 sections past what `siar-protocol-ext`
 //!   covers, and all of Part 03**, are unstarted by this crate (Part 01
 //!   has its own crate and doc comment; Part 03 has no dedicated crate
 //!   against its specific spec text at all — see this comment's own
 //!   opening paragraph).
 
+pub mod approval;
 pub mod capability;
 pub mod certificate;
+pub mod device_keys;
 pub mod directory;
 pub mod error;
+pub mod invite;
+pub mod link_key;
+pub mod revocation;
 pub mod root_key;
 pub mod trust_store;
+pub mod verification_code;
 
+pub use approval::{LinkMethod, LinkingApprovalPrompt, VerificationStatus};
 pub use capability::DeviceCapabilitySet;
 pub use certificate::DeviceCertificate;
+pub use device_keys::{generate_new_device_keys, NewDeviceKeys, NewDevicePublicKeys};
 pub use directory::{DeviceDirectory, DeviceDirectoryEntry, DeviceStatus};
 pub use error::IdentityError;
+pub use invite::DeviceLinkInvite;
+pub use link_key::{EphemeralLinkKeyPair, EphemeralLinkPublicKey};
+pub use revocation::{revoke_device, verify_revocation, RevocationError};
 pub use root_key::{RootIdentityKey, RootPublicKey};
 pub use trust_store::TrustedAccountStore;
+pub use verification_code::derive_verification_code;
