@@ -10,10 +10,10 @@
 | :--- | :---: | :---: | :---: | :---: |
 | **Rust (`.rs`)** | 196 | 26,935 | 2,691 | 29,626 |
 | **Kotlin (`.kt`, `.kts`)** | 20 | 2,889 | 269 | 3,158 |
-| **Markdown / Specs / Wiki (`.md`)** | 96 | 112,366 | 55,894 | 168,260 |
-| **Configuration (`.toml`, `.yml`, `.xml`, `.properties`, `.json`)** | 48 | 1,177 | 92 | 1,269 |
-| **Legal, Shell & Other (`LICENSE-*`, `.sh`, etc.)** | 32 | 55,838 | 1,602 | 57,440 |
-| **Total Codebase** | **392** | **199,205** | **60,548** | **259,753** |
+| **Markdown / Specs / Wiki (`.md`)** | 105 | 122,634 | 61,475 | 184,109 |
+| **Configuration (`.toml`, `.yml`, `.xml`, `.properties`, `.json`)** | 51 | 1,282 | 110 | 1,392 |
+| **Legal, Shell & Other (`LICENSE-*`, `.sh`, etc.)** | 29 | 55,128 | 1,437 | 56,565 |
+| **Total Codebase** | **401** | **208,868** | **65,982** | **274,850** |
 
 ---
 
@@ -109,8 +109,8 @@
 
 | Document Category | Files | Content Lines | Total Lines | Scope |
 | :--- | :---: | :---: | :---: | :--- |
-| [sys-arch](sys-arch) | 54 | 107,933 | 162,725 | Complete 33-part system architecture specifications & 21 UI/UX specs |
-| [wiki](wiki) | 27 | 1,626 | 2,091 | Comprehensive 24-chapter technical wiki & navigation portal |
+| [sys-arch](sys-arch) | 60 | 118,009 | 178,342 | Complete 33-part system architecture specifications & 27 UI/UX specs |
+| [wiki](wiki) | 30 | 1,787 | 2,290 | Comprehensive 26-chapter technical wiki & navigation portal |
 | [docs](docs) | 6 | 805 | 982 | Master integration plan, UI/UX architecture, off-grid guide, video & image codecs |
-| Root Docs & Legal (`README`, `CLA`, `CONTRIBUTING`, `LICENSE-*`) | 11 | 2,510 | 3,112 | System evaluation, status, legal agreements & licenses |
-| **Subtotal** | **98** | **112,874** | **168,910** | |
+| Root Docs & Legal (`README`, `CLA`, `CONTRIBUTING`, `LICENSE-*`) | 11 | 2,541 | 3,145 | System evaluation, status, legal agreements & licenses |
+| **Subtotal** | **107** | **123,142** | **184,759** | |

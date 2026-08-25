@@ -30,6 +30,8 @@ mindmap
       15. Nearby Discovery & QR/NFC Pairing
       16. Notifications & Presence Lifecycle
       17. Local Knowledge & Search
+      25. Design System & Adaptive Layouts
+      26. UI/UX Quality Gates & Performance
     Extensibility & System Operations
       18. Protocol Extensions & WASM Plugins
       19. Headless Daemons & Embedded Nodes
@@ -68,6 +70,8 @@ mindmap
 * **[[15-Nearby-Discovery-and-Out-of-Band-Pairing]]**: Dynamic QR exchange, NFC bootstrap, zero-configuration local mesh pairing.
 * **[[16-Notifications-Presence-and-Background-Lifecycle]]**: Ephemeral presence, typing indicators, push notification triggers, OS background service management.
 * **[[17-Local-Knowledge-Retrieval-and-Search]]**: Privacy-first offline BM25 full-text indexing, vector embeddings, local knowledge retrieval.
+* **[[25-Design-System-Tokens-and-Responsive-Layouts]]**: Cross-platform design tokens, theme hierarchy, multi-window adaptive layouts.
+* **[[26-UI-UX-Performance-Testing-and-Quality-Gates]]**: Onboarding wizards, empty states, 120 FPS virtualization, snapshot regression quality gates.
 
 ### ⚙️ Part V: Extensibility, Operations & Benchmarking
 * **[[18-Protocol-Extensions-and-WASM-Plugins]]**: Capability negotiation engine, dynamic extension registry, Wasm sandboxing.
@@ -97,4 +101,4 @@ mindmap
 All wiki chapters map directly to the exhaustive specifications in [`sys-arch/`](file:///home/irshad/Projects/siar/sys-arch):
 
 - **Core Specs 01–33**: Protocol extensions, multi-device identity, transport routing, offline log, blob storage, DTN, capability negotiation, crash recovery, fuzzing, self-hosted relays, multipath, battery scheduling, proximity, QR/NFC pairing, headless runtime, emergency priorities, network diagnostics, FFI, embedded Linux, third-party extensions, WASM, interop, plugin ecosystem, Android zero-copy media, audio DSP, Android build automation, production security, realtime calls, presence state, background notifications, search indexing, and backup portability.
-- **UI/UX Specs 01–21**: Product foundations, Dioxus shell, Compose shell, inbox, timeline, composer, calls, contacts, groups, media gallery, search, nearby pairing, notifications, presence, security center, backup migration, SOS offline mesh, settings privacy, plugin ecosystem, diagnostics visualizer, and accessibility.
+- **UI/UX Specs 01–27**: Product foundations, Dioxus shell, Compose shell, inbox, timeline, composer, calls, contacts, groups, media gallery, search, nearby pairing, notifications, presence, security center, backup migration, SOS offline mesh, settings privacy, plugin ecosystem, diagnostics visualizer, accessibility, design tokens, adaptive layouts, state handling, onboarding education, virtualization performance, and UI quality gates.

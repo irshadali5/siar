@@ -26,6 +26,8 @@
 - [15 — Nearby Discovery & Out-of-Band Pairing](15-Nearby-Discovery-and-Out-of-Band-Pairing.md)
 - [16 — Notifications, Presence & Background Lifecycle](16-Notifications-Presence-and-Background-Lifecycle.md)
 - [17 — Local Knowledge Retrieval & Search](17-Local-Knowledge-Retrieval-and-Search.md)
+- [25 — Design System Tokens & Adaptive Layouts](25-Design-System-Tokens-and-Responsive-Layouts.md)
+- [26 — UI/UX Performance, Testing & Quality Gates](26-UI-UX-Performance-Testing-and-Quality-Gates.md)
 
 # Part V: Extensibility, Operations & Guides
 - [18 — Protocol Extensions & WASM Plugins](18-Protocol-Extensions-and-WASM-Plugins.md)

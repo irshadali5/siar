@@ -34,6 +34,8 @@
 * **[[15-Nearby-Discovery-and-Out-of-Band-Pairing]]**
 * **[[16-Notifications-Presence-and-Background-Lifecycle]]**
 * **[[17-Local-Knowledge-Retrieval-and-Search]]**
+* **[[25-Design-System-Tokens-and-Responsive-Layouts]]**
+* **[[26-UI-UX-Performance-Testing-and-Quality-Gates]]**
 
 ---
 
