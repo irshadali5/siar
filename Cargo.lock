@@ -7096,6 +7096,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "siar-capability"
+version = "0.1.0"
+dependencies = [
+ "blake3",
+ "postcard",
+ "serde",
+ "thiserror 2.0.19",
+]
+
+[[package]]
 name = "siar-cli"
 version = "0.1.0"
 dependencies = [
