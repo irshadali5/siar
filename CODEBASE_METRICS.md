@@ -8,12 +8,12 @@
 
 | Language / Format | Files | Code Lines (Non-blank) | Blank Lines | Total Lines |
 | :--- | :---: | :---: | :---: | :---: |
-| **Rust (`.rs`)** | 195 | 26,715 | 2,673 | 29,388 |
+| **Rust (`.rs`)** | 196 | 26,935 | 2,691 | 29,626 |
 | **Kotlin (`.kt`, `.kts`)** | 20 | 2,889 | 269 | 3,158 |
-| **Markdown / Specs (`.md`)** | 52 | 80,614 | 38,947 | 119,561 |
-| **Configuration (`.toml`, `.yml`, `.xml`, `.properties`)** | 48 | 1,177 | 92 | 1,269 |
-| **Legal, Shell & Config (`LICENSE-*`, `.sh`, `.gitignore`)** | 5 | 743 | 145 | 888 |
-| **Total Codebase** | **320** | **112,138** | **42,126** | **154,264** |
+| **Markdown / Specs / Wiki (`.md`)** | 96 | 112,366 | 55,894 | 168,260 |
+| **Configuration (`.toml`, `.yml`, `.xml`, `.properties`, `.json`)** | 48 | 1,177 | 92 | 1,269 |
+| **Legal, Shell & Other (`LICENSE-*`, `.sh`, etc.)** | 32 | 55,838 | 1,602 | 57,440 |
+| **Total Codebase** | **392** | **199,205** | **60,548** | **259,753** |
 
 ---
 
@@ -110,6 +110,7 @@
 | Document Category | Files | Content Lines | Total Lines | Scope |
 | :--- | :---: | :---: | :---: | :--- |
 | [sys-arch](sys-arch) | 54 | 107,933 | 162,725 | Complete 33-part system architecture specifications & 21 UI/UX specs |
+| [wiki](wiki) | 27 | 1,626 | 2,091 | Comprehensive 24-chapter technical wiki & navigation portal |
 | [docs](docs) | 6 | 805 | 982 | Master integration plan, UI/UX architecture, off-grid guide, video & image codecs |
 | Root Docs & Legal (`README`, `CLA`, `CONTRIBUTING`, `LICENSE-*`) | 11 | 2,510 | 3,112 | System evaluation, status, legal agreements & licenses |
-| **Subtotal** | **71** | **111,248** | **166,819** | |
+| **Subtotal** | **98** | **112,874** | **168,910** | |
