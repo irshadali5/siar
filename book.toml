@@ -1,7 +1,6 @@
 [book]
 authors = ["Irshad Ali and SIAR Contributors"]
 language = "en"
-multilingual = false
 src = "wiki"
 title = "SIAR System Architecture & Technical Wiki"
 
