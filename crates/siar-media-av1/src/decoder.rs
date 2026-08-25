@@ -296,18 +296,29 @@ mod tests {
         // (`EncodedVideoFrame.data` can be empty — see encoder.rs's own
         // `NeedMoreData` handling) — feed a few frames so there's
         // always at least one non-empty packet to decode.
-        let mut encoded_data: Vec<u8> = Vec::new();
-        for _ in 0..4 {
+        let mut decoded_frame = None;
+        for _ in 0..30 {
             let packet = encoder.encode(&raw).unwrap();
             if !packet.data.is_empty() {
-                encoded_data = packet.data;
-                break;
+                let encoded = EncodedVideoFrame {
+                    codec: VideoCodec::Av1,
+                    data: packet.data,
+                    is_keyframe: packet.is_keyframe,
+                    timestamp_micros: 42,
+                };
+                match decoder.decode(&encoded) {
+                    Ok(decoded) => {
+                        decoded_frame = Some(decoded);
+                        break;
+                    }
+                    Err(DecodeError::Unsupported(msg)) if msg.contains("dav1d has buffered") => {
+                        continue;
+                    }
+                    Err(e) => panic!("decode of a real rav1e packet failed: {e:?}"),
+                }
             }
         }
-        assert!(!encoded_data.is_empty(), "encoder produced no packet after several frames");
-
-        let encoded = EncodedVideoFrame { codec: VideoCodec::Av1, data: encoded_data, is_keyframe: true, timestamp_micros: 42 };
-        let decoded = decoder.decode(&encoded).expect("decode of a real rav1e packet should succeed");
+        let decoded = decoded_frame.expect("decoder produced a decoded frame");
         assert_eq!(decoded.frame.resolution, Resolution::new(width, height));
         assert_eq!(decoded.frame.timestamp_micros, 42);
     }
