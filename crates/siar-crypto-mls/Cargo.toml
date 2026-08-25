@@ -2,6 +2,7 @@
 name = "siar-crypto-mls"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 rust-version.workspace = true
 
 # Every version here was read directly from openmls's own workspace

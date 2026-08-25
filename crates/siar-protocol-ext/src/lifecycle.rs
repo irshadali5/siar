@@ -5,7 +5,7 @@
 /// spec §21, verbatim enum and verbatim ordering (`Critical` highest
 /// down to `Background` lowest) — spec §22 "Fair Scheduling" is what
 /// actually consumes an ordering like this ("weighted fair scheduling
-/// + strict bounded emergency override, rather than naive perpetual
+/// plus strict bounded emergency override, rather than naive perpetual
 /// highest-priority-first scheduling"); the scheduler itself is out of
 /// scope for this crate (see this crate's top-level doc comment) — this
 /// is only the priority vocabulary a future scheduler would consume.

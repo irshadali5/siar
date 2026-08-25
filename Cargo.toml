@@ -50,9 +50,15 @@ members = [
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.91"
+license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 siar-domain = { path = "crates/siar-domain" }
+siar-identity-multidevice = { path = "crates/siar-identity-multidevice" }
+siar-routing-policy = { path = "crates/siar-routing-policy" }
+siar-event-log = { path = "crates/siar-event-log" }
+siar-blob-manifest = { path = "crates/siar-blob-manifest" }
+siar-dtn-bundle = { path = "crates/siar-dtn-bundle" }
 siar-protocol = { path = "crates/siar-protocol" }
 siar-protocol-ext = { path = "crates/siar-protocol-ext" }
 siar-crypto = { path = "crates/siar-crypto" }

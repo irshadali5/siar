@@ -2,6 +2,7 @@
 name = "siar-protocol-ext"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 rust-version.workspace = true
 
 # Part 01 of the 24-part architecture series ("Protocol Extension

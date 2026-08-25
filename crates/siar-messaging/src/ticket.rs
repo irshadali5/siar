@@ -59,14 +59,14 @@ fn from_hex(s: &str) -> Result<Vec<u8>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use iroh::{EndpointAddr, EndpointId};
+    use iroh::EndpointAddr;
 
     #[test]
     fn round_trips_through_text_encoding() {
-        // A syntactically valid EndpointId for the round-trip test; we
-        // only care that encode/decode preserve the bytes, not that this
-        // key is routable.
-        let id = EndpointId::from_bytes(&[7u8; 32]).unwrap();
+        use std::str::FromStr;
+        let hex = format!("{:02x}", 7u8).repeat(32);
+        let secret = iroh::SecretKey::from_str(&hex).expect("valid 64-char hex test secret key");
+        let id = secret.public();
         let ticket = PeerTicket {
             endpoint_addr: EndpointAddr::new(id),
             x25519_public: [1u8; 32],

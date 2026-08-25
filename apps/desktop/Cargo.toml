@@ -2,6 +2,7 @@
 name = "siar-desktop"
 version.workspace = true
 edition.workspace = true
+license = "AGPL-3.0-or-later"
 rust-version = "1.91"   # inherits the iroh/stoolap floor via siar-messaging
 
 [[bin]]

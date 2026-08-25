@@ -2,6 +2,7 @@
 name = "siar-android-messaging"
 version.workspace = true
 edition.workspace = true
+license = "AGPL-3.0-or-later"
 rust-version.workspace = true
 
 # The other real gap this workspace's `apps/android/README.md` named

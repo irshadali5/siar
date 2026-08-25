@@ -68,7 +68,7 @@ impl OutboxRepository for StoolapOutboxRepository {
 
         let insert_result = self.db.execute(
             "INSERT INTO messages
-                (message_id, conversation_id, sender_device, sequence,
+                (message_id, conversation_id, sender_device, seq_num,
                  timestamp_millis, delivery_state, payload)
              VALUES ($1, $2, $3, $4, $5, $6, $7)",
             (
