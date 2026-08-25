@@ -43,6 +43,18 @@
 //!   function — the spec names the strategy but not a concrete
 //!   algorithm, so this is this crate's own reasonable choice, flagged
 //!   as such.
+//! - [`forwarding`] — §23/§25/§26, the piece that was previously
+//!   listed below under "not attempted": `ForwardingClass` was a value
+//!   a bundle carried; nothing read it. [`forwarding::decide_forwarding`]
+//!   does now — §25 direct delivery checked first and always winning
+//!   regardless of `forwarding_class` (even preempting `SprayAndWait`),
+//!   §26 gateway preference with a documented, spec-silent fallback
+//!   choice when no gateway is present, and §23 spray allocation
+//!   actually calling [`spray::spray_allocation`] instead of that
+//!   function sitting unused. Deliberately no `Epidemic` variant — §24
+//!   rejects epidemic routing as the default outright; see
+//!   [`forwarding::ForwardingDecision`]'s own doc comment for why that
+//!   restriction isn't silently loosened here.
 //!
 //! Every module is covered by tests exercising real values — actual
 //! expiry/hop/replication arithmetic, actual state-machine rejection of
@@ -57,10 +69,6 @@
 //!   connection abstraction exists yet for this to talk through (same
 //!   gap `siar-dtn`'s own `lib.rs` doc comment already names for its
 //!   own forwarding/custody modules).
-//! - **No forwarding-strategy selection logic**, §189 Phase 4 —
-//!   `ForwardingClass` is a value a bundle carries, nothing here reads
-//!   it to actually choose DirectOnly vs SprayAndWait vs
-//!   GatewayPreferred behavior.
 //! - **No routing integration.** §189 Phase 5 — nothing here calls
 //!   `siar-routing-policy` (this same session's Part 03 crate) for an
 //!   actual DTN route plan/gateway path, though that's the natural
@@ -87,6 +95,7 @@
 //!   document.
 
 pub mod bundle;
+pub mod forwarding;
 pub mod payload;
 pub mod spray;
 pub mod state;
@@ -94,6 +103,7 @@ pub mod store;
 pub mod types;
 
 pub use bundle::{BundleIntegrity, DtnBundle};
+pub use forwarding::{decide_forwarding, EncounteredPeer, ForwardingDecision};
 pub use payload::{InlinePayloadTooLarge, PayloadReference, MAX_INLINE_PAYLOAD_BYTES};
 pub use spray::spray_allocation;
 pub use state::{BundleEvent, BundleState, InvalidBundleTransition};
