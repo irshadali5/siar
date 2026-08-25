@@ -39,21 +39,18 @@ impl GroupRepository for StoolapGroupRepository {
         let conversation_id = state.conversation_id.as_uuid().to_string();
 
         let run = || -> Result<(), StorageError> {
-            let updated = self
-                .db
+            self.db
                 .execute(
-                    "UPDATE group_state SET epoch = $1 WHERE conversation_id = $2",
-                    (state.epoch.number() as i64, conversation_id.clone()),
+                    "DELETE FROM group_state WHERE conversation_id = $1",
+                    (conversation_id.clone(),),
                 )
                 .map_err(StorageError::from_stoolap)?;
-            if updated == 0 {
-                self.db
-                    .execute(
-                        "INSERT INTO group_state (conversation_id, epoch) VALUES ($1, $2)",
-                        (conversation_id.clone(), state.epoch.number() as i64),
-                    )
-                    .map_err(StorageError::from_stoolap)?;
-            }
+            self.db
+                .execute(
+                    "INSERT INTO group_state (conversation_id, epoch) VALUES ($1, $2)",
+                    (conversation_id.clone(), state.epoch.number() as i64),
+                )
+                .map_err(StorageError::from_stoolap)?;
 
             self.db
                 .execute(

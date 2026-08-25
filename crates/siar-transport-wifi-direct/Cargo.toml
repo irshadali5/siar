@@ -2,7 +2,6 @@
 name = "siar-transport-wifi-direct"
 version.workspace = true
 edition.workspace = true
-license.workspace = true
 rust-version.workspace = true
 
 # `System.loadLibrary("siar_transport_wifi_direct")` in

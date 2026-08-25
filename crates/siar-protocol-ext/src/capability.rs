@@ -80,7 +80,7 @@ impl CapabilityRegistry {
     /// build-time/startup-time mistake), not a runtime condition
     /// callers need to recover from, matching how this crate treats
     /// every other "this should have been caught during development"
-    /// case (see [`crate::registry::ExtensionRegistry::register`]'s
+    /// case (see [`crate::registry::ExtensionRegistryBuilder::register_extension`]'s
     /// own doc comment for the same reasoning applied there).
     pub fn register(&mut self, id: CapabilityId, name: &'static str) {
         if let Some(existing) = self.names.insert(id, name) {

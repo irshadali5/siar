@@ -36,6 +36,15 @@
 //!   verification before a whole blob is complete, plus whole-blob
 //!   verification that catches a manifest whose `blob_id` was forged
 //!   independent of its per-chunk hashes.
+//! - [`encryption`] — §18-19: real now, not just a type shape — see
+//!   [`descriptor::EncryptionDescriptor`]'s own doc comment for how the
+//!   real implementation corrected an earlier, more complicated
+//!   per-chunk-nonce design this crate started with. Whole-blob AEAD
+//!   ([`encryption::encrypt_blob`]/[`encryption::decrypt_blob`],
+//!   mirroring — not importing — `siar_crypto::attachment`'s exact
+//!   pattern), with a dedicated end-to-end test running this crate's
+//!   own encrypt → chunk/manifest → verify → decrypt pipeline together,
+//!   not each module tested only in isolation.
 //! - [`resume`] — §29 `ResumeBitmap` + §30 range-based resume
 //!   (`missing_ranges` returns contiguous `[start, end)` runs, not one
 //!   entry per missing chunk).
@@ -44,16 +53,18 @@
 //!   instead of a bare enum a caller could set to anything.
 //!
 //! Every module is covered by tests exercising real bytes/hashes/state
-//! transitions — including a tamper-detection test for both per-chunk
-//! and whole-blob verification, not just the happy path.
+//! transitions/ciphertext — including a tamper-detection test for
+//! per-chunk verification, whole-blob verification, AND now AEAD
+//! decryption itself, not just the happy path.
 //!
 //! ## What's explicitly NOT here
 //!
-//! - **No actual encryption.** [`descriptor::EncryptionDescriptor`]
-//!   names the algorithm; nothing in this crate calls
-//!   `chacha20poly1305` to actually encrypt/decrypt a chunk. §207 Phase
-//!   3 ("Encryption and import") is a real, separate integration with
-//!   `siar-crypto`, not attempted here.
+//! - **No key exchange / key distribution.** [`encryption::generate_blob_key`]
+//!   produces a key; nothing here gets that key to a recipient. In this
+//!   workspace's existing `siar-messaging::MessageService::send_attachment`
+//!   flow that's the message envelope's job (per-message E2EE already
+//!   covers it) — a real integration point, not attempted from this
+//!   crate.
 //! - **No local store.** §207 Phase 2: no filesystem blob storage, no
 //!   staging, no SQLite metadata, no reference tracking/GC — this
 //!   crate produces and verifies manifests as pure values; persisting
@@ -83,6 +94,7 @@
 
 pub mod chunking;
 pub mod descriptor;
+pub mod encryption;
 pub mod ids;
 pub mod limits;
 pub mod manifest;
@@ -92,6 +104,7 @@ pub mod verify;
 
 pub use chunking::{chunk_fixed_size, ChunkSizeClass};
 pub use descriptor::{BlobDescriptor, ChunkingDescriptor, EncryptionAlgorithm, EncryptionDescriptor, FileMetadata, FileName, FileNameTooLong};
+pub use encryption::{decrypt_blob, encrypt_blob, generate_blob_key, EncryptionError};
 pub use ids::{BlobEncryptionKey, BlobId, ChunkHash, LogicalAttachmentId, ManifestId};
 pub use limits::ManifestLimits;
 pub use manifest::{build_manifest, BlobManifest, ChunkDescriptor, ManifestError};

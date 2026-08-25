@@ -2,7 +2,6 @@
 name = "siar-android-connectivity"
 version.workspace = true
 edition.workspace = true
-license = "AGPL-3.0-or-later"
 rust-version.workspace = true
 
 # The piece every one of the four transport bridge crates' own doc

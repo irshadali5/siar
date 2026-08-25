@@ -2,7 +2,6 @@
 name = "siar-storage"
 version.workspace = true
 edition.workspace = true
-license.workspace = true
 rust-version = "1.87"   # stoolap's real floor (confirmed: uses is_multiple_of)
 
 [dependencies]
