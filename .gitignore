@@ -6,3 +6,4 @@ target/
 **/build/
 *.tar.gz
 *.zip
+dist

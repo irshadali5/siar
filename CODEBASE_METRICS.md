@@ -1,6 +1,6 @@
 # SIAR Codebase Metrics & Lines of Code Report
 
-> **Last Updated:** `2026-08-23 12:06:56 UTC`
+> **Last Updated:** `2026-08-25 07:26:46 UTC`
 
 ---
 
@@ -8,12 +8,12 @@
 
 | Language / Format | Files | Code Lines (Non-blank) | Blank Lines | Total Lines |
 | :--- | :---: | :---: | :---: | :---: |
-| **Rust (`.rs`)** | 184 | 25,289 | 2,526 | 27,815 |
+| **Rust (`.rs`)** | 195 | 26,715 | 2,673 | 29,388 |
 | **Kotlin (`.kt`, `.kts`)** | 20 | 2,889 | 269 | 3,158 |
-| **Markdown / Specs (`.md`)** | 48 | 73,331 | 35,397 | 108,728 |
-| **Configuration (`.toml`, `.yml`, `.xml`, `.properties`)** | 45 | 1,157 | 92 | 1,249 |
-| **Legal, Shell & Config (`LICENSE-*`, `.sh`, `.gitignore`)** | 5 | 742 | 145 | 887 |
-| **Total Codebase** | **302** | **103,408** | **38,429** | **141,837** |
+| **Markdown / Specs (`.md`)** | 52 | 80,614 | 38,947 | 119,561 |
+| **Configuration (`.toml`, `.yml`, `.xml`, `.properties`)** | 48 | 1,177 | 92 | 1,269 |
+| **Legal, Shell & Config (`LICENSE-*`, `.sh`, `.gitignore`)** | 5 | 743 | 145 | 888 |
+| **Total Codebase** | **320** | **112,138** | **42,126** | **154,264** |
 
 ---
 
@@ -26,24 +26,24 @@
 | [siar-domain](crates/siar-domain) | 15 | 1,565 | 1,756 | Core entities, mailboxes, lifecycles, and IDs |
 | [siar-crypto](crates/siar-crypto) | 8 | 845 | 956 | Ed25519, X25519, AES-GCM, ChaCha20-Poly1305 |
 | [siar-crypto-mls](crates/siar-crypto-mls) | 5 | 783 | 837 | IETF MLS group end-to-end encryption |
-| [siar-identity-multidevice](crates/siar-identity-multidevice) | 8 | 651 | 723 | Root keys, certificates, directory & trust stores |
-| **Subtotal** | **36** | **3,844** | **4,272** | |
+| [siar-identity-multidevice](crates/siar-identity-multidevice) | 14 | 1,454 | 1,602 | Root keys, certificates, directory, pairing handshakes, SAS codes & revocations |
+| **Subtotal** | **42** | **4,647** | **5,151** | |
 
 ### Protocols & Extension System
 
 | Component / Module | Files | Code Lines | Total Lines | Description |
 | :--- | :---: | :---: | :---: | :--- |
 | [siar-protocol](crates/siar-protocol) | 9 | 1,033 | 1,122 | Wire codec, frame definitions, envelope format |
-| [siar-protocol-ext](crates/siar-protocol-ext) | 8 | 887 | 987 | Capability negotiation, descriptors, registries |
-| **Subtotal** | **17** | **1,920** | **2,109** | |
+| [siar-protocol-ext](crates/siar-protocol-ext) | 12 | 1,336 | 1,484 | Capability negotiation, frame headers, backpressure & fair scheduling |
+| **Subtotal** | **21** | **2,369** | **2,606** | |
 
 ### Offline Event Log & Robust Blob Subsystem
 
 | Component / Module | Files | Code Lines | Total Lines | Description |
 | :--- | :---: | :---: | :---: | :--- |
 | [siar-event-log](crates/siar-event-log) | 7 | 508 | 575 | Offline append-only event log, version envelopes, causal gap detection |
-| [siar-blob-manifest](crates/siar-blob-manifest) | 10 | 754 | 842 | Chunked file transfers, Merkle tree verification, resumable bitmaps |
-| **Subtotal** | **17** | **1,262** | **1,417** | |
+| [siar-blob-manifest](crates/siar-blob-manifest) | 11 | 932 | 1,043 | Chunked file transfers, BLAKE3 Merkle tree verification, ChaCha20-Poly1305 AEAD, resumable bitmaps |
+| **Subtotal** | **18** | **1,440** | **1,618** | |
 
 ### Storage, Messaging & UI State
 
@@ -97,11 +97,11 @@
 
 | Component / Module | Files | Code Lines | Total Lines | Description |
 | :--- | :---: | :---: | :---: | :--- |
-| [apps/android](apps/android) | 25 | 4,251 | 4,571 | Jetpack Compose Kotlin UI + JNI messaging glue |
+| [apps/android](apps/android) | 28 | 4,267 | 4,587 | Jetpack Compose Kotlin UI + JNI messaging glue |
 | [apps/desktop](apps/desktop) | 5 | 1,427 | 1,509 | Desktop GUI app (Dioxus 0.7 + pure Rust) |
 | [apps/emergency-node](apps/emergency-node) | 2 | 824 | 863 | Headless off-grid mesh repeater daemon |
 | [apps/cli](apps/cli) | 2 | 804 | 871 | Command-line client for dev/diagnostics |
-| **Subtotal** | **34** | **7,306** | **7,814** | |
+| **Subtotal** | **37** | **7,322** | **7,830** | |
 
 ---
 
@@ -109,6 +109,6 @@
 
 | Document Category | Files | Content Lines | Total Lines | Scope |
 | :--- | :---: | :---: | :---: | :--- |
-| [sys-arch](sys-arch) | 33 | 70,907 | 105,732 | Complete 33-part system architecture specifications |
-| Root Docs & Legal (`README`, `CLA`, `CONTRIBUTING`, `LICENSE-*`) | 17 | 2,963 | 3,667 | Architecture status, evaluations, UI/UX & off-grid guides |
-| **Subtotal** | **50** | **73,870** | **109,399** | |
+| [sys-arch](sys-arch) | 37 | 77,838 | 116,138 | Complete 33-part system architecture specifications & UI/UX specs |
+| Root Docs & Legal (`README`, `CLA`, `CONTRIBUTING`, `LICENSE-*`) | 17 | 3,315 | 4,094 | Architecture status, evaluations, UI/UX & off-grid guides |
+| **Subtotal** | **54** | **81,153** | **120,232** | |
