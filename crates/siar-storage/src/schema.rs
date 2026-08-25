@@ -10,55 +10,41 @@ use stoolap::Database;
 pub(crate) fn apply(db: &Database) -> Result<(), StorageError> {
     db.execute(
         "CREATE TABLE IF NOT EXISTS messages (
-            message_id      TEXT NOT NULL,
+            message_id      TEXT PRIMARY KEY,
             conversation_id TEXT NOT NULL,
             sender_device   TEXT NOT NULL,
-            seq_num         INTEGER NOT NULL,
-            timestamp_millis INTEGER NOT NULL,
+            sequence        BIGINT NOT NULL,
+            timestamp_millis BIGINT NOT NULL,
             delivery_state  TEXT NOT NULL,
-            payload         TEXT NOT NULL
+            payload         BLOB NOT NULL
         )",
         (),
     )
     .map_err(StorageError::from_stoolap)?;
 
-    db.execute(
-        "CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_id
-         ON messages (message_id)",
-        (),
-    )
-    .map_err(StorageError::from_stoolap)?;
-
-    // Plan.md §20: messages(conversation_id, seq_num) is the timeline
+    // Plan.md §20: messages(conversation_id, sequence) is the timeline
     // query's index — every conversation-open call hits this.
     db.execute(
         "CREATE INDEX IF NOT EXISTS idx_messages_conversation_sequence
-         ON messages (conversation_id, seq_num)",
+         ON messages (conversation_id, sequence)",
         (),
     )
     .map_err(StorageError::from_stoolap)?;
 
     // Plan.md §17: the outbox is the transactional-delivery mechanism.
     // `next_attempt_at` drives the retry scheduler's polling query.
-    // Denormalized recipient info (Phase-2 stand-in — plan.md §20's
-    // `contacts`/`conversation_members` tables don't exist yet, so
-    // the retry scheduler needs *something* to resend to. Once
-    // those tables land, this becomes a conversation_id lookup
-    // instead and this column goes away).
     db.execute(
         "CREATE TABLE IF NOT EXISTS outbox (
-            message_id      TEXT NOT NULL,
-            next_attempt_at INTEGER NOT NULL,
+            message_id      TEXT PRIMARY KEY,
+            next_attempt_at BIGINT NOT NULL,
             attempts        INTEGER NOT NULL DEFAULT 0,
+            -- Denormalized recipient info (Phase-2 stand-in — plan.md §20's
+            -- `contacts`/`conversation_members` tables don't exist yet, so
+            -- the retry scheduler needs *something* to resend to. Once
+            -- those tables land, this becomes a conversation_id lookup
+            -- instead and this column goes away).
             peer_ticket_hex TEXT NOT NULL
         )",
-        (),
-    )
-    .map_err(StorageError::from_stoolap)?;
-
-    db.execute(
-        "CREATE UNIQUE INDEX IF NOT EXISTS idx_outbox_message_id
-         ON outbox (message_id)",
         (),
     )
     .map_err(StorageError::from_stoolap)?;
@@ -78,17 +64,10 @@ pub(crate) fn apply(db: &Database) -> Result<(), StorageError> {
     // reference source to make GC worth running.
     db.execute(
         "CREATE TABLE IF NOT EXISTS blobs (
-            blob_hash TEXT NOT NULL,
-            ciphertext TEXT NOT NULL,
+            blob_hash TEXT PRIMARY KEY,
+            ciphertext BLOB NOT NULL,
             ref_count INTEGER NOT NULL DEFAULT 1
         )",
-        (),
-    )
-    .map_err(StorageError::from_stoolap)?;
-
-    db.execute(
-        "CREATE UNIQUE INDEX IF NOT EXISTS idx_blobs_hash
-         ON blobs (blob_hash)",
         (),
     )
     .map_err(StorageError::from_stoolap)?;
@@ -100,16 +79,9 @@ pub(crate) fn apply(db: &Database) -> Result<(), StorageError> {
     // deserializing the whole group.
     db.execute(
         "CREATE TABLE IF NOT EXISTS group_state (
-            conversation_id TEXT NOT NULL,
-            epoch           INTEGER NOT NULL
+            conversation_id TEXT PRIMARY KEY,
+            epoch           BIGINT NOT NULL
         )",
-        (),
-    )
-    .map_err(StorageError::from_stoolap)?;
-
-    db.execute(
-        "CREATE UNIQUE INDEX IF NOT EXISTS idx_group_state_conversation
-         ON group_state (conversation_id)",
         (),
     )
     .map_err(StorageError::from_stoolap)?;
@@ -119,7 +91,8 @@ pub(crate) fn apply(db: &Database) -> Result<(), StorageError> {
             conversation_id  TEXT NOT NULL,
             account_id       TEXT NOT NULL,
             role             TEXT NOT NULL,
-            joined_at_epoch  INTEGER NOT NULL
+            joined_at_epoch  BIGINT NOT NULL,
+            PRIMARY KEY (conversation_id, account_id)
         )",
         (),
     )
@@ -142,20 +115,13 @@ pub(crate) fn apply(db: &Database) -> Result<(), StorageError> {
     // one recorded.
     db.execute(
         "CREATE TABLE IF NOT EXISTS contacts (
-            device_id        TEXT NOT NULL,
+            device_id        TEXT PRIMARY KEY,
             account_id       TEXT NOT NULL,
             display_name     TEXT NOT NULL,
             ticket_text      TEXT NOT NULL,
             key_package_b64  TEXT,
-            added_at_millis  INTEGER NOT NULL
+            added_at_millis  BIGINT NOT NULL
         )",
-        (),
-    )
-    .map_err(StorageError::from_stoolap)?;
-
-    db.execute(
-        "CREATE UNIQUE INDEX IF NOT EXISTS idx_contacts_device
-         ON contacts (device_id)",
         (),
     )
     .map_err(StorageError::from_stoolap)?;

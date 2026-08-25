@@ -2,7 +2,6 @@
 name = "siar-transport"
 version.workspace = true
 edition.workspace = true
-license.workspace = true
 rust-version = "1.91"   # iroh 0.95.1's real floor, transitively (hickory/time/netwatch)
 
 [dependencies]
