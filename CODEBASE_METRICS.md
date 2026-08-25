@@ -109,6 +109,7 @@
 
 | Document Category | Files | Content Lines | Total Lines | Scope |
 | :--- | :---: | :---: | :---: | :--- |
-| [sys-arch](sys-arch) | 37 | 77,838 | 116,138 | Complete 33-part system architecture specifications & UI/UX specs |
-| Root Docs & Legal (`README`, `CLA`, `CONTRIBUTING`, `LICENSE-*`) | 17 | 3,315 | 4,094 | Architecture status, evaluations, UI/UX & off-grid guides |
-| **Subtotal** | **54** | **81,153** | **120,232** | |
+| [sys-arch](sys-arch) | 43 | 77,838 | 116,138 | Complete 33-part system architecture specifications & UI/UX specs |
+| [docs](docs) | 6 | 730 | 980 | Master integration plan, UI/UX architecture, off-grid guide, video & image codecs |
+| Root Docs & Legal (`README`, `CLA`, `CONTRIBUTING`, `LICENSE-*`) | 9 | 2,585 | 3,114 | System evaluation, status, legal agreements & licenses |
+| **Subtotal** | **58** | **81,153** | **120,232** | |
