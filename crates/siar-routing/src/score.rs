@@ -106,11 +106,11 @@ pub fn route_score(entry: &PathEntry, priority: MessagePriority) -> i64 {
 /// nothing suitable is reachable at all, which the caller should treat
 /// as "hand this to DTN" (next.md §120's "otherwise → persist DTN
 /// bundle"), not as an error.
-pub fn best_route<'a>(
-    candidates: &'a [PathEntry],
+pub fn best_route(
+    candidates: &[PathEntry],
     priority: MessagePriority,
     size_class: PayloadSizeClass,
-) -> Option<&'a PathEntry> {
+) -> Option<&PathEntry> {
     candidates
         .iter()
         .filter(|entry| is_suitable_for_payload(entry.link, size_class))

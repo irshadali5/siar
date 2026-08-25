@@ -2,7 +2,7 @@
 //! §9–10, §39, §90–94. Phase 5 of `next.md`'s roadmap
 //! ("cross-transport routing, BLE → Wi-Fi upgrades, gateway nodes").
 //!
-//! - [`path`]: [`path::TransportCapabilities`]/[`path::capabilities_for`]
+//! - [`path`][]: [`path::TransportCapabilities`]/[`path::capabilities_for`]
 //!   (next.md §7), and [`path::PathTable`] (§91) — per-destination
 //!   candidate routes, plus [`path::PathTable::best_route_for`]/
 //!   [`path::PathTable::recommend_upgrade`] — the BLE→Wi-Fi upgrade

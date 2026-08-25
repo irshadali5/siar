@@ -418,7 +418,7 @@ mod tests {
         let identity = DeviceIdentity::generate();
         let check_in = MailboxCheckIn::new(&identity, DeviceId::new(), 1_000);
         assert!(check_in.verify(1_000 + 60_000, 60_000).is_ok());
-        assert!(check_in.verify(1_000 - 0, 60_000).is_ok());
+        assert!(check_in.verify(1_000, 60_000).is_ok());
     }
 
     #[test]
