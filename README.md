@@ -7,7 +7,8 @@
 <p align="center">
   <a href="#license--duality-model"><img src="https://img.shields.io/badge/license-MIT%20%2F%20Apache--2.0%20(Libs)%20%7C%20AGPLv3%20(Apps)-blue.svg" alt="License"/></a>
   <a href="#build--compilation-tutorial"><img src="https://img.shields.io/badge/build-passing-brightgreen.svg" alt="Build Status"/></a>
-  <a href="#prerequisites--environment-setup"><img src="https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20Android-lightgrey.svg" alt="Platform Target"/></a>
+  <a href="https://irshadali5.github.io/siar/"><img src="https://img.shields.io/badge/docs-GitHub%20Pages-purple.svg" alt="Documentation"/></a>
+  <a href="https://github.com/irshadali5/siar/wiki"><img src="https://img.shields.io/badge/wiki-GitHub-orange.svg" alt="Wiki"/></a>
 </p>
 
 **SIAR** (*Survivable Identity & Autonomous Routing*) is a zero-infrastructure, multi-transport, offline-first decentralized messaging and delay-tolerant networking (DTN) platform.
