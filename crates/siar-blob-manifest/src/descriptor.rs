@@ -22,17 +22,21 @@ pub enum EncryptionAlgorithm {
     ChaCha20Poly1305,
 }
 
-/// §20 "Chunk Nonces" is named but not detailed with a concrete scheme
-/// in the spec text this crate was built against — `base_nonce` plus
-/// a per-chunk index-derived counter (the standard, safe way to derive
-/// many unique nonces from one base without storing one full nonce per
-/// chunk) is a real, reasonable choice, not the only one the spec
-/// permits; flagged here as this crate's own decision rather than a
-/// transcription of spec text the way most of this module is.
+/// §18/§21: real encrypt/decrypt now lives in [`crate::encryption`] —
+/// see that module's own doc comment for the full reasoning. One fresh
+/// random nonce per whole-blob AEAD operation (not a per-chunk scheme):
+/// §7's "encrypt first, then content-address the ciphertext" already
+/// means encryption happens once, over the entire plaintext, before
+/// [`crate::chunking`]/[`crate::manifest`] ever chunk the *resulting
+/// ciphertext* buffer by byte offset — so there was never a need for
+/// §20 "Chunk Nonces"' per-chunk derivation this field's own doc
+/// comment used to speculate about before [`crate::encryption`] was
+/// actually implemented. Corrected here rather than left as a stale
+/// guess once the real implementation resolved the question.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EncryptionDescriptor {
     pub algorithm: EncryptionAlgorithm,
-    pub base_nonce: [u8; 12],
+    pub nonce: [u8; 12],
 }
 
 /// §9, verbatim field-for-field, reusing `siar_domain::MediaType`
