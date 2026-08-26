@@ -1,0 +1,11 @@
+[package]
+name = "siar-resource-limits"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde.workspace = true
+
+[dev-dependencies]
