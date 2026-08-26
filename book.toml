@@ -1,8 +1,9 @@
 [book]
 authors = ["Irshad Ali and SIAR Contributors"]
 language = "en"
-src = "wiki"
+src = "sys-arch"
 title = "SIAR System Architecture & Technical Wiki"
+description = "Comprehensive system architecture, cryptographic protocols, DTN mesh networking, distributed storage, audio DSP pipelines, and UI/UX design specifications for SIAR."
 
 [build]
 build-dir = "book"
@@ -16,6 +17,7 @@ default-theme = "navy"
 preferred-dark-theme = "navy"
 mathjax-support = true
 copy-js = true
+additional-css = ["theme/custom.css"]
 
 [output.html.search]
 enable = true
