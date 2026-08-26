@@ -69,10 +69,14 @@
 //!   connection abstraction exists yet for this to talk through (same
 //!   gap `siar-dtn`'s own `lib.rs` doc comment already names for its
 //!   own forwarding/custody modules).
-//! - **No routing integration.** §189 Phase 5 — nothing here calls
-//!   `siar-routing-policy` (this same session's Part 03 crate) for an
-//!   actual DTN route plan/gateway path, though that's the natural
-//!   integration point once an encounter transport exists.
+//! - **No routing integration for gateway/route *selection*.** §189
+//!   Phase 5 — [`routing_bridge::select_dtn_bundle_policy`] now bridges
+//!   `siar-routing-policy`'s `DeliveryRequirements` into a concrete
+//!   [`types::DtnPriority`]/[`types::ForwardingClass`] pair for
+//!   constructing a bundle (the "select DTN bundle policy" step §23
+//!   names), but nothing here calls `siar-routing-policy` for an actual
+//!   *route plan* or gateway *path* — that still needs the encounter
+//!   transport this crate doesn't have (see the point above).
 //! - **No file/blob chunk carriage beyond the type-level reference**
 //!   in [`payload::PayloadReference::Chunk`] — §189 Phase 6's actual
 //!   thumbnail-first/chunk-carriage logic (§40-45) isn't implemented.
@@ -97,6 +101,7 @@
 pub mod bundle;
 pub mod forwarding;
 pub mod payload;
+pub mod routing_bridge;
 pub mod spray;
 pub mod state;
 pub mod store;
@@ -105,6 +110,7 @@ pub mod types;
 pub use bundle::{BundleIntegrity, DtnBundle};
 pub use forwarding::{decide_forwarding, EncounteredPeer, ForwardingDecision};
 pub use payload::{InlinePayloadTooLarge, PayloadReference, MAX_INLINE_PAYLOAD_BYTES};
+pub use routing_bridge::{select_dtn_bundle_policy, DtnBundlePolicy, DEFAULT_BUNDLE_TTL_MILLIS};
 pub use spray::spray_allocation;
 pub use state::{BundleEvent, BundleState, InvalidBundleTransition};
 pub use store::{BundleStore, DtnStoreError, ForwardQuery, InMemoryBundleStore, StoredBundle};

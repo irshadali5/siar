@@ -14,6 +14,9 @@ rust-version.workspace = true
 # transport integration — see lib.rs's own scope section).
 siar-blob-manifest = { path = "../siar-blob-manifest" }
 siar-event-log = { path = "../siar-event-log" }
+# `siar-routing-policy` for routing_bridge.rs's real integration — see
+# that module's own doc comment.
+siar-routing-policy = { path = "../siar-routing-policy" }
 serde.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
