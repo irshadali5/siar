@@ -96,8 +96,12 @@ Overall Architecture Impl: ~68% Core Foundation Implemented, ~32% Advanced & Eco
 
 ### [Part 03 — Transport & Routing Policy Engine Architecture](file:///home/irshad/Projects/siar/sys-arch/03-transport-routing-policy-engine-architecture.md)
 - **Total Sections:** 200
-- **Status:** 75% Implemented (~150 implemented, ~50 remaining)
+- **Status:** 85% Implemented (~170 implemented, ~30 remaining)
 - **Written / Implemented in Code:**
+  - Full routing policy engine (`RoutingPolicy`, `RoutePlan`, `DeliveryRequirements`, `PathCandidate`, `RouteCache`) in [`siar-routing-policy`](file:///home/irshad/Projects/siar/crates/siar-routing-policy).
+  - Four-step route selection with stickiness/hysteresis (`HysteresisPolicy`) and failure backoff (`RetryPolicy`).
+  - Destination device resolution bridging `siar-identity-multidevice`.
+  - Priority-fair dispatch queue (`RouteDispatchQueue`) integrated with `siar-protocol-ext`'s `FairScheduler` and `BoundedQueue`.
   - Metric-driven `PathScorer` (latency, bandwidth, loss, monetary cost, battery impact) in [`siar-routing`](file:///home/irshad/Projects/siar/crates/siar-routing).
   - Dynamic link health monitoring and jitter detection in [`siar-connectivity`](file:///home/irshad/Projects/siar/crates/siar-connectivity).
   - Multipath scheduler supporting warm failovers across Internet, LAN, Wi-Fi Direct, Wi-Fi Aware, BT Classic, and BLE.
@@ -149,8 +153,11 @@ Overall Architecture Impl: ~68% Core Foundation Implemented, ~32% Advanced & Eco
 
 ### [Part 07 — Capability Negotiation Architecture](file:///home/irshad/Projects/siar/sys-arch/07-capability-negotiation-architecture.md)
 - **Total Sections:** 164
-- **Status:** 75% Implemented (~120 implemented, ~44 remaining)
+- **Status:** 85% Implemented (~140 implemented, ~24 remaining)
 - **Written / Implemented in Code:**
+  - Full canonical capability set model, bounded parameter types, and policy filter in [`siar-capability`](file:///home/irshad/Projects/siar/crates/siar-capability).
+  - Two-phase confirmation with cryptographic transcript commitments (`NegotiationHash`, `HandshakeNonce`, BLAKE3).
+  - Concrete extension negotiators for `files/1` and `dtn/1`.
   - Protocol capability bitmasks and structured feature definitions in [`siar-protocol-ext`](file:///home/irshad/Projects/siar/crates/siar-protocol-ext).
   - Handshake capability exchange across direct and routed links.
   - Asymmetric media capability negotiation (audio-only fallback, AV1 vs H.264).

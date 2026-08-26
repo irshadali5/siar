@@ -74,13 +74,15 @@ Below is the exhaustive, itemized status of all 33 architecture specifications i
 
 ### Part 03 — Transport & Routing Policy Engine Architecture
 - **Spec Document:** [`sys-arch/03-transport-routing-policy-engine-architecture.md`](file:///home/irshad/Projects/siar/sys-arch/03-transport-routing-policy-engine-architecture.md)
-- **Primary Modules:** [`crates/siar-routing`](file:///home/irshad/Projects/siar/crates/siar-routing), [`crates/siar-connectivity`](file:///home/irshad/Projects/siar/crates/siar-connectivity), [`crates/siar-transport`](file:///home/irshad/Projects/siar/crates/siar-transport)
-- **Completion Status:** **80% Implemented**
+- **Primary Modules:** [`crates/siar-routing-policy`](file:///home/irshad/Projects/siar/crates/siar-routing-policy), [`crates/siar-routing`](file:///home/irshad/Projects/siar/crates/siar-routing), [`crates/siar-connectivity`](file:///home/irshad/Projects/siar/crates/siar-connectivity), [`crates/siar-transport`](file:///home/irshad/Projects/siar/crates/siar-transport)
+- **Completion Status:** **85% Implemented**
 - **Implemented Code:**
-  - Multi-path metric scoring (`PathScorer`, latency, bandwidth, financial cost, battery cost, packet loss).
-  - Dynamic link health monitoring (`LinkHealthMonitor`, jitter, degradation alerts).
-  - Multipath scheduler (`MultipathScheduler`) supporting warm failover and prioritized queueing.
-  - Integration with multiple link kinds (`TransportLinkKind`: Internet, LAN, Wi-Fi Direct, Wi-Fi Aware, BT Classic, BLE).
+  - Full routing policy engine (`RoutingPolicy`, `RoutePlan`, `DeliveryRequirements`, `PathCandidate`, `RouteCache`).
+  - Weighted candidate path scoring (`DefaultScorer`, `PathMetrics`, cost, latency, energy, stability).
+  - Four-step route selection with stickiness/hysteresis (`HysteresisPolicy`) and failure backoff (`RetryPolicy`).
+  - Multi-device destination resolution bridging `siar-identity-multidevice`.
+  - Priority-fair dispatch queue (`RouteDispatchQueue`) integrated with `siar-protocol-ext`'s `FairScheduler` and `BoundedQueue`.
+  - Dynamic link health monitoring (`LinkHealthMonitor`, jitter, degradation alerts) and multipath transport bridges.
 - **Remaining Work (Left):**
   - Packet-level ECMP striping across heterogeneous IP and non-IP mesh links.
   - Active probe congestion control (BBR-like bandwidth estimation over lossy mesh).
@@ -135,11 +137,15 @@ Below is the exhaustive, itemized status of all 33 architecture specifications i
 
 ### Part 07 — Capability Negotiation Architecture
 - **Spec Document:** [`sys-arch/07-capability-negotiation-architecture.md`](file:///home/irshad/Projects/siar/sys-arch/07-capability-negotiation-architecture.md)
-- **Primary Modules:** [`crates/siar-protocol-ext`](file:///home/irshad/Projects/siar/crates/siar-protocol-ext), [`crates/siar-media-core`](file:///home/irshad/Projects/siar/crates/siar-media-core)
-- **Completion Status:** **75% Implemented**
+- **Primary Modules:** [`crates/siar-capability`](file:///home/irshad/Projects/siar/crates/siar-capability), [`crates/siar-protocol-ext`](file:///home/irshad/Projects/siar/crates/siar-protocol-ext), [`crates/siar-media-core`](file:///home/irshad/Projects/siar/crates/siar-media-core)
+- **Completion Status:** **85% Implemented**
 - **Implemented Code:**
-  - Protocol capability bitmasks and structured feature sets.
-  - Handshake capability exchange in transport envelopes.
+  - Full canonical capability negotiation architecture (`CapabilitySet`, `CapabilityDescriptor`, `CapabilityId`, `CapabilityVersion`).
+  - Parameterized capabilities (`MaxLimit`, `Range`, `Bits`, `ExactBytes`) with bounded intersection rules.
+  - 3-tier capability policy enforcement (`CapabilityPolicy`: Hard, User, App tiers).
+  - Two-phase confirmation with cryptographic transcript commitments (`NegotiationHash`, `HandshakeNonce`, BLAKE3).
+  - Concrete extension negotiators for `files/1` (`FilesExtensionNegotiator`) and `dtn/1` (`DtnExtensionNegotiator`).
+  - Protocol capability bitmasks and structured feature sets in `siar-protocol-ext`.
   - Asymmetric media capability negotiation (audio-only fallback, AV1 vs H.264/VP9).
 - **Remaining Work (Left):**
   - Dynamic mid-session capability renegotiation upon network degradation.
@@ -514,9 +520,11 @@ Below is the exhaustive, itemized status of all 33 architecture specifications i
 | :--- | :---: | :---: | :---: | :--- |
 | [`crates/siar-domain`](file:///home/irshad/Projects/siar/crates/siar-domain) | 1,552 | 60 | **Production Ready** | Parts 01, 02, 04, 17, 28, 30 |
 | [`crates/siar-routing`](file:///home/irshad/Projects/siar/crates/siar-routing) | 1,394 | 49 | **Production Ready** | Parts 03, 06, 12, 13, 17 |
+| [`crates/siar-routing-policy`](file:///home/irshad/Projects/siar/crates/siar-routing-policy) | 1,743 | 29 | **Production Ready** | Part 03 |
 | [`crates/siar-storage`](file:///home/irshad/Projects/siar/crates/siar-storage) | 1,307 | 21 | **Production Ready** | Parts 04, 05, 08, 09, 32, 33 |
 | [`crates/siar-protocol`](file:///home/irshad/Projects/siar/crates/siar-protocol) | 1,013 | 23 | **Production Ready** | Parts 01, 05, 07, 08, 23 |
 | [`crates/siar-protocol-ext`](file:///home/irshad/Projects/siar/crates/siar-protocol-ext) | 870 | 16 | **Production Ready** | Parts 01, 07, 21, 24 |
+| [`crates/siar-capability`](file:///home/irshad/Projects/siar/crates/siar-capability) | 2,270 | 35 | **Production Ready** | Part 07 |
 | [`crates/siar-ui-state`](file:///home/irshad/Projects/siar/crates/siar-ui-state) | 879 | 28 | **Production Ready** | Parts 18, 30, 32 |
 | [`crates/siar-crypto`](file:///home/irshad/Projects/siar/crates/siar-crypto) | 830 | 23 | **Production Ready** | Parts 02, 05, 15, 28 |
 | [`crates/siar-messaging`](file:///home/irshad/Projects/siar/crates/siar-messaging) | 1,687 | 9 | **Production Ready** | Parts 04, 05, 09, 16, 28 |
@@ -542,7 +550,7 @@ Below is the exhaustive, itemized status of all 33 architecture specifications i
 | [`apps/desktop`](file:///home/irshad/Projects/siar/apps/desktop) (Dioxus GUI) | 1,398 | 0 | **Substantial** | Parts 16, 18, 30 |
 | [`apps/emergency-node`](file:///home/irshad/Projects/siar/apps/emergency-node) (Daemon) | 800 | 0 | **Substantial** | Parts 11, 16, 17, 20 |
 | [`apps/cli`](file:///home/irshad/Projects/siar/apps/cli) (Command-line) | 778 | 0 | **Substantial** | Parts 16, 18 |
-| **Total Production Code** | **23,109** | **338** | — | **All 33 Architectural Specs** |
+| **Total Production Code** | **27,122** | **402** | — | **All 33 Architectural Specs** |
 
 ---
 
@@ -582,4 +590,4 @@ graph TD
 
 ---
 
-> **Conclusion:** SIAR has successfully implemented all foundational and core architectural tiers (Crypto, Domain, Protocols, DTN, Routing, Storage, Transports, Hardware Media, Android & Desktop Frontends) across **26 crates and 4 applications** totaling **23,000+ lines of production code and 338 automated tests**, with the remaining work centered on advanced ecosystem extensions, push wakeup services, full-text search indexing, and audio DSP enhancement filters.
+> **Conclusion:** SIAR has successfully implemented all foundational and core architectural tiers (Crypto, Domain, Protocols, DTN, Routing, Storage, Transports, Hardware Media, Android & Desktop Frontends) across **28 crates and 4 applications** totaling **27,000+ lines of production code and 402 automated tests**, with the remaining work centered on advanced ecosystem extensions, push wakeup services, full-text search indexing, and audio DSP enhancement filters.
