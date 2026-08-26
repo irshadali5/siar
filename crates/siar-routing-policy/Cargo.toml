@@ -13,6 +13,10 @@ rust-version.workspace = true
 # `RoutePlan`, it doesn't dial anything (see lib.rs's own doc comment).
 siar-domain = { path = "../siar-domain" }
 siar-identity-multidevice = { path = "../siar-identity-multidevice" }
+# `siar-protocol-ext` for dispatch.rs's real integration with its
+# already-built FairScheduler/BoundedQueue — see that module's own
+# doc comment.
+siar-protocol-ext = { path = "../siar-protocol-ext" }
 serde.workspace = true
 thiserror.workspace = true
 uuid.workspace = true

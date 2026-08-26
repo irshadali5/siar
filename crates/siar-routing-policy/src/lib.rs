@@ -38,6 +38,15 @@
 //!   real crate (`siar-identity-multidevice`) rather than staying
 //!   self-contained, exactly because §16 says "Part 02 provides device
 //!   membership" and Part 02 now has a real crate to mean that with.
+//! - [`dispatch`] — a second real cross-crate integration, this time
+//!   with `siar-protocol-ext`'s already-built `FairScheduler`/
+//!   `BoundedQueue` (its own §21-22 "Fair Scheduling"): maps this
+//!   crate's [`types::Priority`] onto that crate's `TrafficPriority`
+//!   and queues `(RoutePlan, payload)` pairs for priority-fair
+//!   dispatch. Not itself named by either spec (see that module's own
+//!   doc comment), but a real gap this closes: previously nothing
+//!   connected an application's delivery priority to actual queueing
+//!   behavior once a route was chosen.
 //!
 //! §197's own Phase 5 ("DTN") is touched only incidentally — a `Dtn`
 //! [`types::TransportKind`] variant exists and competes in scoring like
@@ -54,7 +63,10 @@
 //!   crate has no dependency on producing.
 //! - **§197 Phase 6 (resource scheduling)** — §63-68 (queue
 //!   architecture, weighted fair scheduling, backpressure, per-transport/
-//!   peer/extension fairness) — not attempted.
+//!   peer/extension fairness) — [`dispatch`] now covers priority-tier
+//!   fair scheduling and backpressure end to end (via
+//!   `siar-protocol-ext`'s `FairScheduler`/`BoundedQueue`); per-transport
+//!   and per-peer/extension fairness weighting is still not attempted.
 //! - **§197 Phase 7 (diagnostics/testing)** — §95-99 (route
 //!   diagnostics, path visualization, decision explainability, metrics
 //!   collection/privacy), §124-127 (simulated routing/property/chaos/
@@ -89,6 +101,7 @@
 
 pub mod cache;
 pub mod candidate;
+pub mod dispatch;
 pub mod error;
 pub mod failure;
 pub mod metrics;

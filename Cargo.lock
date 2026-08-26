@@ -7380,6 +7380,7 @@ dependencies = [
  "serde",
  "siar-domain",
  "siar-identity-multidevice",
+ "siar-protocol-ext",
  "thiserror 2.0.19",
  "uuid",
 ]
