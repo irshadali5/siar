@@ -6,7 +6,54 @@
 //! against the spec's own section numbers rather than a shallow first
 //! pass across all 164 sections.
 //!
-//! ## This pass — Phase 2 slice: policy + negotiate() (§18-24, §72-73)
+//! ## This pass — a second real extension: dtn/1 (§37, §11)
+//!
+//! - [`dtn_extension`] — §37 "DTN Capabilities" (plus §11's own
+//!   `dtn.max_bundle_size = 1 MiB` worked example):
+//!   [`dtn_extension::DtnExtensionNegotiator`], covering all seven
+//!   `dtn/1` capabilities the same way `files_extension` covers
+//!   `files/1`. Deliberately registers no dependency edge between any
+//!   of the seven — the spec gives one worked dependency example
+//!   total (§69, for `files/1`) and none for `dtn/1`, so none is
+//!   invented here (see that module's own doc comment)
+//!
+//! ## Earlier this pass — extension negotiator + a real files/1 implementation (§33-36)
+//!
+//! - [`extension`] — §33 "Extension Capability Negotiation", §34
+//!   "Extension Negotiator Trait": [`extension::ExtensionNegotiator`],
+//!   using [`set::CapabilitySet`] directly for both the advertised and
+//!   negotiated shape (see that module's doc comment for why the
+//!   spec's `ExtensionCapabilitySet`/`NegotiatedExtensionCapabilities`
+//!   aren't separate types here), with a provided `negotiate` method
+//!   built on [`mod@negotiate`] so implementors only supply
+//!   `advertise()` and a per-extension [`registry::CapabilityRegistry`]
+//! - [`files_extension`] — §35 "File Capabilities", §36 "File Limit
+//!   Negotiation": [`files_extension::FilesExtensionNegotiator`], a
+//!   real (not sketch) implementation covering all seven listed
+//!   `files/1` capabilities, wiring in §69's own worked dependency
+//!   example (`parallel_chunks` requires `fixed_chunking`) and tested
+//!   against §36's own worked limit example (4 MiB vs 1 MiB → 1 MiB
+//!   effective) — proof the whole stack built across this crate's
+//!   passes (registry, negotiate, policy, extension trait) actually
+//!   composes into one real negotiator, not just type-checks in
+//!   isolation
+//!
+//! ## Earlier this pass — two-phase confirmation (§25-26)
+//!
+//! - [`transcript`] — §25 "Two-Phase Confirmation", §26 "Negotiation
+//!   Transcript Hash": [`transcript::HandshakeNonce`] (real
+//!   `OsRng`-sourced generation, matching this workspace's existing
+//!   nonce convention), [`transcript::NegotiationHash`] (a real
+//!   blake3 transcript commitment over both peers' offered sets, the
+//!   negotiated selection, and the nonce — computed so it doesn't
+//!   matter which peer calls itself "local", the same symmetry
+//!   [`mod@negotiate`] already guarantees), and [`transcript::confirm`],
+//!   the equality check §25's "both peers confirm the same negotiated
+//!   capability set" actually is. Not the full §13
+//!   `CapabilityAdvertisement` — see that module's own doc comment
+//!   for why.
+//!
+//! ## Earlier this pass — policy + negotiate() (§18-24, §72-73)
 //!
 //! Building directly on Phase 1's types:
 //!
@@ -63,30 +110,37 @@
 //! ## Deliberately not attempted yet
 //!
 //! `CapabilityAdvertisement` and the authenticated-session binding it
-//! needs (§13-15, needs Part 02 wiring), two-phase confirmation and
-//! the transcript-hash handshake (§25-26), the extension negotiator
-//! trait and its files/DTN/media integrations (§33-41, needs Parts
-//! 01/05/06 wiring), dynamic capability updates and epochs (§45-53),
+//! needs (§13-15, needs Part 02 wiring), transport/platform/media
+//! extension negotiators (§38-41 — only files/1 and dtn/1 are built,
+//! the two the spec gives enough worked detail to implement for real
+//! rather than guess at), dynamic capability updates and epochs (§45-53),
 //! the capability cache (§49-52), and the wire format (§100-102). The
 //! full §18 `NegotiatedCapabilities` struct is also not built —
 //! [`negotiate::negotiate`]'s module doc explains why and what a
 //! caller does instead. None of these are guessed at here.
 
 pub mod descriptor;
+pub mod dtn_extension;
 pub mod error;
+pub mod extension;
+pub mod files_extension;
 pub mod hash;
 pub mod id;
 pub mod negotiate;
 pub mod policy;
 pub mod registry;
 pub mod set;
+pub mod transcript;
 pub mod version;
 
 pub use descriptor::{
     BoundedBytes, BoundedBytesError, CapabilityBits, CapabilityDescriptor, CapabilityDirection,
     CapabilityLifetime, CapabilityParameters, CapabilityRequirement, MAX_PARAMETER_BYTES,
 };
+pub use dtn_extension::DtnExtensionNegotiator;
 pub use error::CapabilityNegotiationError;
+pub use extension::ExtensionNegotiator;
+pub use files_extension::FilesExtensionNegotiator;
 pub use hash::CapabilitySetHash;
 pub use id::{CapabilityId, CapabilityNamespace, NamespaceId};
 pub use negotiate::negotiate;
@@ -95,4 +149,5 @@ pub use registry::{
     CapabilityDefinition, CapabilityDependency, CapabilityRegistry, ParameterSchema, SecurityClass,
 };
 pub use set::{CapabilitySet, CapabilitySetError, MAX_CAPABILITIES_PER_SET};
+pub use transcript::{confirm, HandshakeNonce, NegotiationHash};
 pub use version::CapabilityVersion;
