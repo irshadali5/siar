@@ -93,6 +93,15 @@
 //!   convention. A dedicated test runs the real §21 → §8 pipeline
 //!   end to end: generate keys locally, certify only the public
 //!   signing key, verify the resulting certificate.
+//! - [`audit_log`] — a real cross-crate integration with
+//!   `siar-event-log` (this same session's Part 04 crate), not itself
+//!   named by a single spec section: constructs real
+//!   `siar_event_log::NewEvent`s for the three identity operations
+//!   this crate can already really perform (device linked, device
+//!   revoked, revocation verified), closing the "no revocation event
+//!   log" half of the gap this crate's own notes used to carry. See
+//!   that module's own doc comment for why it only constructs events
+//!   rather than appending them itself.
 //!
 //! Every one of the above is covered by tests that exercise the actual
 //! cryptographic round trip (real Ed25519/X25519 keys, real signatures,
@@ -159,18 +168,21 @@
 //!   to the signed payload, but nothing tracks *used* nonces to reject
 //!   an actual replay — that needs a persistent store, the same gap
 //!   [`trust_store::TrustedAccountStore`] already has.
-//! - **No revocation event log, no offline propagation transport.**
-//!   §25-27's revocation *operation* is real now (see
-//!   [`revocation`] above) — what's still not attempted is §22's
-//!   `DeviceEvent` audit-trail enum (distinct from
-//!   `siar_domain::device::DeviceEvent`; a real audit trail would use
-//!   this same workspace's `siar_event_log::EventStore` rather than a
-//!   redundant event system inside this crate, given §52's own
-//!   "signed snapshot over event log" choice this crate already made —
-//!   see `directory.rs`'s own doc comment) and §28's actual propagation
-//!   transport (direct sync/relay/DTN/linked-device sync — this crate
-//!   has no wire integration for any of it, same posture every crate
-//!   in this series takes). §40 multi-device fan-out beyond the
+//! - **Revocation event log now real; offline propagation still not.**
+//!   §25-27's revocation *operation* is real (see [`revocation`]
+//!   above), and now so is turning it into an audit trail: [`audit_log`]
+//!   builds real `siar_event_log::NewEvent`s for device-linked/
+//!   device-revoked/revocation-verified via that same workspace's
+//!   `siar_event_log::EventStore` rather than a redundant event system
+//!   inside this crate (§52's own "signed snapshot over event log"
+//!   choice this crate already made — see `directory.rs`'s own doc
+//!   comment). [`audit_log`] only *constructs* events, though — no
+//!   caller here actually appends them to a live `EventStore`, since
+//!   that's the caller's own I/O to own (see that module's own doc
+//!   comment for why). §28's actual propagation transport (direct
+//!   sync/relay/DTN/linked-device sync) is still fully unattempted —
+//!   this crate has no wire integration for any of it, same posture
+//!   every crate in this series takes. §40 multi-device fan-out beyond the
 //!   directory-filtering already in
 //!   [`directory::DeviceDirectory::active_devices`], §33–39
 //!   root key rotation/recovery, §41–51 (sender attribution,
@@ -181,9 +193,6 @@
 //!   1/2 slice per its own §201 "Implementation Phases", now extended
 //!   with real slices of both the linking flow and revocation, neither
 //!   of which that Phase list separately numbers).
-//!   1/2 slice per its own §201 "Implementation Phases", now extended
-//!   with a real slice of the linking flow that Phase list doesn't
-//!   separately number).
 //! - **Parts 01's remaining ~90 sections past what `siar-protocol-ext`
 //!   covers, and all of Part 03**, are unstarted by this crate (Part 01
 //!   has its own crate and doc comment; Part 03 has no dedicated crate
@@ -191,6 +200,7 @@
 //!   opening paragraph).
 
 pub mod approval;
+pub mod audit_log;
 pub mod capability;
 pub mod certificate;
 pub mod device_keys;
@@ -204,6 +214,11 @@ pub mod trust_store;
 pub mod verification_code;
 
 pub use approval::{LinkMethod, LinkingApprovalPrompt, VerificationStatus};
+pub use audit_log::{
+    decode_audit_payload, device_linked_event, device_revoked_event, identity_stream_id, is_audited_status,
+    revocation_verified_event, IdentityAuditPayload, EVENT_TYPE_DEVICE_LINKED, EVENT_TYPE_DEVICE_REVOKED,
+    EVENT_TYPE_REVOCATION_VERIFIED,
+};
 pub use capability::DeviceCapabilitySet;
 pub use certificate::DeviceCertificate;
 pub use device_keys::{generate_new_device_keys, NewDeviceKeys, NewDevicePublicKeys};

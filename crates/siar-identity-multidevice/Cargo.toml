@@ -14,6 +14,9 @@ rust-version.workspace = true
 # discipline applies here: this is identity *policy* (certificates,
 # directories, rollback rules), not a transport or storage integration.
 siar-domain = { path = "../siar-domain" }
+# `siar-event-log` for audit_log.rs's real integration — see that
+# module's own doc comment.
+siar-event-log = { path = "../siar-event-log" }
 ed25519-dalek = { version = "2", features = ["rand_core", "serde", "zeroize"] }
 x25519-dalek.workspace = true
 blake3.workspace = true
