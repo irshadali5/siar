@@ -1,0 +1,15 @@
+services:
+  siar-arch-wiki:
+    build:
+      context: .
+      dockerfile: Containerfile.wiki
+    image: localhost/siar-arch-wiki:latest
+    container_name: siar-arch-wiki
+    restart: unless-stopped
+    ports:
+      - "3000:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8080/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

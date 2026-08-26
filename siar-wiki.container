@@ -1,0 +1,20 @@
+# Podman Quadlet definition for systemd
+# Place this file in ~/.config/containers/systemd/siar-wiki.container
+# Then reload with: systemctl --user daemon-reload && systemctl --user start siar-wiki
+
+[Unit]
+Description=SIAR System Architecture Wiki (Rootless Podman)
+After=network-online.target
+
+[Container]
+Image=localhost/siar-arch-wiki:latest
+ContainerName=siar-arch-wiki
+PublishPort=3000:8080
+Restart=always
+
+[Service]
+Restart=always
+TimeoutStartSec=60
+
+[Install]
+WantedBy=default.target
