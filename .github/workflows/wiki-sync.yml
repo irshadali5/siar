@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'wiki/**'
+      - 'sys-arch/**'
       - '.github/workflows/wiki-sync.yml'
   workflow_dispatch:
 
@@ -19,13 +19,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Sync wiki files to GitHub Wiki repository
+      - name: Sync sys-arch files to GitHub Wiki repository
         env:
           ACTION_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TEMP_DIR="$(mktemp -d)"
-          echo "Copying wiki files..."
-          cp -r wiki/* "$TEMP_DIR/"
+          echo "Copying sys-arch files..."
+          cp -r sys-arch/* "$TEMP_DIR/"
           
           cd "$TEMP_DIR"
           git init
@@ -33,7 +33,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git branch -M master
           git add .
-          git commit -m "docs(wiki): sync documentation from main repository" || exit 0
+          git commit -m "docs(wiki): sync 60 system architecture specifications from main repository" || exit 0
           
           WIKI_REPO="https://x-access-token:${ACTION_TOKEN}@github.com/${{ github.repository }}.wiki.git"
           echo "Pushing to GitHub Wiki ($WIKI_REPO)..."

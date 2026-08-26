@@ -5,6 +5,8 @@ on:
     branches:
       - main
     paths:
+      - 'sys-arch/**'
+      - 'theme/**'
       - 'wiki/**'
       - 'book.toml'
       - '.github/workflows/docs-pages.yml'
