@@ -1,7 +1,7 @@
 # 01 — System Overview & Architecture
 
 > **Corresponding Specifications:** [`sys-arch/01-protocol-extension-system-architecture.md`](../sys-arch/01-protocol-extension-system-architecture.md), [`sys-arch/07-capability-negotiation-architecture.md`](../sys-arch/07-capability-negotiation-architecture.md), [`sys-arch/28-production-security-e2ee-key-management-privacy-architecture.md`](../sys-arch/28-production-security-e2ee-key-management-privacy-architecture.md)  
-> **Key Crates:** [`crates/siar-domain`](../crates/siar-domain), [`crates/siar-protocol`](../crates/siar-protocol), [`crates/siar-protocol-ext`](../crates/siar-protocol-ext)
+> **Key Crates:** [`crates/siar-domain`](../crates/siar-domain), [`crates/siar-protocol`](../crates/siar-protocol), [`crates/siar-protocol-ext`](../crates/siar-protocol-ext), [`crates/siar-capability`](../crates/siar-capability)
 
 ---
 
@@ -92,7 +92,11 @@ SIAR automatically shifts between three distinct operational modes based on real
 
 ## 5. Protocol Extension & Capability Negotiation
 
-SIAR incorporates a dynamic capability negotiation engine defined in [`siar-protocol-ext`](../crates/siar-protocol-ext). When two nodes rendezvous over any transport, they exchange handshake envelopes containing capability bitmasks:
+SIAR incorporates a dynamic capability negotiation architecture split across:
+1. **Part 01 Protocol Extensions** ([`siar-protocol-ext`](../crates/siar-protocol-ext)): Extension lifecycle management, framing, backpressure, and weighted fair scheduling.
+2. **Part 07 Capability Negotiation** ([`siar-capability`](../crates/siar-capability)): Canonical ordered capability sets (`CapabilitySet`), parameterized limits (MaxLimit, Range, Bits, ExactBytes), 3-tier policy filters (`CapabilityPolicy`), two-phase cryptographic confirmation (`NegotiationHash`, `HandshakeNonce`), and dedicated negotiators for `files/1` and `dtn/1`.
+
+When two nodes rendezvous over any transport, they exchange handshake envelopes containing capability bitmasks and structured descriptors:
 
 ```rust
 pub struct CapabilityBitmask(pub u64);
@@ -108,4 +112,4 @@ impl CapabilityBitmask {
 }
 ```
 
-If a peer lacks support for an advanced extension (such as AV1 hardware video decoding or Wasm plugins), the protocol gracefully falls back to the baseline profile without session termination.
+If a peer lacks support for an optional extension (such as AV1 hardware video decoding or Wasm plugins), the protocol gracefully falls back to the baseline profile without session termination. Mutual required capabilities are strictly enforced and verified cryptographically via transcript hashes.

@@ -157,13 +157,18 @@ siar/
 │   ├── desktop/                  # Desktop GUI Application (Dioxus Desktop UI)
 │   └── emergency-node/           # Headless Emergency DTN Relay Daemon
 ├── crates/
+│   ├── siar-blob-manifest/       # Merkle blob manifest types
 │   ├── siar-calls/               # Realtime Media Call Session Protocols
+│   ├── siar-capability/          # Capability negotiation engine & two-phase confirmation (Part 07)
 │   ├── siar-connectivity/        # Cross-transport state engine
 │   ├── siar-crypto/              # Ed25519/X25519/ChaCha20Poly1305 primitives
 │   ├── siar-crypto-mls/          # OpenMLS Group & 1:1 encryption service
 │   ├── siar-domain/              # Core domain entities (AccountId, DeviceId, Ticket)
 │   ├── siar-dtn/                 # Delay-Tolerant store-carry-forward buffer
+│   ├── siar-dtn-bundle/          # DTN bundle framing & serialization
 │   ├── siar-emergency/           # Priority class queuing & override handler
+│   ├── siar-event-log/           # Append-only offline event log
+│   ├── siar-identity-multidevice/# Multi-device identity management & SAS pairing
 │   ├── siar-media-android/       # Android MediaCodec JNI hardware surface
 │   ├── siar-media-audio/         # Opus audio codec integration (Desktop)
 │   ├── siar-media-av1/           # dav1d AV1 video codec integration (Desktop)
@@ -171,7 +176,9 @@ siar/
 │   ├── siar-media-image/         # Image processing & thumbnail generator
 │   ├── siar-messaging/           # MessageService, GroupService, Ticket management
 │   ├── siar-protocol/            # Wire frames & Postcard binary codec
+│   ├── siar-protocol-ext/        # Protocol extensions & fair scheduler (Part 01)
 │   ├── siar-routing/             # PathTable, Link Health Scoring, classification
+│   ├── siar-routing-policy/      # Multi-metric transport routing policies
 │   ├── siar-storage/             # Pure-Rust Stoolap embedded SQL repos
 │   ├── siar-testkit/             # Network simulator & mesh test harness
 │   ├── siar-transport/           # Transport manager & socket abstraction
