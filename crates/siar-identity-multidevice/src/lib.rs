@@ -215,9 +215,9 @@ pub mod verification_code;
 
 pub use approval::{LinkMethod, LinkingApprovalPrompt, VerificationStatus};
 pub use audit_log::{
-    decode_audit_payload, device_linked_event, device_revoked_event, identity_stream_id, is_audited_status,
-    revocation_verified_event, IdentityAuditPayload, EVENT_TYPE_DEVICE_LINKED, EVENT_TYPE_DEVICE_REVOKED,
-    EVENT_TYPE_REVOCATION_VERIFIED,
+    decode_audit_payload, device_linked_event, device_revoked_event, identity_stream_id,
+    is_audited_status, revocation_verified_event, IdentityAuditPayload, EVENT_TYPE_DEVICE_LINKED,
+    EVENT_TYPE_DEVICE_REVOKED, EVENT_TYPE_REVOCATION_VERIFIED,
 };
 pub use capability::DeviceCapabilitySet;
 pub use certificate::DeviceCertificate;
