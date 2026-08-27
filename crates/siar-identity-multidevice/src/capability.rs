@@ -23,7 +23,11 @@ impl DeviceCapabilitySet {
 
     pub const NONE: Self = Self(0);
     pub const ALL: Self = Self(
-        Self::SEND_MESSAGE.0 | Self::RECEIVE_MESSAGE.0 | Self::LINK_NEW_DEVICE.0 | Self::REVOKE_DEVICE.0 | Self::MANAGE_GROUPS.0,
+        Self::SEND_MESSAGE.0
+            | Self::RECEIVE_MESSAGE.0
+            | Self::LINK_NEW_DEVICE.0
+            | Self::REVOKE_DEVICE.0
+            | Self::MANAGE_GROUPS.0,
     );
 
     pub fn union(self, other: Self) -> Self {
