@@ -136,8 +136,13 @@ impl<P: OpenMlsProvider> MlsGroupSession<P> {
     /// (using the simpler no-extensions default here — see
     /// `identity.rs`'s note on why this pass has no real extension
     /// content to put there) and `alice_create_group`.
-    pub fn create(provider: P, founder_identity: &crate::MlsIdentity) -> Result<Self, MlsGroupError> {
-        let config = MlsGroupCreateConfig::builder().ciphersuite(CIPHERSUITE).build();
+    pub fn create(
+        provider: P,
+        founder_identity: &crate::MlsIdentity,
+    ) -> Result<Self, MlsGroupError> {
+        let config = MlsGroupCreateConfig::builder()
+            .ciphersuite(CIPHERSUITE)
+            .build();
         let group = MlsGroup::new(
             &provider,
             &founder_identity.signature_keys,
@@ -146,7 +151,11 @@ impl<P: OpenMlsProvider> MlsGroupSession<P> {
         )
         .map_err(|e| MlsGroupError::Create(format!("{e:?}")))?;
 
-        Ok(Self { group, provider, signature_keys: founder_identity.signature_keys.clone() })
+        Ok(Self {
+            group,
+            provider,
+            signature_keys: founder_identity.signature_keys.clone(),
+        })
     }
 
     /// Joins a group from a welcome message another member's
@@ -196,9 +205,15 @@ impl<P: OpenMlsProvider> MlsGroupSession<P> {
 
         let staged_join = StagedWelcome::new_from_welcome(&provider, &config, welcome, None)
             .map_err(|e| MlsGroupError::Join(format!("{e:?}")))?;
-        let group = staged_join.into_group(&provider).map_err(|e| MlsGroupError::Join(format!("{e:?}")))?;
+        let group = staged_join
+            .into_group(&provider)
+            .map_err(|e| MlsGroupError::Join(format!("{e:?}")))?;
 
-        Ok(Self { group, provider, signature_keys })
+        Ok(Self {
+            group,
+            provider,
+            signature_keys,
+        })
     }
 
     /// Adds one new member (via their published `KeyPackage`) and
@@ -216,18 +231,29 @@ impl<P: OpenMlsProvider> MlsGroupSession<P> {
     /// each to the right recipients is `GroupService`'s job once this
     /// crate is wired in — see `lib.rs`'s "What this crate does NOT do
     /// yet".
-    pub fn add_member(&mut self, new_member_key_package: &KeyPackage) -> Result<(Vec<u8>, Vec<u8>), MlsGroupError> {
+    pub fn add_member(
+        &mut self,
+        new_member_key_package: &KeyPackage,
+    ) -> Result<(Vec<u8>, Vec<u8>), MlsGroupError> {
         let (commit_out, welcome_out, _group_info) = self
             .group
-            .add_members(&self.provider, &self.signature_keys, core::slice::from_ref(new_member_key_package))
+            .add_members(
+                &self.provider,
+                &self.signature_keys,
+                core::slice::from_ref(new_member_key_package),
+            )
             .map_err(|e| MlsGroupError::AddMember(format!("{e:?}")))?;
 
         self.group
             .merge_pending_commit(&self.provider)
             .map_err(|e| MlsGroupError::Merge(format!("{e:?}")))?;
 
-        let commit_bytes = commit_out.to_bytes().map_err(|e| MlsGroupError::Serialize(format!("{e:?}")))?;
-        let welcome_bytes = welcome_out.to_bytes().map_err(|e| MlsGroupError::Serialize(format!("{e:?}")))?;
+        let commit_bytes = commit_out
+            .to_bytes()
+            .map_err(|e| MlsGroupError::Serialize(format!("{e:?}")))?;
+        let welcome_bytes = welcome_out
+            .to_bytes()
+            .map_err(|e| MlsGroupError::Serialize(format!("{e:?}")))?;
         Ok((commit_bytes, welcome_bytes))
     }
 
@@ -251,7 +277,9 @@ impl<P: OpenMlsProvider> MlsGroupSession<P> {
     /// (book_code.rs: `assert!(welcome_option.is_none())` right after
     /// `charlie_removes_bob`).
     pub fn remove_member(&mut self, device: DeviceId) -> Result<Vec<u8>, MlsGroupError> {
-        let leaf_index = self.find_member_leaf_index(device).ok_or(MlsGroupError::UnknownMember)?;
+        let leaf_index = self
+            .find_member_leaf_index(device)
+            .ok_or(MlsGroupError::UnknownMember)?;
 
         let (commit_out, _welcome_option, _group_info) = self
             .group
@@ -262,7 +290,9 @@ impl<P: OpenMlsProvider> MlsGroupSession<P> {
             .merge_pending_commit(&self.provider)
             .map_err(|e| MlsGroupError::Merge(format!("{e:?}")))?;
 
-        commit_out.to_bytes().map_err(|e| MlsGroupError::Serialize(format!("{e:?}")))
+        commit_out
+            .to_bytes()
+            .map_err(|e| MlsGroupError::Serialize(format!("{e:?}")))
     }
 
     /// Encrypts an application (chat) message to the current epoch's
@@ -275,7 +305,9 @@ impl<P: OpenMlsProvider> MlsGroupSession<P> {
             .group
             .create_message(&self.provider, &self.signature_keys, plaintext)
             .map_err(|e| MlsGroupError::Encrypt(format!("{e:?}")))?;
-        message_out.to_bytes().map_err(|e| MlsGroupError::Serialize(format!("{e:?}")))
+        message_out
+            .to_bytes()
+            .map_err(|e| MlsGroupError::Serialize(format!("{e:?}")))
     }
 
     /// Deserializes and processes one incoming MLS wire message —
@@ -294,11 +326,14 @@ impl<P: OpenMlsProvider> MlsGroupSession<P> {
     /// generate — worth surfacing loudly as `Process`, not silently
     /// swallowing it as if it were expected.
     pub fn process_incoming(&mut self, bytes: &[u8]) -> Result<IncomingMlsMessage, MlsGroupError> {
-        let message_in =
-            MlsMessageIn::tls_deserialize_exact(bytes).map_err(|e| MlsGroupError::Deserialize(format!("{e:?}")))?;
-        let protocol_message: ProtocolMessage = message_in
-            .try_into_protocol_message()
-            .map_err(|_| MlsGroupError::Process("message is not a PublicMessage or PrivateMessage".to_string()))?;
+        let message_in = MlsMessageIn::tls_deserialize_exact(bytes)
+            .map_err(|e| MlsGroupError::Deserialize(format!("{e:?}")))?;
+        let protocol_message: ProtocolMessage =
+            message_in.try_into_protocol_message().map_err(|_| {
+                MlsGroupError::Process(
+                    "message is not a PublicMessage or PrivateMessage".to_string(),
+                )
+            })?;
 
         let processed = self
             .group
