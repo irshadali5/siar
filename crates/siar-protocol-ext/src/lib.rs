@@ -109,10 +109,22 @@ pub mod scheduler;
 pub use backpressure::{BoundedQueue, QueueFull};
 pub use capability::{CapabilityId, CapabilityRegistry, CapabilitySet};
 pub use channel::ChannelKind;
-pub use descriptor::{ExtensionDescriptor, ExtensionLimits, ExtensionRequirement, ExtensionVersion, NegotiatedExtension, SessionLocalExtensionId};
-pub use framing::{parse_frame_header, validate_frame_length, FrameHeader, FramingError, FRAME_HEADER_BYTES};
-pub use identifier::{IdentifierError, NamespaceId, ProtocolId, ProtocolMajor, ProtocolMinor, ProtocolName};
-pub use lifecycle::{ExtensionError, ExtensionLifecycle, InvalidLifecycleTransition, TrafficPriority};
+pub use descriptor::{
+    ExtensionDescriptor, ExtensionLimits, ExtensionRequirement, ExtensionVersion,
+    NegotiatedExtension, SessionLocalExtensionId,
+};
+pub use framing::{
+    parse_frame_header, validate_frame_length, FrameHeader, FramingError, FRAME_HEADER_BYTES,
+};
+pub use identifier::{
+    IdentifierError, NamespaceId, ProtocolId, ProtocolMajor, ProtocolMinor, ProtocolName,
+};
+pub use lifecycle::{
+    ExtensionError, ExtensionLifecycle, InvalidLifecycleTransition, TrafficPriority,
+};
 pub use negotiation::{negotiate, NegotiationError, RemoteAdvertisement};
-pub use registry::{ExtensionContext, ExtensionHandler, ExtensionRegistry, ExtensionRegistryBuilder, ProtocolExtension, RegistryError};
+pub use registry::{
+    ExtensionContext, ExtensionHandler, ExtensionRegistry, ExtensionRegistryBuilder,
+    ProtocolExtension, RegistryError,
+};
 pub use scheduler::FairScheduler;
