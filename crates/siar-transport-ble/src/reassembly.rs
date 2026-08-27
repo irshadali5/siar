@@ -61,13 +61,23 @@ pub enum ReassemblyOutcome {
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ReassemblyError {
     #[error("fragment claims fragment_count {claimed}, but transfer {transfer_id} is already tracking fragment_count {tracked}")]
-    FragmentCountMismatch { transfer_id: u32, tracked: u16, claimed: u16 },
+    FragmentCountMismatch {
+        transfer_id: u32,
+        tracked: u16,
+        claimed: u16,
+    },
 }
 
 impl ReassemblyBuffer {
     pub fn new(capacity: usize) -> Self {
-        assert!(capacity >= 1, "a zero-capacity reassembly buffer can never complete a multi-fragment transfer");
-        Self { capacity, transfers: VecDeque::with_capacity(capacity) }
+        assert!(
+            capacity >= 1,
+            "a zero-capacity reassembly buffer can never complete a multi-fragment transfer"
+        );
+        Self {
+            capacity,
+            transfers: VecDeque::with_capacity(capacity),
+        }
     }
 
     pub fn len(&self) -> usize {
@@ -83,7 +93,10 @@ impl ReassemblyBuffer {
     /// ignored rather than erroring — same lossy-link reasoning as
     /// `ReassemblyOutcome::Complete`'s doc comment.
     pub fn insert(&mut self, fragment: BleFragment) -> Result<ReassemblyOutcome, ReassemblyError> {
-        let position = self.transfers.iter().position(|t| t.transfer_id == fragment.transfer_id);
+        let position = self
+            .transfers
+            .iter()
+            .position(|t| t.transfer_id == fragment.transfer_id);
 
         let index = match position {
             Some(index) => {
@@ -121,7 +134,10 @@ impl ReassemblyBuffer {
         }
 
         if transfer.received_len == transfer.received.len() {
-            let transfer = self.transfers.remove(index).expect("index came from this same deque");
+            let transfer = self
+                .transfers
+                .remove(index)
+                .expect("index came from this same deque");
             let mut assembled = Vec::new();
             for piece in transfer.received {
                 assembled.extend(piece.expect("received_len == len means every slot is Some"));
@@ -147,8 +163,19 @@ impl ReassemblyBuffer {
 mod tests {
     use super::*;
 
-    fn fragment(transfer_id: u32, fragment_index: u16, fragment_count: u16, byte: u8) -> BleFragment {
-        BleFragment { protocol: 1, transfer_id, fragment_index, fragment_count, payload: vec![byte] }
+    fn fragment(
+        transfer_id: u32,
+        fragment_index: u16,
+        fragment_count: u16,
+        byte: u8,
+    ) -> BleFragment {
+        BleFragment {
+            protocol: 1,
+            transfer_id,
+            fragment_index,
+            fragment_count,
+            payload: vec![byte],
+        }
     }
 
     #[test]
@@ -162,8 +189,14 @@ mod tests {
     #[test]
     fn multi_fragment_transfer_completes_in_index_order_regardless_of_arrival_order() {
         let mut buffer = ReassemblyBuffer::new(4);
-        assert_eq!(buffer.insert(fragment(1, 2, 3, b'c')).unwrap(), ReassemblyOutcome::Incomplete);
-        assert_eq!(buffer.insert(fragment(1, 0, 3, b'a')).unwrap(), ReassemblyOutcome::Incomplete);
+        assert_eq!(
+            buffer.insert(fragment(1, 2, 3, b'c')).unwrap(),
+            ReassemblyOutcome::Incomplete
+        );
+        assert_eq!(
+            buffer.insert(fragment(1, 0, 3, b'a')).unwrap(),
+            ReassemblyOutcome::Incomplete
+        );
         let outcome = buffer.insert(fragment(1, 1, 3, b'b')).unwrap();
         assert_eq!(outcome, ReassemblyOutcome::Complete(vec![b'a', b'b', b'c']));
     }
@@ -174,8 +207,14 @@ mod tests {
         buffer.insert(fragment(1, 0, 2, b'a')).unwrap();
         // Same fragment arrives again (retransmit) before the transfer
         // completes — accepted, doesn't advance received_len twice.
-        assert_eq!(buffer.insert(fragment(1, 0, 2, b'a')).unwrap(), ReassemblyOutcome::Incomplete);
-        assert_eq!(buffer.insert(fragment(1, 1, 2, b'b')).unwrap(), ReassemblyOutcome::Complete(vec![b'a', b'b']));
+        assert_eq!(
+            buffer.insert(fragment(1, 0, 2, b'a')).unwrap(),
+            ReassemblyOutcome::Incomplete
+        );
+        assert_eq!(
+            buffer.insert(fragment(1, 1, 2, b'b')).unwrap(),
+            ReassemblyOutcome::Complete(vec![b'a', b'b'])
+        );
     }
 
     #[test]
@@ -183,7 +222,14 @@ mod tests {
         let mut buffer = ReassemblyBuffer::new(4);
         buffer.insert(fragment(1, 0, 3, b'a')).unwrap();
         let err = buffer.insert(fragment(1, 1, 5, b'b')).unwrap_err();
-        assert_eq!(err, ReassemblyError::FragmentCountMismatch { transfer_id: 1, tracked: 3, claimed: 5 });
+        assert_eq!(
+            err,
+            ReassemblyError::FragmentCountMismatch {
+                transfer_id: 1,
+                tracked: 3,
+                claimed: 5
+            }
+        );
     }
 
     #[test]
