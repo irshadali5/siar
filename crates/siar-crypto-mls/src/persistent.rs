@@ -108,11 +108,17 @@ impl SqlitePersistentProvider {
     /// same principle `siar-storage`'s own schema versioning follows,
     /// different mechanism).
     pub fn open(path: &Path) -> Result<Self, PersistentProviderError> {
-        let connection = Connection::open(path).map_err(|e| PersistentProviderError::Open(format!("{e:?}")))?;
+        let connection =
+            Connection::open(path).map_err(|e| PersistentProviderError::Open(format!("{e:?}")))?;
         let mut storage = SqliteStorageProvider::<PostcardCodec, Connection>::new(connection);
-        storage.run_migrations().map_err(|e| PersistentProviderError::Migrate(format!("{e:?}")))?;
+        storage
+            .run_migrations()
+            .map_err(|e| PersistentProviderError::Migrate(format!("{e:?}")))?;
 
-        Ok(Self { crypto: RustCrypto::default(), storage })
+        Ok(Self {
+            crypto: RustCrypto::default(),
+            storage,
+        })
     }
 }
 
