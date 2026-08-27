@@ -112,17 +112,23 @@ pub fn generate_new_device_keys() -> NewDeviceKeys {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::capability::DeviceCapabilitySet;
     use crate::certificate::DeviceCertificate;
     use crate::root_key::RootIdentityKey;
-    use crate::capability::DeviceCapabilitySet;
     use siar_domain::{AccountId, DeviceId};
 
     #[test]
     fn generated_keys_produce_a_consistent_public_bundle() {
         let keys = generate_new_device_keys();
         let public = keys.public_keys();
-        assert_eq!(public.device_signing_public, keys.signing_public_key_bytes());
-        assert_eq!(public.device_transport_public, keys.transport_public_key_bytes());
+        assert_eq!(
+            public.device_signing_public,
+            keys.signing_public_key_bytes()
+        );
+        assert_eq!(
+            public.device_transport_public,
+            keys.transport_public_key_bytes()
+        );
     }
 
     #[test]
@@ -156,7 +162,12 @@ mod tests {
             DeviceCapabilitySet::SEND_MESSAGE,
             1,
         );
-        assert!(certificate.verify_signature(&root.root_public_key()).is_ok());
-        assert_eq!(certificate.device_public_key, new_device_keys.signing_public_key_bytes());
+        assert!(certificate
+            .verify_signature(&root.root_public_key())
+            .is_ok());
+        assert_eq!(
+            certificate.device_public_key,
+            new_device_keys.signing_public_key_bytes()
+        );
     }
 }
