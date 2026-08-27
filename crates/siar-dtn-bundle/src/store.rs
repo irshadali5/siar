@@ -49,7 +49,10 @@ pub trait BundleStore: Send + Sync {
     async fn mark_forwarded(&self, id: BundleId) -> Result<(), DtnStoreError>;
     async fn mark_delivered(&self, id: BundleId) -> Result<(), DtnStoreError>;
     async fn remove(&self, id: BundleId) -> Result<(), DtnStoreError>;
-    async fn list_candidates(&self, query: ForwardQuery) -> Result<Vec<StoredBundle>, DtnStoreError>;
+    async fn list_candidates(
+        &self,
+        query: ForwardQuery,
+    ) -> Result<Vec<StoredBundle>, DtnStoreError>;
 }
 
 /// §15: "Every accepted DTN bundle must be persisted before claiming it
@@ -76,45 +79,84 @@ impl InMemoryBundleStore {
 #[async_trait]
 impl BundleStore for InMemoryBundleStore {
     async fn put(&self, bundle: DtnBundle) -> Result<(), DtnStoreError> {
-        let mut bundles = self.bundles.lock().expect("InMemoryBundleStore lock poisoned");
-        bundles.insert(bundle.bundle_id, StoredBundle { bundle, state: BundleState::Stored });
+        let mut bundles = self
+            .bundles
+            .lock()
+            .expect("InMemoryBundleStore lock poisoned");
+        bundles.insert(
+            bundle.bundle_id,
+            StoredBundle {
+                bundle,
+                state: BundleState::Stored,
+            },
+        );
         Ok(())
     }
 
     async fn get(&self, id: BundleId) -> Result<Option<StoredBundle>, DtnStoreError> {
-        let bundles = self.bundles.lock().expect("InMemoryBundleStore lock poisoned");
+        let bundles = self
+            .bundles
+            .lock()
+            .expect("InMemoryBundleStore lock poisoned");
         Ok(bundles.get(&id).cloned())
     }
 
     async fn mark_eligible(&self, id: BundleId) -> Result<(), DtnStoreError> {
-        let mut bundles = self.bundles.lock().expect("InMemoryBundleStore lock poisoned");
+        let mut bundles = self
+            .bundles
+            .lock()
+            .expect("InMemoryBundleStore lock poisoned");
         let stored = bundles.get_mut(&id).ok_or(DtnStoreError::NotFound(id))?;
-        stored.state = stored.state.transition(crate::state::BundleEvent::BecomeEligible).unwrap_or(stored.state);
+        stored.state = stored
+            .state
+            .transition(crate::state::BundleEvent::BecomeEligible)
+            .unwrap_or(stored.state);
         Ok(())
     }
 
     async fn mark_forwarded(&self, id: BundleId) -> Result<(), DtnStoreError> {
-        let mut bundles = self.bundles.lock().expect("InMemoryBundleStore lock poisoned");
+        let mut bundles = self
+            .bundles
+            .lock()
+            .expect("InMemoryBundleStore lock poisoned");
         let stored = bundles.get_mut(&id).ok_or(DtnStoreError::NotFound(id))?;
-        stored.state = stored.state.transition(crate::state::BundleEvent::Forward).unwrap_or(stored.state);
+        stored.state = stored
+            .state
+            .transition(crate::state::BundleEvent::Forward)
+            .unwrap_or(stored.state);
         Ok(())
     }
 
     async fn mark_delivered(&self, id: BundleId) -> Result<(), DtnStoreError> {
-        let mut bundles = self.bundles.lock().expect("InMemoryBundleStore lock poisoned");
+        let mut bundles = self
+            .bundles
+            .lock()
+            .expect("InMemoryBundleStore lock poisoned");
         let stored = bundles.get_mut(&id).ok_or(DtnStoreError::NotFound(id))?;
-        stored.state = stored.state.transition(crate::state::BundleEvent::ReachDestination).unwrap_or(stored.state);
+        stored.state = stored
+            .state
+            .transition(crate::state::BundleEvent::ReachDestination)
+            .unwrap_or(stored.state);
         Ok(())
     }
 
     async fn remove(&self, id: BundleId) -> Result<(), DtnStoreError> {
-        let mut bundles = self.bundles.lock().expect("InMemoryBundleStore lock poisoned");
+        let mut bundles = self
+            .bundles
+            .lock()
+            .expect("InMemoryBundleStore lock poisoned");
         bundles.remove(&id);
         Ok(())
     }
 
-    async fn list_candidates(&self, query: ForwardQuery) -> Result<Vec<StoredBundle>, DtnStoreError> {
-        let bundles = self.bundles.lock().expect("InMemoryBundleStore lock poisoned");
+    async fn list_candidates(
+        &self,
+        query: ForwardQuery,
+    ) -> Result<Vec<StoredBundle>, DtnStoreError> {
+        let bundles = self
+            .bundles
+            .lock()
+            .expect("InMemoryBundleStore lock poisoned");
         let mut candidates: Vec<StoredBundle> = bundles
             .values()
             .filter(|stored| {
@@ -131,9 +173,11 @@ impl BundleStore for InMemoryBundleStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::payload::PayloadReference;
-    use crate::types::{DtnDestination, DtnPriority, DtnSource, ForwardingClass, PayloadTypeId, RouteToken};
     use crate::bundle::BundleIntegrity;
+    use crate::payload::PayloadReference;
+    use crate::types::{
+        DtnDestination, DtnPriority, DtnSource, ForwardingClass, PayloadTypeId, RouteToken,
+    };
 
     fn bundle(expires_at_millis: u64) -> DtnBundle {
         DtnBundle {
@@ -148,7 +192,10 @@ mod tests {
             replication_budget: 2,
             forwarding_class: ForwardingClass::SprayAndWait,
             payload_ref: PayloadReference::Inline(vec![9]),
-            integrity: BundleIntegrity { payload_hash: [0u8; 32], origin_signature: None },
+            integrity: BundleIntegrity {
+                payload_hash: [0u8; 32],
+                origin_signature: None,
+            },
         }
     }
 
@@ -170,7 +217,13 @@ mod tests {
         store.put(b).await.unwrap();
         store.mark_eligible(id).await.unwrap();
 
-        let candidates = store.list_candidates(ForwardQuery { now_millis: 0, limit: 10 }).await.unwrap();
+        let candidates = store
+            .list_candidates(ForwardQuery {
+                now_millis: 0,
+                limit: 10,
+            })
+            .await
+            .unwrap();
         assert_eq!(candidates.len(), 1);
         assert_eq!(candidates[0].state, BundleState::Eligible);
     }
@@ -179,7 +232,13 @@ mod tests {
     async fn a_stored_but_not_yet_eligible_bundle_is_not_a_forward_candidate() {
         let store = InMemoryBundleStore::new();
         store.put(bundle(1_000)).await.unwrap();
-        let candidates = store.list_candidates(ForwardQuery { now_millis: 0, limit: 10 }).await.unwrap();
+        let candidates = store
+            .list_candidates(ForwardQuery {
+                now_millis: 0,
+                limit: 10,
+            })
+            .await
+            .unwrap();
         assert!(candidates.is_empty()); // Stored, not Eligible
     }
 
@@ -191,7 +250,13 @@ mod tests {
         store.put(b).await.unwrap();
         store.mark_eligible(id).await.unwrap();
 
-        let candidates = store.list_candidates(ForwardQuery { now_millis: 999, limit: 10 }).await.unwrap();
+        let candidates = store
+            .list_candidates(ForwardQuery {
+                now_millis: 999,
+                limit: 10,
+            })
+            .await
+            .unwrap();
         assert!(candidates.is_empty()); // §20: expired bundles are never forwarded
     }
 
