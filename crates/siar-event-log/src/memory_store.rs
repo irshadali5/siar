@@ -44,7 +44,11 @@ impl EventStore for InMemoryEventStore {
     async fn append(&self, request: AppendRequest) -> Result<AppendResult, EventStoreError> {
         let mut inner = self.inner.lock().expect("InMemoryEventStore lock poisoned");
 
-        let current_version = inner.streams.get(&request.stream_id).map(|events| events.len() as u64).unwrap_or(0);
+        let current_version = inner
+            .streams
+            .get(&request.stream_id)
+            .map(|events| events.len() as u64)
+            .unwrap_or(0);
         if request.expected_version != current_version {
             return Err(EventStoreError::ConcurrencyConflict {
                 stream_id: request.stream_id,
@@ -80,26 +84,56 @@ impl EventStore for InMemoryEventStore {
                 payload: new_event.payload,
             };
             let offset = LocalLogOffset(inner.log.len() as u64 + 1);
-            let stored = StoredEvent { envelope, local_offset: offset };
+            let stored = StoredEvent {
+                envelope,
+                local_offset: offset,
+            };
 
             inner.seen_event_ids.insert(stored.envelope.event_id);
             inner.log.push(stored.clone());
-            inner.streams.entry(request.stream_id).or_default().push(stored);
+            inner
+                .streams
+                .entry(request.stream_id)
+                .or_default()
+                .push(stored);
             local_offsets.push(Some(offset));
         }
 
-        Ok(AppendResult { stream_id: request.stream_id, new_version, local_offsets })
+        Ok(AppendResult {
+            stream_id: request.stream_id,
+            new_version,
+            local_offsets,
+        })
     }
 
-    async fn read_stream(&self, stream: StreamId, from_version: u64, limit: usize) -> Result<Vec<StoredEvent>, EventStoreError> {
+    async fn read_stream(
+        &self,
+        stream: StreamId,
+        from_version: u64,
+        limit: usize,
+    ) -> Result<Vec<StoredEvent>, EventStoreError> {
         let inner = self.inner.lock().expect("InMemoryEventStore lock poisoned");
         let events = inner.streams.get(&stream).cloned().unwrap_or_default();
-        Ok(events.into_iter().filter(|e| e.envelope.stream_version > from_version).take(limit).collect())
+        Ok(events
+            .into_iter()
+            .filter(|e| e.envelope.stream_version > from_version)
+            .take(limit)
+            .collect())
     }
 
-    async fn read_log(&self, from_offset: LocalLogOffset, limit: usize) -> Result<Vec<StoredEvent>, EventStoreError> {
+    async fn read_log(
+        &self,
+        from_offset: LocalLogOffset,
+        limit: usize,
+    ) -> Result<Vec<StoredEvent>, EventStoreError> {
         let inner = self.inner.lock().expect("InMemoryEventStore lock poisoned");
-        Ok(inner.log.iter().filter(|e| e.local_offset.0 > from_offset.0).take(limit).cloned().collect())
+        Ok(inner
+            .log
+            .iter()
+            .filter(|e| e.local_offset.0 > from_offset.0)
+            .take(limit)
+            .cloned()
+            .collect())
     }
 }
 
@@ -129,7 +163,11 @@ mod tests {
         let store = InMemoryEventStore::new();
         let stream = StreamId::from_name("conversation/abc");
         let result = store
-            .append(AppendRequest { stream_id: stream, expected_version: 0, events: vec![new_event(EventId::new())] })
+            .append(AppendRequest {
+                stream_id: stream,
+                expected_version: 0,
+                events: vec![new_event(EventId::new())],
+            })
             .await
             .unwrap();
         assert_eq!(result.new_version, 1);
@@ -141,12 +179,29 @@ mod tests {
     async fn a_stale_expected_version_is_a_real_concurrency_conflict() {
         let store = InMemoryEventStore::new();
         let stream = StreamId::from_name("conversation/abc");
-        store.append(AppendRequest { stream_id: stream, expected_version: 0, events: vec![new_event(EventId::new())] }).await.unwrap();
+        store
+            .append(AppendRequest {
+                stream_id: stream,
+                expected_version: 0,
+                events: vec![new_event(EventId::new())],
+            })
+            .await
+            .unwrap();
 
-        let result = store.append(AppendRequest { stream_id: stream, expected_version: 0, events: vec![new_event(EventId::new())] }).await;
+        let result = store
+            .append(AppendRequest {
+                stream_id: stream,
+                expected_version: 0,
+                events: vec![new_event(EventId::new())],
+            })
+            .await;
         assert_eq!(
             result,
-            Err(EventStoreError::ConcurrencyConflict { stream_id: stream, expected_version: 0, actual_version: 1 })
+            Err(EventStoreError::ConcurrencyConflict {
+                stream_id: stream,
+                expected_version: 0,
+                actual_version: 1
+            })
         );
     }
 
@@ -156,13 +211,27 @@ mod tests {
         let stream = StreamId::from_name("conversation/abc");
         let event_id = EventId::new();
 
-        let first = store.append(AppendRequest { stream_id: stream, expected_version: 0, events: vec![new_event(event_id)] }).await.unwrap();
+        let first = store
+            .append(AppendRequest {
+                stream_id: stream,
+                expected_version: 0,
+                events: vec![new_event(event_id)],
+            })
+            .await
+            .unwrap();
         assert_eq!(first.new_version, 1);
 
         // Same event_id, but the caller (correctly) still supplies the
         // stream's now-current expected_version — a retried command
         // after a crash before the ack, not a fresh append attempt.
-        let second = store.append(AppendRequest { stream_id: stream, expected_version: 1, events: vec![new_event(event_id)] }).await.unwrap();
+        let second = store
+            .append(AppendRequest {
+                stream_id: stream,
+                expected_version: 1,
+                events: vec![new_event(event_id)],
+            })
+            .await
+            .unwrap();
         assert_eq!(second.new_version, 1); // unchanged — nothing new was appended
         assert_eq!(second.local_offsets, vec![None]);
 
@@ -175,7 +244,11 @@ mod tests {
         let store = InMemoryEventStore::new();
         let stream = StreamId::from_name("conversation/abc");
         let result = store
-            .append(AppendRequest { stream_id: stream, expected_version: 5, events: vec![new_event(EventId::new()), new_event(EventId::new())] })
+            .append(AppendRequest {
+                stream_id: stream,
+                expected_version: 5,
+                events: vec![new_event(EventId::new()), new_event(EventId::new())],
+            })
             .await;
         assert!(result.is_err());
         let events = store.read_stream(stream, 0, 10).await.unwrap();
@@ -190,7 +263,11 @@ mod tests {
             .append(AppendRequest {
                 stream_id: stream,
                 expected_version: 0,
-                events: vec![new_event(EventId::new()), new_event(EventId::new()), new_event(EventId::new())],
+                events: vec![
+                    new_event(EventId::new()),
+                    new_event(EventId::new()),
+                    new_event(EventId::new()),
+                ],
             })
             .await
             .unwrap();
@@ -205,8 +282,22 @@ mod tests {
         let store = InMemoryEventStore::new();
         let stream_a = StreamId::from_name("conversation/a");
         let stream_b = StreamId::from_name("conversation/b");
-        store.append(AppendRequest { stream_id: stream_a, expected_version: 0, events: vec![new_event(EventId::new())] }).await.unwrap();
-        store.append(AppendRequest { stream_id: stream_b, expected_version: 0, events: vec![new_event(EventId::new())] }).await.unwrap();
+        store
+            .append(AppendRequest {
+                stream_id: stream_a,
+                expected_version: 0,
+                events: vec![new_event(EventId::new())],
+            })
+            .await
+            .unwrap();
+        store
+            .append(AppendRequest {
+                stream_id: stream_b,
+                expected_version: 0,
+                events: vec![new_event(EventId::new())],
+            })
+            .await
+            .unwrap();
 
         let events = store.read_log(LocalLogOffset(0), 10).await.unwrap();
         assert_eq!(events.len(), 2);
