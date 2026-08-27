@@ -53,9 +53,15 @@ pub fn generate_preview(source: &DecodedImage) -> Result<EncodedImage, ImageErro
     resize_and_encode(source, PREVIEW_MAX_DIMENSION, PREVIEW_JPEG_QUALITY)
 }
 
-fn resize_and_encode(source: &DecodedImage, max_dimension: u32, quality: u8) -> Result<EncodedImage, ImageError> {
-    let buffer = RgbaImage::from_raw(source.width, source.height, source.rgba.clone())
-        .ok_or_else(|| ImageError::Codec("decoded RGBA buffer length did not match width*height*4".to_string()))?;
+fn resize_and_encode(
+    source: &DecodedImage,
+    max_dimension: u32,
+    quality: u8,
+) -> Result<EncodedImage, ImageError> {
+    let buffer =
+        RgbaImage::from_raw(source.width, source.height, source.rgba.clone()).ok_or_else(|| {
+            ImageError::Codec("decoded RGBA buffer length did not match width*height*4".to_string())
+        })?;
     let dynamic = DynamicImage::ImageRgba8(buffer);
 
     let (target_w, target_h) = fit_within(source.width, source.height, max_dimension);
@@ -98,8 +104,9 @@ mod tests {
     use image::{ImageBuffer, Rgba};
 
     fn fixture(width: u32, height: u32) -> DecodedImage {
-        let img: ImageBuffer<Rgba<u8>, Vec<u8>> =
-            ImageBuffer::from_fn(width, height, |x, y| Rgba([(x % 256) as u8, (y % 256) as u8, 128, 255]));
+        let img: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::from_fn(width, height, |x, y| {
+            Rgba([(x % 256) as u8, (y % 256) as u8, 128, 255])
+        });
         let mut buf = Vec::new();
         img.write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
             .unwrap();
