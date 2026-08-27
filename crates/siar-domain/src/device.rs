@@ -76,7 +76,12 @@ impl DeviceRegistry {
 
     pub fn apply(&mut self, event: &DeviceEvent) {
         match event {
-            DeviceEvent::Added { account, device, verifying_key, .. } => {
+            DeviceEvent::Added {
+                account,
+                device,
+                verifying_key,
+                ..
+            } => {
                 if !self.devices.iter().any(|d| d.device == *device) {
                     self.devices.push(DeviceDescriptor {
                         account: *account,
@@ -96,7 +101,11 @@ impl DeviceRegistry {
                 // this arm exists so the wire format is stable once it
                 // is, not because it does anything today.
             }
-            DeviceEvent::KeyRotated { device, new_verifying_key, .. } => {
+            DeviceEvent::KeyRotated {
+                device,
+                new_verifying_key,
+                ..
+            } => {
                 if let Some(d) = self.devices.iter_mut().find(|d| d.device == *device) {
                     d.verifying_key = *new_verifying_key;
                     // plan.md §40: a rotation resets trust — the new key
@@ -128,7 +137,10 @@ impl DeviceRegistry {
     }
 
     pub fn trust_of(&self, device: DeviceId) -> Option<VerificationState> {
-        self.devices.iter().find(|d| d.device == device).map(|d| d.trust)
+        self.devices
+            .iter()
+            .find(|d| d.device == device)
+            .map(|d| d.trust)
     }
 }
 
@@ -175,7 +187,12 @@ mod tests {
         let mut reg = DeviceRegistry::new();
         let account = AccountId::new();
         let device = DeviceId::new();
-        reg.apply(&DeviceEvent::Added { account, device, verifying_key: [1u8; 32], signed_by: DeviceId::new() });
+        reg.apply(&DeviceEvent::Added {
+            account,
+            device,
+            verifying_key: [1u8; 32],
+            signed_by: DeviceId::new(),
+        });
         reg.apply(&DeviceEvent::Revoked { device });
 
         assert_eq!(reg.trust_of(device), Some(VerificationState::Revoked));
@@ -187,11 +204,20 @@ mod tests {
         let mut reg = DeviceRegistry::new();
         let account = AccountId::new();
         let device = DeviceId::new();
-        reg.apply(&DeviceEvent::Added { account, device, verifying_key: [1u8; 32], signed_by: DeviceId::new() });
+        reg.apply(&DeviceEvent::Added {
+            account,
+            device,
+            verifying_key: [1u8; 32],
+            signed_by: DeviceId::new(),
+        });
         reg.mark_verified(device);
         assert_eq!(reg.trust_of(device), Some(VerificationState::Verified));
 
-        reg.apply(&DeviceEvent::KeyRotated { device, new_verifying_key: [2u8; 32], signed_by: DeviceId::new() });
+        reg.apply(&DeviceEvent::KeyRotated {
+            device,
+            new_verifying_key: [2u8; 32],
+            signed_by: DeviceId::new(),
+        });
         assert_eq!(reg.trust_of(device), Some(VerificationState::Unverified));
     }
 
@@ -200,7 +226,12 @@ mod tests {
         let mut reg = DeviceRegistry::new();
         let account = AccountId::new();
         let device = DeviceId::new();
-        reg.apply(&DeviceEvent::Added { account, device, verifying_key: [1u8; 32], signed_by: DeviceId::new() });
+        reg.apply(&DeviceEvent::Added {
+            account,
+            device,
+            verifying_key: [1u8; 32],
+            signed_by: DeviceId::new(),
+        });
         reg.apply(&DeviceEvent::Revoked { device });
         reg.mark_verified(device);
         assert_eq!(reg.trust_of(device), Some(VerificationState::Revoked));
@@ -209,7 +240,10 @@ mod tests {
     #[test]
     fn sync_cursor_only_moves_forward() {
         let device = DeviceId::new();
-        let cursor = SyncCursor { device, last_sequence: 10 };
+        let cursor = SyncCursor {
+            device,
+            last_sequence: 10,
+        };
         assert_eq!(cursor.advance(15).last_sequence, 15);
         assert_eq!(cursor.advance(5).last_sequence, 10); // doesn't go backward
     }
