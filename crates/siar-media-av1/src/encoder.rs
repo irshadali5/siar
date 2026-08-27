@@ -66,7 +66,11 @@ impl Av1SoftwareEncoder {
             .new_context()
             .map_err(|e| EncodeError::Backend(format!("rav1e config rejected: {e}")))?;
 
-        Ok(Self { context, width: settings.width as usize, height: settings.height as usize })
+        Ok(Self {
+            context,
+            width: settings.width as usize,
+            height: settings.height as usize,
+        })
     }
 }
 
@@ -75,11 +79,16 @@ impl VideoEncoder for Av1SoftwareEncoder {
         VideoCodec::Av1
     }
 
-    fn encode(&mut self, frame: &RawVideoFrame) -> Result<siar_media_core::EncodedVideoFrame, EncodeError> {
+    fn encode(
+        &mut self,
+        frame: &RawVideoFrame,
+    ) -> Result<siar_media_core::EncodedVideoFrame, EncodeError> {
         if !frame.is_well_formed() {
             return Err(EncodeError::MalformedFrame);
         }
-        if frame.resolution.width as usize != self.width || frame.resolution.height as usize != self.height {
+        if frame.resolution.width as usize != self.width
+            || frame.resolution.height as usize != self.height
+        {
             return Err(EncodeError::Unsupported(format!(
                 "encoder configured for {}x{}, got {}x{}",
                 self.width, self.height, frame.resolution.width, frame.resolution.height
@@ -196,7 +205,10 @@ mod tests {
         .unwrap();
 
         let frame = blank_frame(32, 32, 0);
-        assert!(matches!(encoder.encode(&frame), Err(EncodeError::Unsupported(_))));
+        assert!(matches!(
+            encoder.encode(&frame),
+            Err(EncodeError::Unsupported(_))
+        ));
     }
 
     #[test]
