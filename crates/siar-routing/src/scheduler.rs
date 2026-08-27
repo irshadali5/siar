@@ -65,8 +65,14 @@ pub struct PriorityScheduler<T> {
 
 impl<T> PriorityScheduler<T> {
     pub fn new(capacity_per_queue: usize) -> Self {
-        assert!(capacity_per_queue >= 1, "a zero-capacity scheduler could never admit anything");
-        Self { queues: std::array::from_fn(|_| VecDeque::new()), capacity_per_queue }
+        assert!(
+            capacity_per_queue >= 1,
+            "a zero-capacity scheduler could never admit anything"
+        );
+        Self {
+            queues: std::array::from_fn(|_| VecDeque::new()),
+            capacity_per_queue,
+        }
     }
 
     /// Enqueues `item` at `priority`. Returns `false` (and drops `item`
