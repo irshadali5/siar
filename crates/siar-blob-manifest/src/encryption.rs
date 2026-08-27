@@ -65,18 +65,26 @@ fn cipher(key: &BlobEncryptionKey) -> ChaCha20Poly1305 {
 /// a caller that wants it separately (e.g. to publish alongside
 /// [`crate::descriptor::BlobDescriptor`] without re-parsing the
 /// ciphertext's first 12 bytes).
-pub fn encrypt_blob(key: &BlobEncryptionKey, plaintext: &[u8]) -> Result<(Vec<u8>, EncryptionDescriptor), EncryptionError> {
+pub fn encrypt_blob(
+    key: &BlobEncryptionKey,
+    plaintext: &[u8],
+) -> Result<(Vec<u8>, EncryptionDescriptor), EncryptionError> {
     let mut nonce_bytes = [0u8; NONCE_LEN];
     OsRng.fill_bytes(&mut nonce_bytes);
     let nonce = Nonce::from_slice(&nonce_bytes);
 
-    let sealed = cipher(key).encrypt(nonce, plaintext).map_err(|_| EncryptionError::EncryptionFailed)?;
+    let sealed = cipher(key)
+        .encrypt(nonce, plaintext)
+        .map_err(|_| EncryptionError::EncryptionFailed)?;
 
     let mut framed = Vec::with_capacity(NONCE_LEN + sealed.len());
     framed.extend_from_slice(&nonce_bytes);
     framed.extend_from_slice(&sealed);
 
-    let descriptor = EncryptionDescriptor { algorithm: EncryptionAlgorithm::ChaCha20Poly1305, nonce: nonce_bytes };
+    let descriptor = EncryptionDescriptor {
+        algorithm: EncryptionAlgorithm::ChaCha20Poly1305,
+        nonce: nonce_bytes,
+    };
     Ok((framed, descriptor))
 }
 
@@ -89,13 +97,20 @@ pub fn encrypt_blob(key: &BlobEncryptionKey, plaintext: &[u8]) -> Result<(Vec<u8
 /// corrupted transfers per §14, AEAD decryption for actual
 /// authenticated confidentiality) — this function only does the
 /// latter.
-pub fn decrypt_blob(key: &BlobEncryptionKey, ciphertext: &[u8]) -> Result<Vec<u8>, EncryptionError> {
+pub fn decrypt_blob(
+    key: &BlobEncryptionKey,
+    ciphertext: &[u8],
+) -> Result<Vec<u8>, EncryptionError> {
     if ciphertext.len() < NONCE_LEN {
-        return Err(EncryptionError::CiphertextTooShort { actual: ciphertext.len() });
+        return Err(EncryptionError::CiphertextTooShort {
+            actual: ciphertext.len(),
+        });
     }
     let (nonce_bytes, sealed) = ciphertext.split_at(NONCE_LEN);
     let nonce = Nonce::from_slice(nonce_bytes);
-    cipher(key).decrypt(nonce, sealed).map_err(|_| EncryptionError::DecryptionFailed)
+    cipher(key)
+        .decrypt(nonce, sealed)
+        .map_err(|_| EncryptionError::DecryptionFailed)
 }
 
 #[cfg(test)]
@@ -156,7 +171,10 @@ mod tests {
     fn a_ciphertext_shorter_than_one_nonce_is_rejected_cleanly() {
         let key = generate_blob_key();
         let result = decrypt_blob(&key, &[0u8; 5]);
-        assert_eq!(result, Err(EncryptionError::CiphertextTooShort { actual: 5 }));
+        assert_eq!(
+            result,
+            Err(EncryptionError::CiphertextTooShort { actual: 5 })
+        );
     }
 
     /// Real integration across this crate's own modules — encrypt,
