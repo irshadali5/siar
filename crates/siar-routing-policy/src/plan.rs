@@ -5,7 +5,9 @@ use crate::candidate::PathCandidate;
 use crate::error::RoutingError;
 use crate::policy::RoutingPolicy;
 use crate::requirements::DeliveryRequirements;
-use crate::scoring::{eliminate_hard_constraint_violations, PathScorer, RouteScore, RoutingContext};
+use crate::scoring::{
+    eliminate_hard_constraint_violations, PathScorer, RouteScore, RoutingContext,
+};
 use crate::types::{DeliveryClass, Priority};
 
 /// §18's strategies.
@@ -53,15 +55,23 @@ pub fn plan_route(
         return Err(RoutingError::NoEligibleCandidates);
     }
 
-    let context = RoutingContext { current_path: current.map(|c| c.path_id) };
-    let mut scored: Vec<(&PathCandidate, RouteScore)> =
-        eligible.into_iter().map(|c| (c, scorer.score(c, req, &context))).collect();
+    let context = RoutingContext {
+        current_path: current.map(|c| c.path_id),
+    };
+    let mut scored: Vec<(&PathCandidate, RouteScore)> = eligible
+        .into_iter()
+        .map(|c| (c, scorer.score(c, req, &context)))
+        .collect();
     // Deterministic tie-break by `path_id` (§123 "Deterministic
     // Scoring") — `f64` doesn't implement `Ord`, and two genuinely
     // equal scores should still produce a stable, repeatable pick
     // rather than depending on input order.
     scored.sort_by(|(a, a_score), (b, b_score)| {
-        b_score.0.partial_cmp(&a_score.0).unwrap_or(std::cmp::Ordering::Equal).then_with(|| a.path_id.cmp(&b.path_id))
+        b_score
+            .0
+            .partial_cmp(&a_score.0)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| a.path_id.cmp(&b.path_id))
     });
 
     // §34/§35 stickiness: keep the current path unless a candidate
@@ -72,10 +82,15 @@ pub fn plan_route(
         match current_still_eligible {
             Some((_, current_score)) => {
                 let top = scored[0];
-                let current_is_degraded =
-                    matches!(current.health, crate::types::RouteHealth::Degraded | crate::types::RouteHealth::Suspect);
-                let should_switch = (top.1 .0 - current_score.0 > policy.hysteresis.switch_threshold.0)
-                    || (policy.hysteresis.degraded_override && current_is_degraded && top.0.path_id != current.path_id);
+                let current_is_degraded = matches!(
+                    current.health,
+                    crate::types::RouteHealth::Degraded | crate::types::RouteHealth::Suspect
+                );
+                let should_switch = (top.1 .0 - current_score.0
+                    > policy.hysteresis.switch_threshold.0)
+                    || (policy.hysteresis.degraded_override
+                        && current_is_degraded
+                        && top.0.path_id != current.path_id);
                 if should_switch {
                     top
                 } else {
@@ -92,8 +107,11 @@ pub fn plan_route(
     };
 
     let primary = best.0.clone();
-    let mut fallbacks: Vec<PathCandidate> =
-        scored.iter().map(|(c, _)| (*c).clone()).filter(|c| c.path_id != primary.path_id).collect();
+    let mut fallbacks: Vec<PathCandidate> = scored
+        .iter()
+        .map(|(c, _)| (*c).clone())
+        .filter(|c| c.path_id != primary.path_id)
+        .collect();
 
     // §21 "Redundant Route": "Use redundancy sparingly" — reserved for
     // the spec's own named case, Critical + DelayTolerant (its SOS
@@ -104,7 +122,10 @@ pub fn plan_route(
     // rather than this function special-casing "no other path exists"
     // — a real DTN candidate reaching this function already passed
     // §25 step 1 like any other transport.
-    let strategy = if req.priority == Priority::Critical && req.class == DeliveryClass::DelayTolerant && !fallbacks.is_empty() {
+    let strategy = if req.priority == Priority::Critical
+        && req.class == DeliveryClass::DelayTolerant
+        && !fallbacks.is_empty()
+    {
         RouteStrategy::Redundant
     } else if fallbacks.is_empty() {
         RouteStrategy::Single
@@ -112,9 +133,18 @@ pub fn plan_route(
         RouteStrategy::Failover
     };
 
-    let replicas = if strategy == RouteStrategy::Redundant { fallbacks.drain(..1.min(fallbacks.len())).collect() } else { vec![] };
+    let replicas = if strategy == RouteStrategy::Redundant {
+        fallbacks.drain(..1.min(fallbacks.len())).collect()
+    } else {
+        vec![]
+    };
 
-    Ok(RoutePlan { primary, fallbacks, replicas, strategy })
+    Ok(RoutePlan {
+        primary,
+        fallbacks,
+        replicas,
+        strategy,
+    })
 }
 
 #[cfg(test)]
@@ -152,7 +182,9 @@ mod tests {
         let candidates = vec![candidate(TransportKind::IrohDirect, RouteHealth::Healthy)];
         let req = DeliveryRequirements::interactive_message();
         let policy = RoutingPolicyProfile::Balanced.policy();
-        let scorer = DefaultScorer { weights: policy.weights };
+        let scorer = DefaultScorer {
+            weights: policy.weights,
+        };
 
         let plan = plan_route(&candidates, &req, &policy, &scorer, None).unwrap();
         assert_eq!(plan.strategy, RouteStrategy::Single);
@@ -166,7 +198,9 @@ mod tests {
         let candidates = vec![degraded.clone(), healthy.clone()];
         let req = DeliveryRequirements::interactive_message();
         let policy = RoutingPolicyProfile::Balanced.policy();
-        let scorer = DefaultScorer { weights: policy.weights };
+        let scorer = DefaultScorer {
+            weights: policy.weights,
+        };
 
         let plan = plan_route(&candidates, &req, &policy, &scorer, None).unwrap();
         assert_eq!(plan.strategy, RouteStrategy::Failover);
@@ -179,7 +213,9 @@ mod tests {
         let unreachable = candidate(TransportKind::IrohDirect, RouteHealth::Unreachable);
         let req = DeliveryRequirements::interactive_message();
         let policy = RoutingPolicyProfile::Balanced.policy();
-        let scorer = DefaultScorer { weights: policy.weights };
+        let scorer = DefaultScorer {
+            weights: policy.weights,
+        };
 
         let result = plan_route(&[unreachable], &req, &policy, &scorer, None);
         assert!(matches!(result, Err(RoutingError::NoEligibleCandidates)));
@@ -195,7 +231,9 @@ mod tests {
         // Both candidates score identically under DefaultScorer (same
         // health, same unknown metrics) — well under the switch
         // threshold, so stickiness should keep `current`.
-        let scorer = DefaultScorer { weights: policy.weights };
+        let scorer = DefaultScorer {
+            weights: policy.weights,
+        };
 
         let plan = plan_route(&candidates, &req, &policy, &scorer, Some(&current)).unwrap();
         assert_eq!(plan.primary.path_id, current.path_id);
@@ -208,7 +246,9 @@ mod tests {
         let candidates = vec![current.clone(), healthy_alternative.clone()];
         let req = DeliveryRequirements::interactive_message();
         let policy = RoutingPolicyProfile::Balanced.policy();
-        let scorer = DefaultScorer { weights: policy.weights };
+        let scorer = DefaultScorer {
+            weights: policy.weights,
+        };
 
         let plan = plan_route(&candidates, &req, &policy, &scorer, Some(&current)).unwrap();
         assert_eq!(plan.primary.path_id, healthy_alternative.path_id);
@@ -221,7 +261,9 @@ mod tests {
         let candidates = vec![a, b];
         let req = DeliveryRequirements::emergency();
         let policy = RoutingPolicyProfile::Emergency.policy();
-        let scorer = DefaultScorer { weights: policy.weights };
+        let scorer = DefaultScorer {
+            weights: policy.weights,
+        };
 
         let plan = plan_route(&candidates, &req, &policy, &scorer, None).unwrap();
         assert_eq!(plan.strategy, RouteStrategy::Redundant);
