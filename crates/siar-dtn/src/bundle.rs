@@ -122,11 +122,18 @@ mod tests {
     #[test]
     fn forwarded_decrements_hop_limit_until_it_hits_zero() {
         let bundle = bundle(2, 2);
-        let bundle = bundle.forwarded().expect("hop_limit 2 -> 1 should still forward");
+        let bundle = bundle
+            .forwarded()
+            .expect("hop_limit 2 -> 1 should still forward");
         assert_eq!(bundle.hop_limit, 1);
-        let bundle = bundle.forwarded().expect("hop_limit 1 -> 0 should still forward");
+        let bundle = bundle
+            .forwarded()
+            .expect("hop_limit 1 -> 0 should still forward");
         assert_eq!(bundle.hop_limit, 0);
-        assert!(bundle.forwarded().is_none(), "hop_limit already 0 must not forward further");
+        assert!(
+            bundle.forwarded().is_none(),
+            "hop_limit already 0 must not forward further"
+        );
     }
 
     #[test]
@@ -141,7 +148,13 @@ mod tests {
     fn emergency_gets_the_highest_hop_limit_and_replication_budget() {
         assert_eq!(MessagePriority::Emergency.default_hop_limit(), 8);
         assert_eq!(MessagePriority::Emergency.default_replication_budget(), 8);
-        assert!(MessagePriority::Emergency.default_hop_limit() >= MessagePriority::Normal.default_hop_limit());
-        assert!(MessagePriority::Emergency.default_replication_budget() >= MessagePriority::Normal.default_replication_budget());
+        assert!(
+            MessagePriority::Emergency.default_hop_limit()
+                >= MessagePriority::Normal.default_hop_limit()
+        );
+        assert!(
+            MessagePriority::Emergency.default_replication_budget()
+                >= MessagePriority::Normal.default_replication_budget()
+        );
     }
 }
