@@ -63,9 +63,17 @@ impl DtnExtensionNegotiator {
             (DIRECT_ONLY, "dtn.direct_only", ParameterSchema::None),
             (RELAY_ACK, "dtn.relay_ack", ParameterSchema::None),
             (SPRAY_WAIT, "dtn.spray_wait", ParameterSchema::None),
-            (GATEWAY_HANDOFF, "dtn.gateway_handoff", ParameterSchema::None),
+            (
+                GATEWAY_HANDOFF,
+                "dtn.gateway_handoff",
+                ParameterSchema::None,
+            ),
             (BLOB_CHUNK, "dtn.blob_chunk", ParameterSchema::None),
-            (LOCAL_BROADCAST, "dtn.local_broadcast", ParameterSchema::None),
+            (
+                LOCAL_BROADCAST,
+                "dtn.local_broadcast",
+                ParameterSchema::None,
+            ),
             (MAX_BUNDLE_SIZE, "dtn.max_bundle_size", ParameterSchema::U32),
         ] {
             registry.register(CapabilityDefinition {
@@ -89,16 +97,36 @@ impl ExtensionNegotiator for DtnExtensionNegotiator {
         let mut set = CapabilitySet::new();
         let v1 = CapabilityVersion::new(1, 0);
         let descriptors = [
-            CapabilityDescriptor::new(id(DIRECT_ONLY), v1, CapabilityRequirement::Required, CapabilityParameters::None),
-            CapabilityDescriptor::new(id(RELAY_ACK), v1, CapabilityRequirement::Optional, CapabilityParameters::None),
-            CapabilityDescriptor::new(id(SPRAY_WAIT), v1, CapabilityRequirement::Optional, CapabilityParameters::None),
+            CapabilityDescriptor::new(
+                id(DIRECT_ONLY),
+                v1,
+                CapabilityRequirement::Required,
+                CapabilityParameters::None,
+            ),
+            CapabilityDescriptor::new(
+                id(RELAY_ACK),
+                v1,
+                CapabilityRequirement::Optional,
+                CapabilityParameters::None,
+            ),
+            CapabilityDescriptor::new(
+                id(SPRAY_WAIT),
+                v1,
+                CapabilityRequirement::Optional,
+                CapabilityParameters::None,
+            ),
             CapabilityDescriptor::new(
                 id(GATEWAY_HANDOFF),
                 v1,
                 CapabilityRequirement::Optional,
                 CapabilityParameters::None,
             ),
-            CapabilityDescriptor::new(id(BLOB_CHUNK), v1, CapabilityRequirement::Optional, CapabilityParameters::None),
+            CapabilityDescriptor::new(
+                id(BLOB_CHUNK),
+                v1,
+                CapabilityRequirement::Optional,
+                CapabilityParameters::None,
+            ),
             CapabilityDescriptor::new(
                 id(LOCAL_BROADCAST),
                 v1,
@@ -113,7 +141,8 @@ impl ExtensionNegotiator for DtnExtensionNegotiator {
             ),
         ];
         for descriptor in descriptors {
-            set.insert(descriptor).expect("7 descriptors is well under MAX_CAPABILITIES_PER_SET");
+            set.insert(descriptor)
+                .expect("7 descriptors is well under MAX_CAPABILITIES_PER_SET");
         }
         set
     }
@@ -151,8 +180,12 @@ mod tests {
         let a = DtnExtensionNegotiator::new(4 * 1024 * 1024);
         let b = DtnExtensionNegotiator::new(1024 * 1024);
 
-        let from_a = a.negotiate(&b.advertise(), &CapabilityPolicy::new()).unwrap();
-        let from_b = b.negotiate(&a.advertise(), &CapabilityPolicy::new()).unwrap();
+        let from_a = a
+            .negotiate(&b.advertise(), &CapabilityPolicy::new())
+            .unwrap();
+        let from_b = b
+            .negotiate(&a.advertise(), &CapabilityPolicy::new())
+            .unwrap();
 
         let a_ids: Vec<_> = from_a.iter().map(|d| d.id).collect();
         let b_ids: Vec<_> = from_b.iter().map(|d| d.id).collect();
@@ -186,7 +219,9 @@ mod tests {
             .unwrap();
         // direct_only deliberately omitted.
 
-        let err = full.negotiate(&relay_only, &CapabilityPolicy::new()).unwrap_err();
+        let err = full
+            .negotiate(&relay_only, &CapabilityPolicy::new())
+            .unwrap_err();
         assert_eq!(
             err,
             crate::error::CapabilityNegotiationError::MissingRequired(id(DIRECT_ONLY))
@@ -198,9 +233,20 @@ mod tests {
         let a = DtnExtensionNegotiator::new(1024 * 1024);
         let b = DtnExtensionNegotiator::new(1024 * 1024);
 
-        let negotiated = a.negotiate(&b.advertise(), &CapabilityPolicy::new()).unwrap();
-        for optional in [RELAY_ACK, SPRAY_WAIT, GATEWAY_HANDOFF, BLOB_CHUNK, LOCAL_BROADCAST] {
-            assert!(negotiated.contains(&id(optional)), "expected {optional} to be negotiated");
+        let negotiated = a
+            .negotiate(&b.advertise(), &CapabilityPolicy::new())
+            .unwrap();
+        for optional in [
+            RELAY_ACK,
+            SPRAY_WAIT,
+            GATEWAY_HANDOFF,
+            BLOB_CHUNK,
+            LOCAL_BROADCAST,
+        ] {
+            assert!(
+                negotiated.contains(&id(optional)),
+                "expected {optional} to be negotiated"
+            );
         }
     }
 }
