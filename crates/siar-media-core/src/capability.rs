@@ -113,8 +113,14 @@ impl VideoCapabilities {
                 .resolution,
             max_fps: 30,
             supported_profiles: vec![CodecProfile::new(profiles::AV1_MAIN)],
-            bitrate_range: BitrateRange { min_bps: 150_000, max_bps: 4_000_000 },
-            frame_rate_range: FrameRateRange { min_fps: 15, max_fps: 30 },
+            bitrate_range: BitrateRange {
+                min_bps: 150_000,
+                max_bps: 4_000_000,
+            },
+            frame_rate_range: FrameRateRange {
+                min_fps: 15,
+                max_fps: 30,
+            },
         }])
     }
 }
