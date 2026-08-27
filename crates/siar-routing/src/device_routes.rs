@@ -43,7 +43,9 @@ pub struct DeviceRoutes {
 
 impl DeviceRoutes {
     pub fn new() -> Self {
-        Self { hints: HashMap::new() }
+        Self {
+            hints: HashMap::new(),
+        }
     }
 
     /// Records or refreshes a device's self-disclosed endpoint —
@@ -52,7 +54,13 @@ impl DeviceRoutes {
     /// current location worth acting on (unlike `PathTable`, which
     /// deliberately keeps multiple candidate paths per destination).
     pub fn record(&mut self, device: DeviceId, endpoint: EndpointId, now: u64) {
-        self.hints.insert(device, Hint { endpoint, last_seen: now });
+        self.hints.insert(
+            device,
+            Hint {
+                endpoint,
+                last_seen: now,
+            },
+        );
     }
 
     pub fn get(&self, device: DeviceId) -> Option<EndpointId> {
@@ -60,7 +68,8 @@ impl DeviceRoutes {
     }
 
     pub fn remove_stale(&mut self, now: u64, max_age: u64) {
-        self.hints.retain(|_, hint| now.saturating_sub(hint.last_seen) <= max_age);
+        self.hints
+            .retain(|_, hint| now.saturating_sub(hint.last_seen) <= max_age);
     }
 }
 
