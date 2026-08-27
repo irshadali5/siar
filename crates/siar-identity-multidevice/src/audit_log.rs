@@ -45,9 +45,18 @@ pub const EVENT_TYPE_REVOCATION_VERIFIED: EventTypeId = EventTypeId(3);
 /// raw bytes with a convention" choice.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum IdentityAuditPayload {
-    DeviceLinked { device_id: DeviceId, generation: u64 },
-    DeviceRevoked { device_id: DeviceId, generation: u64 },
-    RevocationVerified { device_id: DeviceId, generation: u64 },
+    DeviceLinked {
+        device_id: DeviceId,
+        generation: u64,
+    },
+    DeviceRevoked {
+        device_id: DeviceId,
+        generation: u64,
+    },
+    RevocationVerified {
+        device_id: DeviceId,
+        generation: u64,
+    },
 }
 
 impl IdentityAuditPayload {
@@ -61,8 +70,8 @@ impl IdentityAuditPayload {
 
     fn into_new_event(self) -> NewEvent {
         let event_type = self.event_type();
-        let payload = postcard::to_allocvec(&self)
-            .expect("IdentityAuditPayload always postcard-serializes");
+        let payload =
+            postcard::to_allocvec(&self).expect("IdentityAuditPayload always postcard-serializes");
         NewEvent {
             event_id: EventId::new(),
             event_type,
@@ -89,13 +98,21 @@ impl IdentityAuditPayload {
 /// crate) — call after that flow succeeds, with the directory's new
 /// generation.
 pub fn device_linked_event(device_id: DeviceId, new_generation: u64) -> NewEvent {
-    IdentityAuditPayload::DeviceLinked { device_id, generation: new_generation }.into_new_event()
+    IdentityAuditPayload::DeviceLinked {
+        device_id,
+        generation: new_generation,
+    }
+    .into_new_event()
 }
 
 /// [`crate::revocation::revoke_device`] succeeded — call with its
 /// returned [`crate::directory::DeviceDirectory`]'s new generation.
 pub fn device_revoked_event(device_id: DeviceId, new_generation: u64) -> NewEvent {
-    IdentityAuditPayload::DeviceRevoked { device_id, generation: new_generation }.into_new_event()
+    IdentityAuditPayload::DeviceRevoked {
+        device_id,
+        generation: new_generation,
+    }
+    .into_new_event()
 }
 
 /// [`crate::revocation::verify_revocation`] succeeded on a remote
@@ -105,7 +122,11 @@ pub fn device_revoked_event(device_id: DeviceId, new_generation: u64) -> NewEven
 /// verifies a revocation it receives, it doesn't just trust that the
 /// issuer did it correctly).
 pub fn revocation_verified_event(device_id: DeviceId, new_generation: u64) -> NewEvent {
-    IdentityAuditPayload::RevocationVerified { device_id, generation: new_generation }.into_new_event()
+    IdentityAuditPayload::RevocationVerified {
+        device_id,
+        generation: new_generation,
+    }
+    .into_new_event()
 }
 
 /// Reconstructs the audit payload from a [`siar_event_log::store::StoredEvent`]'s
@@ -138,7 +159,10 @@ mod tests {
 
     #[test]
     fn different_accounts_derive_different_stream_ids() {
-        assert_ne!(identity_stream_id(AccountId::new()), identity_stream_id(AccountId::new()));
+        assert_ne!(
+            identity_stream_id(AccountId::new()),
+            identity_stream_id(AccountId::new())
+        );
     }
 
     #[test]
@@ -148,7 +172,13 @@ mod tests {
         assert_eq!(event.event_type, EVENT_TYPE_DEVICE_LINKED);
 
         let decoded = decode_audit_payload(&event.payload).unwrap();
-        assert_eq!(decoded, IdentityAuditPayload::DeviceLinked { device_id: device, generation: 3 });
+        assert_eq!(
+            decoded,
+            IdentityAuditPayload::DeviceLinked {
+                device_id: device,
+                generation: 3
+            }
+        );
     }
 
     #[test]
@@ -158,7 +188,13 @@ mod tests {
         assert_eq!(event.event_type, EVENT_TYPE_DEVICE_REVOKED);
 
         let decoded = decode_audit_payload(&event.payload).unwrap();
-        assert_eq!(decoded, IdentityAuditPayload::DeviceRevoked { device_id: device, generation: 5 });
+        assert_eq!(
+            decoded,
+            IdentityAuditPayload::DeviceRevoked {
+                device_id: device,
+                generation: 5
+            }
+        );
     }
 
     #[test]
@@ -168,12 +204,22 @@ mod tests {
         assert_eq!(event.event_type, EVENT_TYPE_REVOCATION_VERIFIED);
 
         let decoded = decode_audit_payload(&event.payload).unwrap();
-        assert_eq!(decoded, IdentityAuditPayload::RevocationVerified { device_id: device, generation: 5 });
+        assert_eq!(
+            decoded,
+            IdentityAuditPayload::RevocationVerified {
+                device_id: device,
+                generation: 5
+            }
+        );
     }
 
     #[test]
     fn each_event_type_gets_a_distinct_tag() {
-        let tags = [EVENT_TYPE_DEVICE_LINKED, EVENT_TYPE_DEVICE_REVOKED, EVENT_TYPE_REVOCATION_VERIFIED];
+        let tags = [
+            EVENT_TYPE_DEVICE_LINKED,
+            EVENT_TYPE_DEVICE_REVOKED,
+            EVENT_TYPE_REVOCATION_VERIFIED,
+        ];
         for (i, a) in tags.iter().enumerate() {
             for b in &tags[i + 1..] {
                 assert_ne!(a, b);
