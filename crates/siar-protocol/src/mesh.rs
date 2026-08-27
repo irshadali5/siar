@@ -21,7 +21,7 @@
 //! never gets one.
 
 use serde::{Deserialize, Serialize};
-use siar_domain::{DeviceId, MessagePriority, MessageId};
+use siar_domain::{DeviceId, MessageId, MessagePriority};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MeshEnvelope {
@@ -112,7 +112,9 @@ mod tests {
     #[test]
     fn forwarded_decrements_until_zero_then_stops() {
         let envelope = envelope(1);
-        let envelope = envelope.forwarded().expect("hop_limit 1 -> 0 should still forward");
+        let envelope = envelope
+            .forwarded()
+            .expect("hop_limit 1 -> 0 should still forward");
         assert_eq!(envelope.hop_limit, 0);
         assert!(envelope.forwarded().is_none());
     }
