@@ -32,8 +32,8 @@
 use std::sync::{Arc, Mutex};
 
 use siar_media_core::{
-    AudioDecoder, AudioEncoder, DecodedVideoFrame, EncodedAudioFrame, EncodedVideoFrame, RawVideoFrame, VideoDecoder,
-    VideoEncoder,
+    AudioDecoder, AudioEncoder, DecodedVideoFrame, EncodedAudioFrame, EncodedVideoFrame,
+    RawVideoFrame, VideoDecoder, VideoEncoder,
 };
 use tokio::sync::{mpsc, watch, Notify};
 
@@ -48,7 +48,10 @@ pub struct LatestFrameSlot<T> {
 
 impl<T> LatestFrameSlot<T> {
     pub fn new() -> Arc<Self> {
-        Arc::new(Self { slot: Mutex::new(None), notify: Notify::new() })
+        Arc::new(Self {
+            slot: Mutex::new(None),
+            notify: Notify::new(),
+        })
     }
 
     pub fn put(&self, value: T) {
@@ -119,7 +122,10 @@ pub fn spawn_video_encode_pipeline(
                 }
             }
             Err(err) => {
-                tracing::warn!(?err, "video encode failed for one frame, dropping it and continuing");
+                tracing::warn!(
+                    ?err,
+                    "video encode failed for one frame, dropping it and continuing"
+                );
             }
         }
     });
@@ -155,12 +161,18 @@ pub fn spawn_video_decode_pipeline(
                 }
             }
             Err(err) => {
-                tracing::warn!(?err, "video decode failed for one frame, dropping it and continuing");
+                tracing::warn!(
+                    ?err,
+                    "video decode failed for one frame, dropping it and continuing"
+                );
             }
         }
     });
 
-    VideoDecodePipeline { input: in_tx, output: out_rx }
+    VideoDecodePipeline {
+        input: in_tx,
+        output: out_rx,
+    }
 }
 
 pub struct AudioEncodePipeline {
@@ -195,12 +207,18 @@ pub fn spawn_audio_encode_pipeline(
                 }
             }
             Err(err) => {
-                tracing::warn!(?err, "audio encode failed for one chunk, dropping it and continuing");
+                tracing::warn!(
+                    ?err,
+                    "audio encode failed for one chunk, dropping it and continuing"
+                );
             }
         }
     });
 
-    AudioEncodePipeline { input: in_tx, output: out_rx }
+    AudioEncodePipeline {
+        input: in_tx,
+        output: out_rx,
+    }
 }
 
 pub struct AudioDecodePipeline {
@@ -235,10 +253,16 @@ pub fn spawn_audio_decode_pipeline(
                 }
             }
             Err(err) => {
-                tracing::warn!(?err, "audio decode failed for one packet, dropping it and continuing");
+                tracing::warn!(
+                    ?err,
+                    "audio decode failed for one packet, dropping it and continuing"
+                );
             }
         }
     });
 
-    AudioDecodePipeline { input: in_tx, output: out_rx }
+    AudioDecodePipeline {
+        input: in_tx,
+        output: out_rx,
+    }
 }
