@@ -56,8 +56,8 @@ use anyhow::{bail, Context, Result};
 use siar_crypto::DeviceIdentity;
 use siar_domain::{AccountId, ConversationId, DeviceId, MessageContent, MessageText};
 use siar_messaging::{
-    GroupService, IncomingEvent, InMemoryDeviceDirectory, InMemoryKeyPackageDirectory, KeyPackageDirectory,
-    MemberDevice, MessageService, PeerTicket,
+    GroupService, InMemoryDeviceDirectory, InMemoryKeyPackageDirectory, IncomingEvent,
+    KeyPackageDirectory, MemberDevice, MessageService, PeerTicket,
 };
 use siar_protocol::v1::EnvelopeKind;
 use siar_protocol::WireMessage;
@@ -82,22 +82,34 @@ async fn main() -> Result<()> {
             // harness", not a production CLI).
             let rest: Vec<&String> = args.iter().skip(2).collect();
             let publish_key_package = rest.iter().any(|a| a.as_str() == "--publish-key-package");
-            let peer_arg = rest.into_iter().find(|a| a.as_str() != "--publish-key-package");
+            let peer_arg = rest
+                .into_iter()
+                .find(|a| a.as_str() != "--publish-key-package");
             listen(peer_arg, publish_key_package).await
         }
         Some("send") => {
-            let ticket = args.get(2).context("usage: siar send <their-ticket> <text>")?;
-            let text = args.get(3).context("usage: siar send <their-ticket> <text>")?;
+            let ticket = args
+                .get(2)
+                .context("usage: siar send <their-ticket> <text>")?;
+            let text = args
+                .get(3)
+                .context("usage: siar send <their-ticket> <text>")?;
             send(ticket, text).await
         }
         Some("send-file") => {
-            let ticket = args.get(2).context("usage: siar send-file <their-ticket> <path>")?;
-            let path = args.get(3).context("usage: siar send-file <their-ticket> <path>")?;
+            let ticket = args
+                .get(2)
+                .context("usage: siar send-file <their-ticket> <path>")?;
+            let path = args
+                .get(3)
+                .context("usage: siar send-file <their-ticket> <path>")?;
             send_file(ticket, path).await
         }
         Some("publish-key-package") => publish_key_package().await,
         Some("check-mailbox") => {
-            let relay_ticket = args.get(2).context("usage: siar check-mailbox <relay-ticket>")?;
+            let relay_ticket = args
+                .get(2)
+                .context("usage: siar check-mailbox <relay-ticket>")?;
             check_mailbox(relay_ticket).await
         }
         Some("send-anon") => {
@@ -118,11 +130,22 @@ async fn main() -> Result<()> {
             let peer_device_id = args.get(4).context(GROUP_ADD_MEMBER_USAGE)?;
             let peer_account_id = args.get(5).context(GROUP_ADD_MEMBER_USAGE)?;
             let key_package_b64 = args.get(6).context(GROUP_ADD_MEMBER_USAGE)?;
-            group_add_member(conversation, peer_ticket, peer_device_id, peer_account_id, key_package_b64).await
+            group_add_member(
+                conversation,
+                peer_ticket,
+                peer_device_id,
+                peer_account_id,
+                key_package_b64,
+            )
+            .await
         }
         Some("group-send") => {
-            let conversation = args.get(2).context("usage: siar group-send <conversation-id> <text>")?;
-            let text = args.get(3).context("usage: siar group-send <conversation-id> <text>")?;
+            let conversation = args
+                .get(2)
+                .context("usage: siar group-send <conversation-id> <text>")?;
+            let text = args
+                .get(3)
+                .context("usage: siar group-send <conversation-id> <text>")?;
             group_send(conversation, text).await
         }
         Some("join-group") => {
@@ -156,7 +179,8 @@ const CHECK_MAILBOX_ANON_USAGE: &str = "usage: siar check-mailbox-anon <their-ti
 const GROUP_ADD_MEMBER_USAGE_BARE: &str =
     "group-add-member <conversation-id> <peer-ticket> <peer-device-id> <peer-account-id> <base64-key-package>";
 const GROUP_ADD_MEMBER_USAGE: &str = "usage: siar group-add-member <conversation-id> <peer-ticket> <peer-device-id> <peer-account-id> <base64-key-package> (run publish-key-package in the peer's process first to get the last three)";
-const JOIN_GROUP_USAGE_BARE: &str = "join-group <conversation-id> <base64-welcome-bytes> <base64-group-state>";
+const JOIN_GROUP_USAGE_BARE: &str =
+    "join-group <conversation-id> <base64-welcome-bytes> <base64-group-state>";
 const JOIN_GROUP_USAGE: &str =
     "usage: siar join-group <conversation-id> <base64-welcome-bytes> <base64-group-state> (both printed by the member who ran group-add-member — see this file's module doc comment for why this command can't actually succeed run as its own separate process today)";
 
@@ -203,7 +227,8 @@ fn resolve_data_paths() -> Result<DataPaths> {
     let dirs = directories::ProjectDirs::from("dev", "irshad", "siar-cli")
         .context("couldn't resolve a data directory for this platform")?;
     let data_dir = dirs.data_dir();
-    std::fs::create_dir_all(data_dir).with_context(|| format!("creating data directory {}", data_dir.display()))?;
+    std::fs::create_dir_all(data_dir)
+        .with_context(|| format!("creating data directory {}", data_dir.display()))?;
     Ok(DataPaths {
         identity: data_dir.join("identity.bin"),
         account_id: data_dir.join("account_id.txt"),
@@ -223,13 +248,15 @@ fn load_or_create_id<T>(
     generate: impl Fn() -> T,
 ) -> Result<T> {
     if path.exists() {
-        let text = std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
+        let text =
+            std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
         let id = uuid::Uuid::parse_str(text.trim())
             .with_context(|| format!("{} did not contain a valid UUID", path.display()))?;
         Ok(from_uuid(id))
     } else {
         let id = generate();
-        std::fs::write(path, to_uuid(&id).to_string()).with_context(|| format!("writing {}", path.display()))?;
+        std::fs::write(path, to_uuid(&id).to_string())
+            .with_context(|| format!("writing {}", path.display()))?;
         Ok(id)
     }
 }
@@ -238,17 +265,30 @@ async fn bootstrap() -> Result<Bootstrapped> {
     let paths = resolve_data_paths()?;
 
     let identity = if paths.identity.exists() {
-        DeviceIdentity::load_from_file(&paths.identity).context("loading persisted device identity")?
+        DeviceIdentity::load_from_file(&paths.identity)
+            .context("loading persisted device identity")?
     } else {
         let identity = DeviceIdentity::generate();
-        identity.save_to_file(&paths.identity).context("persisting device identity")?;
+        identity
+            .save_to_file(&paths.identity)
+            .context("persisting device identity")?;
         identity
     };
-    let device_id = load_or_create_id(&paths.device_id, DeviceId::from_uuid, DeviceId::as_uuid, DeviceId::new)?;
-    let local_account =
-        load_or_create_id(&paths.account_id, AccountId::from_uuid, AccountId::as_uuid, AccountId::new)?;
+    let device_id = load_or_create_id(
+        &paths.device_id,
+        DeviceId::from_uuid,
+        DeviceId::as_uuid,
+        DeviceId::new,
+    )?;
+    let local_account = load_or_create_id(
+        &paths.account_id,
+        AccountId::from_uuid,
+        AccountId::as_uuid,
+        AccountId::new,
+    )?;
 
-    let db = siar_storage::open(&paths.database.display().to_string()).context("opening local database")?;
+    let db = siar_storage::open(&paths.database.display().to_string())
+        .context("opening local database")?;
     let messages = Arc::new(siar_storage::StoolapMessageRepository::new(db.clone()));
     let outbox = Arc::new(siar_storage::StoolapOutboxRepository::new(db.clone()));
     let groups = Arc::new(siar_storage::StoolapGroupRepository::new(db.clone()));
@@ -278,7 +318,9 @@ async fn bootstrap() -> Result<Bootstrapped> {
     // by value, and both represent this same local device — `try_clone`
     // (see its own doc comment) is exactly the "more than one owner of
     // the same key material in one process" case it exists for.
-    let group_identity = identity.try_clone().context("cloning device identity for GroupService")?;
+    let group_identity = identity
+        .try_clone()
+        .context("cloning device identity for GroupService")?;
     let group_service = GroupService::new(
         device_id,
         local_account,
@@ -289,7 +331,14 @@ async fn bootstrap() -> Result<Bootstrapped> {
         groups,
     );
 
-    let service = MessageService::new(device_id, identity, endpoint.clone(), messages, outbox, blobs);
+    let service = MessageService::new(
+        device_id,
+        identity,
+        endpoint.clone(),
+        messages,
+        outbox,
+        blobs,
+    );
 
     Ok(Bootstrapped {
         endpoint,
@@ -328,9 +377,18 @@ async fn listen(peer_arg: Option<&String>, publish_key_package: bool) -> Result<
     let group_service = Arc::new(boot.group_service);
     let key_package_directory = boot.key_package_directory;
     let device_id = boot.device_id;
-    println!("your ticket (share with your peer):\n{}", boot.my_ticket.encode());
-    println!("your account id (share for group membership): {}", boot.local_account);
-    println!("your device id (share for group membership): {}", boot.device_id);
+    println!(
+        "your ticket (share with your peer):\n{}",
+        boot.my_ticket.encode()
+    );
+    println!(
+        "your account id (share for group membership): {}",
+        boot.local_account
+    );
+    println!(
+        "your device id (share for group membership): {}",
+        boot.device_id
+    );
 
     // The fix for this file's top doc comment's flagged limitation:
     // `pending_identity` only lives as long as this process does, so
@@ -380,7 +438,10 @@ async fn listen(peer_arg: Option<&String>, publish_key_package: bool) -> Result<
                 // it, which the old `let WireMessage::V1(envelope) =
                 // frame.message;` irrefutable pattern would have done
                 // the moment a `Mesh` frame arrived.
-                println!("(dropping a Mesh-routed frame from {} — this CLI doesn't relay)", frame.from);
+                println!(
+                    "(dropping a Mesh-routed frame from {} — this CLI doesn't relay)",
+                    frame.from
+                );
                 continue;
             }
             WireMessage::MailboxCheckIn(_check_in) => {
@@ -390,21 +451,30 @@ async fn listen(peer_arg: Option<&String>, publish_key_package: bool) -> Result<
                 // this), not an ordinary chat client's. Same "don't
                 // crash, don't pretend to handle it" stance as the
                 // `Mesh` arm above.
-                println!("(dropping a MailboxCheckIn frame from {} — this CLI isn't a relay)", frame.from);
+                println!(
+                    "(dropping a MailboxCheckIn frame from {} — this CLI isn't a relay)",
+                    frame.from
+                );
                 continue;
             }
             WireMessage::TokenMailboxDeposit(_) | WireMessage::AnonymousMailboxCheckIn(_) => {
                 // The unlinkable counterparts to `Mesh`/`MailboxCheckIn`
                 // — same "a relay's job, not this CLI's" reasoning as
                 // the two arms above.
-                println!("(dropping a token-mailbox frame from {} — this CLI isn't a relay)", frame.from);
+                println!(
+                    "(dropping a token-mailbox frame from {} — this CLI isn't a relay)",
+                    frame.from
+                );
                 continue;
             }
             WireMessage::RouteAdvertisement(_advertisement) => {
                 // A relay-to-relay signal (see `route_advertisement.rs`'s
                 // doc comment) — this CLI has no `PathTable` of its own
                 // to fold one into.
-                println!("(dropping a RouteAdvertisement frame from {} — this CLI isn't a relay)", frame.from);
+                println!(
+                    "(dropping a RouteAdvertisement frame from {} — this CLI isn't a relay)",
+                    frame.from
+                );
                 continue;
             }
         };
@@ -456,8 +526,15 @@ async fn listen(peer_arg: Option<&String>, publish_key_package: bool) -> Result<
                         println!("(ignored)");
                         continue;
                     }
-                    match base64_decode(line).and_then(|b| postcard::from_bytes::<siar_domain::GroupState>(&b).context("decoding group state")) {
-                        Ok(state) => match group_service.join_group_mls(envelope.conversation_id, &envelope.payload, state) {
+                    match base64_decode(line).and_then(|b| {
+                        postcard::from_bytes::<siar_domain::GroupState>(&b)
+                            .context("decoding group state")
+                    }) {
+                        Ok(state) => match group_service.join_group_mls(
+                            envelope.conversation_id,
+                            &envelope.payload,
+                            state,
+                        ) {
                             Ok(()) => println!("joined group {}", envelope.conversation_id),
                             Err(e) => println!("(failed to join: {e})"),
                         },
@@ -468,7 +545,9 @@ async fn listen(peer_arg: Option<&String>, publish_key_package: bool) -> Result<
                     Ok(Some(MessageContent::Text(text))) => {
                         println!("{} [group]: {}", frame.from.fmt_short(), text.as_str())
                     }
-                    Ok(Some(_)) => println!("{} [group]: [non-text content]", frame.from.fmt_short()),
+                    Ok(Some(_)) => {
+                        println!("{} [group]: [non-text content]", frame.from.fmt_short())
+                    }
                     Ok(None) => {} // commit merged, or nothing to show
                     Err(e) => tracing::warn!(error = %e, "failed to handle incoming group frame"),
                 },
@@ -477,7 +556,10 @@ async fn listen(peer_arg: Option<&String>, publish_key_package: bool) -> Result<
         }
 
         let Some(peer) = peer.as_ref() else {
-            println!("(dropping frame from {} — no peer ticket configured)", frame.from);
+            println!(
+                "(dropping frame from {} — no peer ticket configured)",
+                frame.from
+            );
             continue;
         };
         match service.handle_incoming(peer, envelope).await {
@@ -569,7 +651,8 @@ async fn publish_key_package() -> Result<()> {
     let boot = bootstrap().await?;
     drop(boot.rx);
 
-    boot.group_service.publish_key_package(boot.key_package_directory.as_ref())?;
+    boot.group_service
+        .publish_key_package(boot.key_package_directory.as_ref())?;
     let key_package_bytes = boot
         .key_package_directory
         .take(boot.device_id)
@@ -578,7 +661,10 @@ async fn publish_key_package() -> Result<()> {
     println!("device id: {}", boot.device_id);
     println!("account id: {}", boot.local_account);
     println!("ticket: {}", boot.my_ticket.encode());
-    println!("key package (base64): {}", base64_encode(&key_package_bytes));
+    println!(
+        "key package (base64): {}",
+        base64_encode(&key_package_bytes)
+    );
     Ok(())
 }
 
@@ -607,11 +693,17 @@ async fn check_mailbox(relay_ticket: &str) -> Result<()> {
     boot.endpoint
         .send(
             relay.endpoint_addr.clone(),
-            &WireMessage::MailboxCheckIn(boot.service.sign_mailbox_check_in(siar_domain::now_millis())),
+            &WireMessage::MailboxCheckIn(
+                boot.service
+                    .sign_mailbox_check_in(siar_domain::now_millis()),
+            ),
         )
         .await
         .context("sending mailbox check-in")?;
-    println!("check-in sent for device {} — waiting up to 5s for a response...", boot.device_id);
+    println!(
+        "check-in sent for device {} — waiting up to 5s for a response...",
+        boot.device_id
+    );
 
     let mut received = 0u32;
     let deadline = tokio::time::sleep(Duration::from_secs(5));
@@ -676,10 +768,15 @@ async fn check_mailbox_anon(peer_ticket: &str, relay_ticket: &str) -> Result<()>
     let boot = bootstrap().await?;
     let mut rx = boot.rx;
 
-    let check_in = boot.service.build_anonymous_check_in(&peer, siar_domain::now_millis());
+    let check_in = boot
+        .service
+        .build_anonymous_check_in(&peer, siar_domain::now_millis());
 
     boot.endpoint
-        .send(relay.endpoint_addr.clone(), &WireMessage::AnonymousMailboxCheckIn(check_in))
+        .send(
+            relay.endpoint_addr.clone(),
+            &WireMessage::AnonymousMailboxCheckIn(check_in),
+        )
         .await
         .context("sending anonymous mailbox check-in")?;
     println!("anonymous check-in sent — waiting up to 5s for a response...");
@@ -720,7 +817,8 @@ async fn group_create() -> Result<()> {
     drop(boot.rx);
 
     let conversation = ConversationId::new();
-    boot.group_service.create_group_mls(conversation, boot.local_account)?;
+    boot.group_service
+        .create_group_mls(conversation, boot.local_account)?;
     println!("created group {conversation} — you are the founding admin");
     println!("share this conversation id with members you add");
     Ok(())
@@ -749,7 +847,13 @@ async fn group_add_member(
     let ticket = PeerTicket::decode(peer_ticket).context("decoding peer ticket")?;
     let key_package_bytes = base64_decode(key_package_b64).context("decoding key package bytes")?;
 
-    boot.device_directory.register(peer_account, MemberDevice { device_id: peer_device, ticket });
+    boot.device_directory.register(
+        peer_account,
+        MemberDevice {
+            device_id: peer_device,
+            ticket,
+        },
+    );
 
     boot.group_service
         .add_member_mls(conversation, peer_account, peer_device, &key_package_bytes)
@@ -766,7 +870,10 @@ async fn group_add_member(
         .group_state(conversation)?
         .context("just-updated group has no local state — this is a bug")?;
     let state_bytes = postcard::to_allocvec(&state).context("encoding group state")?;
-    println!("group state for the new member's `join-group` (base64): {}", base64_encode(&state_bytes));
+    println!(
+        "group state for the new member's `join-group` (base64): {}",
+        base64_encode(&state_bytes)
+    );
     Ok(())
 }
 
@@ -803,10 +910,14 @@ async fn join_group(conversation: &str, welcome_b64: &str, state_b64: &str) -> R
     let conversation = ConversationId::from_uuid(parse_uuid(conversation)?);
     let welcome_bytes = base64_decode(welcome_b64).context("decoding welcome bytes")?;
     let state_bytes = base64_decode(state_b64).context("decoding group state bytes")?;
-    let state: siar_domain::GroupState = postcard::from_bytes(&state_bytes).context("decoding group state")?;
+    let state: siar_domain::GroupState =
+        postcard::from_bytes(&state_bytes).context("decoding group state")?;
 
-    boot.group_service.join_group_mls(conversation, &welcome_bytes, state)?;
-    println!("joined group {conversation} — run `listen` in this process to receive group messages");
+    boot.group_service
+        .join_group_mls(conversation, &welcome_bytes, state)?;
+    println!(
+        "joined group {conversation} — run `listen` in this process to receive group messages"
+    );
     Ok(())
 }
 
@@ -828,7 +939,13 @@ fn base64_decode(s: &str) -> Result<Vec<u8>> {
 
 fn guess_media_type(path: &str) -> siar_domain::MediaType {
     use siar_domain::MediaType::*;
-    match path.rsplit('.').next().unwrap_or("").to_ascii_lowercase().as_str() {
+    match path
+        .rsplit('.')
+        .next()
+        .unwrap_or("")
+        .to_ascii_lowercase()
+        .as_str()
+    {
         "png" => ImagePng,
         "jpg" | "jpeg" => ImageJpeg,
         "webp" => ImageWebp,
@@ -839,5 +956,9 @@ fn guess_media_type(path: &str) -> siar_domain::MediaType {
 }
 
 fn hex_preview(bytes: &[u8; 32]) -> String {
-    bytes[..6].iter().map(|b| format!("{b:02x}")).collect::<String>() + "…"
+    bytes[..6]
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect::<String>()
+        + "…"
 }
