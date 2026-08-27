@@ -32,13 +32,20 @@ pub trait MediaTransport: Send + Sync + 'static {
     /// treat "send didn't happen this cycle" as an expected outcome
     /// (see `pipeline.rs`'s backpressure notes), not an error to
     /// propagate loudly.
-    fn send(&self, channel: MediaChannel, data: Vec<u8>) -> impl Future<Output = Result<(), TransportError>> + Send;
+    fn send(
+        &self,
+        channel: MediaChannel,
+        data: Vec<u8>,
+    ) -> impl Future<Output = Result<(), TransportError>> + Send;
 
     /// Receives the next frame's bytes for `channel`, in whatever order
     /// the underlying transport delivered them — reordering is
     /// `crate::jitter::JitterBuffer`'s job on the receiving end, not
     /// this trait's.
-    fn recv(&self, channel: MediaChannel) -> impl Future<Output = Result<Vec<u8>, TransportError>> + Send;
+    fn recv(
+        &self,
+        channel: MediaChannel,
+    ) -> impl Future<Output = Result<Vec<u8>, TransportError>> + Send;
 }
 
 #[derive(Debug, Clone, thiserror::Error)]
