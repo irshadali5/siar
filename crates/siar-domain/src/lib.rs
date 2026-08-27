@@ -7,24 +7,27 @@
 //! so it is usable from the CLI, the desktop app, tests, and fuzz targets
 //! without pulling in networking or storage.
 
-mod ids;
-mod message;
-mod delivery;
-mod error;
-mod retry;
 mod attachment;
-mod group;
-mod lifecycle;
-mod mailbox;
-mod device;
 mod call;
 mod connectivity;
+mod delivery;
+mod device;
+mod error;
+mod group;
+mod ids;
+mod lifecycle;
+mod mailbox;
+mod message;
 mod priority;
+mod retry;
 
-pub use attachment::{AttachmentReference, BlobSize, BlobSizeError, MediaType, MAX_ATTACHMENT_BYTES};
-pub use call::{adapt_quality, CallControlEvent, CallParticipant, CallState, MediaQuality, NetworkConditions};
+pub use attachment::{
+    AttachmentReference, BlobSize, BlobSizeError, MediaType, MAX_ATTACHMENT_BYTES,
+};
+pub use call::{
+    adapt_quality, CallControlEvent, CallParticipant, CallState, MediaQuality, NetworkConditions,
+};
 pub use connectivity::{ConnectivityState, EffectiveConnectivity, TransportLink};
-pub use priority::MessagePriority;
 pub use delivery::DeliveryState;
 pub use device::{DeviceDescriptor, DeviceEvent, DeviceRegistry, SyncCursor, VerificationState};
 pub use error::DomainError;
@@ -39,4 +42,5 @@ pub use mailbox::{
     MAX_MAILBOX_ENVELOPE_BYTES,
 };
 pub use message::{MessageContent, MessageText, TextParseError};
+pub use priority::MessagePriority;
 pub use retry::{backoff_millis, with_jitter};
