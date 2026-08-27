@@ -50,7 +50,10 @@ impl ParameterSchema {
             (ParameterSchema::None, CapabilityParameters::None)
                 | (ParameterSchema::U32, CapabilityParameters::U32(_))
                 | (ParameterSchema::U64, CapabilityParameters::U64(_))
-                | (ParameterSchema::RangeU32, CapabilityParameters::RangeU32 { .. })
+                | (
+                    ParameterSchema::RangeU32,
+                    CapabilityParameters::RangeU32 { .. }
+                )
                 | (ParameterSchema::BitSet, CapabilityParameters::BitSet(_))
                 | (ParameterSchema::Bytes, CapabilityParameters::Bytes(_))
         )
