@@ -36,8 +36,12 @@ pub fn matching_quirks<'a>(
     quirks
         .iter()
         .filter(|q| {
-            q.manufacturer.as_deref().is_none_or(|m| m.eq_ignore_ascii_case(manufacturer))
-                && q.model.as_deref().is_none_or(|m| m.eq_ignore_ascii_case(model))
+            q.manufacturer
+                .as_deref()
+                .is_none_or(|m| m.eq_ignore_ascii_case(manufacturer))
+                && q.model
+                    .as_deref()
+                    .is_none_or(|m| m.eq_ignore_ascii_case(model))
                 && q.codec.is_none_or(|c| c == codec)
         })
         .collect()
@@ -76,9 +80,15 @@ mod tests {
             manufacturer: Some("Xiaomi".to_string()),
             model: Some("Redmi Note 9".to_string()),
             codec: None,
-            workaround: CodecWorkaround::CapMaxResolution { width: 1280, height: 720 },
+            workaround: CodecWorkaround::CapMaxResolution {
+                width: 1280,
+                height: 720,
+            },
         }];
         assert!(matching_quirks(&quirks, "Xiaomi", "Redmi Note 12", VideoCodec::H264).is_empty());
-        assert_eq!(matching_quirks(&quirks, "Xiaomi", "Redmi Note 9", VideoCodec::H264).len(), 1);
+        assert_eq!(
+            matching_quirks(&quirks, "Xiaomi", "Redmi Note 9", VideoCodec::H264).len(),
+            1
+        );
     }
 }
