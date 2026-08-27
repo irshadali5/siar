@@ -30,7 +30,11 @@ pub struct SeenBundles {
 impl SeenBundles {
     pub fn new(capacity: usize) -> Self {
         assert!(capacity >= 1, "a zero-capacity seen-set can never remember anything, defeating deduplication entirely");
-        Self { capacity, order: VecDeque::with_capacity(capacity), set: HashSet::with_capacity(capacity) }
+        Self {
+            capacity,
+            order: VecDeque::with_capacity(capacity),
+            set: HashSet::with_capacity(capacity),
+        }
     }
 
     /// Returns `true` if `id` had already been seen — the caller should
