@@ -7,5 +7,7 @@ rust-version.workspace = true
 
 [dependencies]
 serde.workspace = true
+siar-domain = { path = "../siar-domain" }
+siar-protocol-ext = { path = "../siar-protocol-ext" }
 
 [dev-dependencies]
