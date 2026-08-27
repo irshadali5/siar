@@ -40,7 +40,9 @@ impl MessagePriority {
     pub fn default_hop_limit(self) -> u8 {
         match self {
             MessagePriority::Emergency | MessagePriority::Critical => 8,
-            MessagePriority::Interactive | MessagePriority::Normal | MessagePriority::Background => 4,
+            MessagePriority::Interactive
+            | MessagePriority::Normal
+            | MessagePriority::Background => 4,
         }
     }
 }
@@ -53,7 +55,13 @@ mod tests {
     fn emergency_gets_the_highest_hop_limit_and_replication_budget() {
         assert_eq!(MessagePriority::Emergency.default_hop_limit(), 8);
         assert_eq!(MessagePriority::Emergency.default_replication_budget(), 8);
-        assert!(MessagePriority::Emergency.default_hop_limit() >= MessagePriority::Normal.default_hop_limit());
-        assert!(MessagePriority::Emergency.default_replication_budget() >= MessagePriority::Normal.default_replication_budget());
+        assert!(
+            MessagePriority::Emergency.default_hop_limit()
+                >= MessagePriority::Normal.default_hop_limit()
+        );
+        assert!(
+            MessagePriority::Emergency.default_replication_budget()
+                >= MessagePriority::Normal.default_replication_budget()
+        );
     }
 }
