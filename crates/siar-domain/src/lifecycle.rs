@@ -49,7 +49,8 @@ impl LifecycleState {
     /// plan.md §35: whether pooled connections should be torn down
     /// eagerly on this transition rather than left to idle out.
     pub fn should_close_idle_connections(self, next: LifecycleState) -> bool {
-        matches!(next, LifecycleState::Background | LifecycleState::Suspended) && self == LifecycleState::Foreground
+        matches!(next, LifecycleState::Background | LifecycleState::Suspended)
+            && self == LifecycleState::Foreground
     }
 
     /// plan.md §37: on resume, the sequence is identity -> DB -> Iroh
