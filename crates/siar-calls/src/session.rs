@@ -9,7 +9,9 @@
 
 use siar_domain::{adapt_quality, CallControlEvent, CallState, MediaQuality, NetworkConditions};
 
-use crate::pipeline::{AudioDecodePipeline, AudioEncodePipeline, VideoDecodePipeline, VideoEncodePipeline};
+use crate::pipeline::{
+    AudioDecodePipeline, AudioEncodePipeline, VideoDecodePipeline, VideoEncodePipeline,
+};
 use crate::shutdown::CallShutdown;
 
 /// One call's media-plane state: the signaling `CallState` plus
