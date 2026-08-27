@@ -30,4 +30,7 @@ mod thumbnail;
 pub use decode::{decode_image, DecodedImage};
 pub use error::ImageError;
 pub use format::ImageFormat;
-pub use thumbnail::{generate_preview, generate_thumbnail, EncodedImage, PREVIEW_MAX_DIMENSION, THUMBNAIL_MAX_DIMENSION};
+pub use thumbnail::{
+    generate_preview, generate_thumbnail, EncodedImage, PREVIEW_MAX_DIMENSION,
+    THUMBNAIL_MAX_DIMENSION,
+};
