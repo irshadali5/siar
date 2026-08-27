@@ -7,7 +7,9 @@
 //! crate's own `unsafe` is confined to `audiopus_sys`'s FFI bindings to
 //! libopus; nothing in this file is `unsafe` itself.
 
-use opus::{Application, Bitrate, Channels, Decoder as OpusDecoderInner, Encoder as OpusEncoderInner};
+use opus::{
+    Application, Bitrate, Channels, Decoder as OpusDecoderInner, Encoder as OpusEncoderInner,
+};
 use siar_media_core::{AudioDecoder, AudioEncoder, DecodeError, EncodeError, EncodedAudioFrame};
 
 /// Opus's own maximum packet size recommendation (from its docs: 4000
@@ -57,7 +59,11 @@ impl OpusEncoder {
     /// constructor's fixed choice) is Opus's tuning for speech
     /// intelligibility over raw fidelity, which is the right tradeoff
     /// for a messenger's voice calls.
-    pub fn new(sample_rate: u32, channels: AudioChannels, target_bitrate_bps: i32) -> Result<Self, EncodeError> {
+    pub fn new(
+        sample_rate: u32,
+        channels: AudioChannels,
+        target_bitrate_bps: i32,
+    ) -> Result<Self, EncodeError> {
         let mut inner = OpusEncoderInner::new(sample_rate, channels.into(), Application::Voip)
             .map_err(|e| EncodeError::Backend(format!("opus_encoder_create: {e}")))?;
         inner
@@ -80,7 +86,10 @@ impl AudioEncoder for OpusEncoder {
             .inner
             .encode_vec(pcm, MAX_PACKET_BYTES)
             .map_err(|e| EncodeError::Backend(format!("opus_encode: {e}")))?;
-        Ok(EncodedAudioFrame { data, timestamp_micros: 0 })
+        Ok(EncodedAudioFrame {
+            data,
+            timestamp_micros: 0,
+        })
     }
 }
 
@@ -100,7 +109,11 @@ impl OpusDecoder {
             .map_err(|e| DecodeError::Backend(format!("opus_decoder_create: {e}")))?;
         const MAX_SAMPLES_PER_CHANNEL_120MS_AT_48KHZ: usize = 5760;
         let scratch = vec![0i16; MAX_SAMPLES_PER_CHANNEL_120MS_AT_48KHZ * channels.count()];
-        Ok(Self { inner, channels, scratch })
+        Ok(Self {
+            inner,
+            channels,
+            scratch,
+        })
     }
 }
 
@@ -168,6 +181,9 @@ mod tests {
     fn rejects_pcm_length_not_matching_channel_count() {
         let mut encoder = OpusEncoder::new(48_000, AudioChannels::Stereo, 32_000).unwrap();
         let odd_length_pcm = vec![0i16; 3]; // not a multiple of 2 channels
-        assert!(matches!(encoder.encode(&odd_length_pcm), Err(EncodeError::Unsupported(_))));
+        assert!(matches!(
+            encoder.encode(&odd_length_pcm),
+            Err(EncodeError::Unsupported(_))
+        ));
     }
 }
