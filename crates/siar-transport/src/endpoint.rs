@@ -7,10 +7,7 @@ use crate::{
     pool::ConnectionPool,
     PeerTransport, TransportError,
 };
-use iroh::{
-    protocol::Router,
-    Endpoint, EndpointAddr, EndpointId, SecretKey,
-};
+use iroh::{protocol::Router, Endpoint, EndpointAddr, EndpointId, SecretKey};
 use iroh_mdns_address_lookup::MdnsAddressLookup;
 use siar_protocol::{
     decode_frame_generic, encode_frame, encode_frame_generic, BlobRequest, BlobResponse,
@@ -82,7 +79,9 @@ impl SiarEndpoint {
             // flagged assumption as the `mdns.builder().build(...)` call
             // just above.
             .map_err(|e| {
-                TransportError::Bind(format!("endpoint has no address_lookup registry under presets::N0: {e}"))
+                TransportError::Bind(format!(
+                    "endpoint has no address_lookup registry under presets::N0: {e}"
+                ))
             })?
             .add(mdns.clone());
         spawn_local_discovery_task(mdns, Arc::clone(&local_peers));
@@ -158,11 +157,16 @@ impl SiarEndpoint {
             .map_err(|e| TransportError::Write(e.to_string()))?;
 
         let mut framed = Vec::new();
-        encode_frame_generic(&BlobRequest { blob_hash }, MAX_BLOB_FRAME_BYTES, &mut framed)?;
+        encode_frame_generic(
+            &BlobRequest { blob_hash },
+            MAX_BLOB_FRAME_BYTES,
+            &mut framed,
+        )?;
         send.write_all(&framed)
             .await
             .map_err(|e| TransportError::Write(e.to_string()))?;
-        send.finish().map_err(|e| TransportError::Write(e.to_string()))?;
+        send.finish()
+            .map_err(|e| TransportError::Write(e.to_string()))?;
 
         let bytes = recv
             .read_to_end(MAX_BLOB_FRAME_BYTES)
