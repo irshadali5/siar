@@ -134,7 +134,10 @@ fn intersect_descriptor(
     };
 
     Ok(Some(CapabilityDescriptor::new(
-        local.id, version, requirement, parameters,
+        local.id,
+        version,
+        requirement,
+        parameters,
     )))
 }
 
@@ -152,7 +155,9 @@ fn combine_parameters(
     remote: &CapabilityParameters,
 ) -> Option<CapabilityParameters> {
     match (local, remote) {
-        (CapabilityParameters::None, CapabilityParameters::None) => Some(CapabilityParameters::None),
+        (CapabilityParameters::None, CapabilityParameters::None) => {
+            Some(CapabilityParameters::None)
+        }
         (CapabilityParameters::U32(a), CapabilityParameters::U32(b)) => {
             Some(CapabilityParameters::U32(*a.min(b)))
         }
@@ -160,8 +165,14 @@ fn combine_parameters(
             Some(CapabilityParameters::U64(*a.min(b)))
         }
         (
-            CapabilityParameters::RangeU32 { min: a_min, max: a_max },
-            CapabilityParameters::RangeU32 { min: b_min, max: b_max },
+            CapabilityParameters::RangeU32 {
+                min: a_min,
+                max: a_max,
+            },
+            CapabilityParameters::RangeU32 {
+                min: b_min,
+                max: b_max,
+            },
         ) => {
             let min = *a_min.max(b_min);
             let max = *a_max.min(b_max);
