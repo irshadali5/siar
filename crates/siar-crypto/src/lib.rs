@@ -19,16 +19,18 @@
 //! comment for the derivation and, importantly, what it still doesn't
 //! solve.
 
-mod identity;
-mod session;
 mod attachment;
 mod device_cert;
 mod error;
+mod identity;
 mod mailbox_token;
+mod session;
 
+pub use attachment::{
+    decrypt_attachment, encrypt_attachment, AttachmentKey, BlobHash, EncryptedBlob,
+};
+pub use device_cert::{issue_device_certificate, verify_device_certificate, DeviceCertificate};
 pub use error::CryptoError;
 pub use identity::DeviceIdentity;
-pub use session::Session;
-pub use attachment::{decrypt_attachment, encrypt_attachment, AttachmentKey, BlobHash, EncryptedBlob};
-pub use device_cert::{issue_device_certificate, verify_device_certificate, DeviceCertificate};
 pub use mailbox_token::{epoch_for, MailboxToken, MailboxTokenSecret, EPOCH_LENGTH_MILLIS};
+pub use session::Session;
