@@ -88,7 +88,9 @@ pub mod identity;
 pub mod persistent;
 
 pub use group::{IncomingMlsMessage, MlsGroupError, MlsGroupSession};
-pub use identity::{decode_key_package, encode_key_package, generate_identity, MlsIdentity, MlsIdentityError};
+pub use identity::{
+    decode_key_package, encode_key_package, generate_identity, MlsIdentity, MlsIdentityError,
+};
 pub use persistent::{PersistentProviderError, PostcardCodec, SqlitePersistentProvider};
 // Re-exported so callers (e.g. `siar-messaging::group_service`) don't
 // need their own direct dependency on `openmls_rust_crypto` just to
