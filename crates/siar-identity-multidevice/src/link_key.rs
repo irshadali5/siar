@@ -18,7 +18,9 @@ pub struct EphemeralLinkKeyPair {
 
 impl EphemeralLinkKeyPair {
     pub fn generate() -> Self {
-        Self { secret: StaticSecret::random_from_rng(OsRng) }
+        Self {
+            secret: StaticSecret::random_from_rng(OsRng),
+        }
     }
 
     pub fn public_key(&self) -> EphemeralLinkPublicKey {
