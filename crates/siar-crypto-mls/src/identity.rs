@@ -55,7 +55,10 @@ pub struct MlsIdentity {
 /// `provider.storage()` (book_code.rs:
 /// `signature_keys.store(provider.storage()).unwrap()`) has to be
 /// readable from there for signing to work later.
-pub fn generate_identity<P: OpenMlsProvider>(device: DeviceId, provider: &P) -> Result<MlsIdentity, MlsIdentityError> {
+pub fn generate_identity<P: OpenMlsProvider>(
+    device: DeviceId,
+    provider: &P,
+) -> Result<MlsIdentity, MlsIdentityError> {
     // `DeviceId` has no direct byte-conversion method of its own
     // (`crates/siar-domain/src/ids.rs`'s `newtype_id!` macro exposes
     // `as_uuid()` -> `Uuid`, not raw bytes) — go through the `uuid`
@@ -88,10 +91,19 @@ pub fn generate_identity<P: OpenMlsProvider>(device: DeviceId, provider: &P) -> 
     // real to put in that extension list yet. Leaving it empty is the
     // honest default, not a stand-in for something unimplemented.
     let key_package = KeyPackage::builder()
-        .build(CIPHERSUITE, provider, &signature_keys, credential_with_key.clone())
+        .build(
+            CIPHERSUITE,
+            provider,
+            &signature_keys,
+            credential_with_key.clone(),
+        )
         .map_err(|e| MlsIdentityError::KeyPackage(format!("{e:?}")))?;
 
-    Ok(MlsIdentity { credential_with_key, signature_keys, key_package })
+    Ok(MlsIdentity {
+        credential_with_key,
+        signature_keys,
+        key_package,
+    })
 }
 
 /// Decodes and validates a serialized key package another device
