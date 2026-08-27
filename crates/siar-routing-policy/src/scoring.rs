@@ -32,7 +32,12 @@ pub struct RoutingContext {
 
 /// §26.
 pub trait PathScorer {
-    fn score(&self, candidate: &PathCandidate, req: &DeliveryRequirements, context: &RoutingContext) -> RouteScore;
+    fn score(
+        &self,
+        candidate: &PathCandidate,
+        req: &DeliveryRequirements,
+        context: &RoutingContext,
+    ) -> RouteScore;
 }
 
 /// §25 step 1, applied to one candidate. Real checks against fields
@@ -51,7 +56,12 @@ pub fn passes_hard_constraints(candidate: &PathCandidate, req: &DeliveryRequirem
     if !req.allow_relay && candidate.transport == TransportKind::IrohRelay {
         return false;
     }
-    if !req.allow_bluetooth && matches!(candidate.transport, TransportKind::BluetoothClassic | TransportKind::BluetoothLe) {
+    if !req.allow_bluetooth
+        && matches!(
+            candidate.transport,
+            TransportKind::BluetoothClassic | TransportKind::BluetoothLe
+        )
+    {
         return false;
     }
     if !req.allow_dtn && candidate.transport == TransportKind::Dtn {
@@ -64,7 +74,9 @@ pub fn passes_hard_constraints(candidate: &PathCandidate, req: &DeliveryRequirem
     // §13's own rule ("missing metrics must be represented explicitly")
     // means "unknown" is a distinct state from "known to be
     // insufficient," and only the latter is a hard-constraint failure.
-    if let (Some(min_bw), Some(estimated)) = (req.min_bandwidth, candidate.metrics.estimated_bandwidth) {
+    if let (Some(min_bw), Some(estimated)) =
+        (req.min_bandwidth, candidate.metrics.estimated_bandwidth)
+    {
         if estimated < min_bw {
             return false;
         }
@@ -77,7 +89,10 @@ pub fn eliminate_hard_constraint_violations<'a>(
     candidates: &'a [PathCandidate],
     req: &DeliveryRequirements,
 ) -> Vec<&'a PathCandidate> {
-    candidates.iter().filter(|c| passes_hard_constraints(c, req)).collect()
+    candidates
+        .iter()
+        .filter(|c| passes_hard_constraints(c, req))
+        .collect()
 }
 
 fn unit_interval(low_is_bad_high_is_good: f64) -> f64 {
@@ -138,14 +153,21 @@ pub struct DefaultScorer {
 }
 
 impl PathScorer for DefaultScorer {
-    fn score(&self, candidate: &PathCandidate, req: &DeliveryRequirements, _context: &RoutingContext) -> RouteScore {
+    fn score(
+        &self,
+        candidate: &PathCandidate,
+        req: &DeliveryRequirements,
+        _context: &RoutingContext,
+    ) -> RouteScore {
         let w = &self.weights;
         let m = &candidate.metrics;
 
         let reachability = reachability_unit(candidate.health);
 
         let latency_suitability = match (req.max_latency_millis, m.rtt_millis) {
-            (Some(max), Some(rtt)) => unit_interval(1.0 - (rtt as f64 / max as f64 - 1.0).max(0.0) / 2.0),
+            (Some(max), Some(rtt)) => {
+                unit_interval(1.0 - (rtt as f64 / max as f64 - 1.0).max(0.0) / 2.0)
+            }
             _ => 0.5, // unknown or unconstrained — neutral, not penalized (§13)
         };
 
@@ -161,7 +183,11 @@ impl PathScorer for DefaultScorer {
         // `last_success_millis` counts for something, but this
         // function has no clock of its own to judge *how* recent, so
         // it's binary (present/absent) rather than decayed by age.
-        let recent_success = if m.last_success_millis.is_some() { 1.0 } else { 0.5 };
+        let recent_success = if m.last_success_millis.is_some() {
+            1.0
+        } else {
+            0.5
+        };
 
         let total = w.reachability * reachability
             + w.latency * latency_suitability
@@ -240,7 +266,9 @@ mod tests {
     fn a_healthier_candidate_scores_higher_all_else_equal() {
         let req = DeliveryRequirements::interactive_message();
         let policy = RoutingPolicyProfile::Balanced.policy();
-        let scorer = DefaultScorer { weights: policy.weights };
+        let scorer = DefaultScorer {
+            weights: policy.weights,
+        };
         let context = RoutingContext::default();
 
         let healthy = candidate(TransportKind::IrohDirect, RouteHealth::Healthy, false);
