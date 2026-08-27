@@ -17,18 +17,20 @@
 
 mod attachment_preview;
 mod command;
+mod composer;
 mod contact_list;
 mod conversation_list;
 mod group_list;
-mod timeline;
-mod composer;
 mod network;
+mod timeline;
 
 pub use attachment_preview::{AttachmentPreview, AttachmentPreviewState};
 pub use command::{AppCommand, AppEvent};
 pub use composer::ComposerState;
 pub use contact_list::{ContactListState, SavedContact};
 pub use conversation_list::{ConversationKind, ConversationListState, ConversationSummary};
-pub use group_list::{AddMemberInput, GroupListState, GroupSummary, PendingInvite, PendingInviteState};
+pub use group_list::{
+    AddMemberInput, GroupListState, GroupSummary, PendingInvite, PendingInviteState,
+};
 pub use network::{NetworkState, NetworkStatus, PeerReachability};
 pub use timeline::{TimelineState, TimelineWindow};
