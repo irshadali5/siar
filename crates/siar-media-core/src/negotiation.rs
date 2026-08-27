@@ -51,21 +51,26 @@ pub fn negotiate_direction(
     sender: &VideoCapabilities,
     receiver: &VideoCapabilities,
 ) -> Option<NegotiatedDirection> {
-    DEFAULT_ENCODE_PRIORITY.iter().find_map(|&(codec, implementation)| {
-        let sender_can_encode = sender
-            .codecs
-            .iter()
-            .any(|c| c.codec == codec && c.implementation == implementation && c.can_encode);
-        let receiver_can_decode = receiver
-            .codecs
-            .iter()
-            .any(|c| c.codec == codec && c.can_decode);
-        if sender_can_encode && receiver_can_decode {
-            Some(NegotiatedDirection { codec, implementation })
-        } else {
-            None
-        }
-    })
+    DEFAULT_ENCODE_PRIORITY
+        .iter()
+        .find_map(|&(codec, implementation)| {
+            let sender_can_encode = sender
+                .codecs
+                .iter()
+                .any(|c| c.codec == codec && c.implementation == implementation && c.can_encode);
+            let receiver_can_decode = receiver
+                .codecs
+                .iter()
+                .any(|c| c.codec == codec && c.can_decode);
+            if sender_can_encode && receiver_can_decode {
+                Some(NegotiatedDirection {
+                    codec,
+                    implementation,
+                })
+            } else {
+                None
+            }
+        })
 }
 
 /// Full call negotiation: both directions, independently (architecture
@@ -84,7 +89,12 @@ mod tests {
     use super::*;
     use crate::capability::{BitrateRange, FrameRateRange, Resolution, VideoCodecCapability};
 
-    fn cap(codec: VideoCodec, implementation: CodecImplementation, encode: bool, decode: bool) -> VideoCodecCapability {
+    fn cap(
+        codec: VideoCodec,
+        implementation: CodecImplementation,
+        encode: bool,
+        decode: bool,
+    ) -> VideoCodecCapability {
         VideoCodecCapability {
             codec,
             implementation,
@@ -93,8 +103,14 @@ mod tests {
             max_resolution: Resolution::new(1280, 720),
             max_fps: 30,
             supported_profiles: vec![],
-            bitrate_range: BitrateRange { min_bps: 100_000, max_bps: 2_000_000 },
-            frame_rate_range: FrameRateRange { min_fps: 15, max_fps: 30 },
+            bitrate_range: BitrateRange {
+                min_bps: 100_000,
+                max_bps: 2_000_000,
+            },
+            frame_rate_range: FrameRateRange {
+                min_fps: 15,
+                max_fps: 30,
+            },
         }
     }
 
@@ -104,9 +120,15 @@ mod tests {
         let negotiated = negotiate_call(&desktop, &desktop);
         assert_eq!(
             negotiated.offerer_to_answerer,
-            Some(NegotiatedDirection { codec: VideoCodec::Av1, implementation: CodecImplementation::Software })
+            Some(NegotiatedDirection {
+                codec: VideoCodec::Av1,
+                implementation: CodecImplementation::Software
+            })
         );
-        assert_eq!(negotiated.offerer_to_answerer, negotiated.answerer_to_offerer);
+        assert_eq!(
+            negotiated.offerer_to_answerer,
+            negotiated.answerer_to_offerer
+        );
         assert!(!negotiated.is_audio_only());
     }
 
@@ -129,7 +151,10 @@ mod tests {
         let negotiated = negotiate_call(&old_phone, &modern_phone);
         assert_eq!(
             negotiated.offerer_to_answerer,
-            Some(NegotiatedDirection { codec: VideoCodec::H264, implementation: CodecImplementation::Hardware })
+            Some(NegotiatedDirection {
+                codec: VideoCodec::H264,
+                implementation: CodecImplementation::Hardware
+            })
         );
     }
 
@@ -172,7 +197,10 @@ mod tests {
         // Bob -> Alice: Bob encodes AV1 hw, Alice can decode AV1 -> Some
         assert_eq!(
             negotiated.answerer_to_offerer,
-            Some(NegotiatedDirection { codec: VideoCodec::Av1, implementation: CodecImplementation::Hardware })
+            Some(NegotiatedDirection {
+                codec: VideoCodec::Av1,
+                implementation: CodecImplementation::Hardware
+            })
         );
         assert!(!negotiated.is_audio_only());
     }
