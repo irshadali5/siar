@@ -15,8 +15,8 @@
 
 use crate::StorageError;
 use siar_domain::{AccountId, DeviceId};
-use stoolap::Database;
 use std::sync::Arc;
+use stoolap::Database;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,7 +59,10 @@ impl ContactRepository for StoolapContactRepository {
         let device_id = contact.device_id.as_uuid().to_string();
 
         self.db
-            .execute("DELETE FROM contacts WHERE device_id = $1", (device_id.clone(),))
+            .execute(
+                "DELETE FROM contacts WHERE device_id = $1",
+                (device_id.clone(),),
+            )
             .map_err(StorageError::from_stoolap)?;
         self.db
             .execute(
