@@ -53,7 +53,10 @@ pub enum MessageServiceError {
 #[derive(Debug, Clone)]
 pub enum IncomingEvent {
     Content(MessageContent),
-    CallSignal { from: DeviceId, event: CallControlEvent },
+    CallSignal {
+        from: DeviceId,
+        event: CallControlEvent,
+    },
 }
 
 pub struct MessageService {
@@ -112,9 +115,14 @@ impl MessageService {
     /// that needs a token derivation goes through this or
     /// [`send_text_anon`](Self::send_text_anon), never touching a raw
     /// `DeviceIdentity` itself.
-    pub fn build_anonymous_check_in(&self, peer: &PeerTicket, now_millis: u64) -> siar_protocol::AnonymousMailboxCheckIn {
+    pub fn build_anonymous_check_in(
+        &self,
+        peer: &PeerTicket,
+        now_millis: u64,
+    ) -> siar_protocol::AnonymousMailboxCheckIn {
         let peer_x25519_public = x25519_dalek::PublicKey::from(peer.x25519_public);
-        let token_secret = siar_crypto::MailboxTokenSecret::establish(&self.identity, &peer_x25519_public);
+        let token_secret =
+            siar_crypto::MailboxTokenSecret::establish(&self.identity, &peer_x25519_public);
         siar_protocol::AnonymousMailboxCheckIn::new(&token_secret, now_millis)
     }
 
@@ -180,14 +188,20 @@ impl MessageService {
                 // drop messages whose ACK never arrives. `reschedule`
                 // (not `record_failure`) pushes the next retry out
                 // without counting this as a failed attempt.
-                self.messages.update_delivery_state(message_id, DeliveryState::Sent)?;
+                self.messages
+                    .update_delivery_state(message_id, DeliveryState::Sent)?;
                 self.outbox
                     .reschedule(message_id, (now_millis() + ACK_TIMEOUT_MILLIS) as i64)?;
             }
             Err(e) => {
                 tracing::warn!(error = %e, "send failed, left in outbox for retry");
-                let delay = with_jitter(backoff_millis(0), pseudo_unit_random(message_id), RETRY_JITTER_FRACTION);
-                self.outbox.record_failure(message_id, (now_millis() + delay) as i64)?;
+                let delay = with_jitter(
+                    backoff_millis(0),
+                    pseudo_unit_random(message_id),
+                    RETRY_JITTER_FRACTION,
+                );
+                self.outbox
+                    .record_failure(message_id, (now_millis() + delay) as i64)?;
             }
         }
 
@@ -233,7 +247,8 @@ impl MessageService {
         let ciphertext = session.encrypt(&plaintext)?;
 
         let peer_x25519_public = x25519_dalek::PublicKey::from(peer.x25519_public);
-        let token_secret = siar_crypto::MailboxTokenSecret::establish(&self.identity, &peer_x25519_public);
+        let token_secret =
+            siar_crypto::MailboxTokenSecret::establish(&self.identity, &peer_x25519_public);
         let destination_token = token_secret.token_for_epoch(siar_crypto::epoch_for(now));
 
         let envelope = siar_protocol::TokenMailboxEnvelope {
@@ -256,7 +271,10 @@ impl MessageService {
         };
 
         self.endpoint
-            .send(relay.endpoint_addr.clone(), &WireMessage::TokenMailboxDeposit(envelope))
+            .send(
+                relay.endpoint_addr.clone(),
+                &WireMessage::TokenMailboxDeposit(envelope),
+            )
             .await?;
 
         Ok(message_id)
@@ -344,14 +362,20 @@ impl MessageService {
             .await
         {
             Ok(()) => {
-                self.messages.update_delivery_state(message_id, DeliveryState::Sent)?;
+                self.messages
+                    .update_delivery_state(message_id, DeliveryState::Sent)?;
                 self.outbox
                     .reschedule(message_id, (now_millis() + ACK_TIMEOUT_MILLIS) as i64)?;
             }
             Err(e) => {
                 tracing::warn!(error = %e, "attachment send failed, left in outbox for retry");
-                let delay = with_jitter(backoff_millis(0), pseudo_unit_random(message_id), RETRY_JITTER_FRACTION);
-                self.outbox.record_failure(message_id, (now_millis() + delay) as i64)?;
+                let delay = with_jitter(
+                    backoff_millis(0),
+                    pseudo_unit_random(message_id),
+                    RETRY_JITTER_FRACTION,
+                );
+                self.outbox
+                    .record_failure(message_id, (now_millis() + delay) as i64)?;
             }
         }
 
@@ -386,7 +410,10 @@ impl MessageService {
                 // (see `EnvelopeKind::CallSignal`'s doc comment on why
                 // it rides as a plain field) — nothing to decrypt, just
                 // hand the event to the caller's call-state machine.
-                Ok(Some(IncomingEvent::CallSignal { from: envelope.sender, event }))
+                Ok(Some(IncomingEvent::CallSignal {
+                    from: envelope.sender,
+                    event,
+                }))
             }
             EnvelopeKind::GroupEvent
             | EnvelopeKind::GroupMlsCommit
@@ -409,8 +436,8 @@ impl MessageService {
             EnvelopeKind::Text | EnvelopeKind::Attachment => {
                 let session = self.session_for(peer);
                 let plaintext = session.decrypt(&envelope.payload)?;
-                let content: MessageContent = postcard::from_bytes(&plaintext)
-                    .map_err(|_| MessageServiceError::Malformed)?;
+                let content: MessageContent =
+                    postcard::from_bytes(&plaintext).map_err(|_| MessageServiceError::Malformed)?;
 
                 let stored = StoredMessage {
                     message_id: envelope.message_id,
@@ -603,7 +630,8 @@ impl MessageService {
                         pseudo_unit_random(op.message_id),
                         RETRY_JITTER_FRACTION,
                     );
-                    self.outbox.record_failure(op.message_id, (now_millis() + delay) as i64)?;
+                    self.outbox
+                        .record_failure(op.message_id, (now_millis() + delay) as i64)?;
                 }
             }
         }
