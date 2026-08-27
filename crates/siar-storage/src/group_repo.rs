@@ -9,8 +9,8 @@
 
 use crate::StorageError;
 use siar_domain::{AccountId, ConversationId, GroupEpoch, GroupMember, GroupState, MemberRole};
-use stoolap::Database;
 use std::sync::Arc;
+use stoolap::Database;
 use uuid::Uuid;
 
 pub trait GroupRepository {
@@ -82,10 +82,14 @@ impl GroupRepository for StoolapGroupRepository {
         // plan.md §16's transactional-write rule, applied to group
         // state: a crash mid-replace must not leave `group_state` and
         // `group_members` disagreeing with each other.
-        self.db.execute("BEGIN", ()).map_err(StorageError::from_stoolap)?;
+        self.db
+            .execute("BEGIN", ())
+            .map_err(StorageError::from_stoolap)?;
         match run() {
             Ok(()) => {
-                self.db.execute("COMMIT", ()).map_err(StorageError::from_stoolap)?;
+                self.db
+                    .execute("COMMIT", ())
+                    .map_err(StorageError::from_stoolap)?;
                 Ok(())
             }
             Err(e) => {
@@ -170,7 +174,11 @@ fn str_to_role(s: &str) -> Result<MemberRole, StorageError> {
     Ok(match s {
         "member" => MemberRole::Member,
         "admin" => MemberRole::Admin,
-        other => return Err(StorageError::MalformedId(format!("unknown group role '{other}'"))),
+        other => {
+            return Err(StorageError::MalformedId(format!(
+                "unknown group role '{other}'"
+            )))
+        }
     })
 }
 
@@ -219,7 +227,10 @@ mod tests {
         repo.upsert(&state).unwrap();
         assert_eq!(repo.get(conversation).unwrap().unwrap().members().len(), 2);
 
-        state.apply(&siar_domain::DurableGroupEvent::MemberRemoved { account: bob, epoch: state.epoch });
+        state.apply(&siar_domain::DurableGroupEvent::MemberRemoved {
+            account: bob,
+            epoch: state.epoch,
+        });
         repo.upsert(&state).unwrap();
         let round_tripped = repo.get(conversation).unwrap().unwrap();
         assert_eq!(round_tripped.members().len(), 1);
