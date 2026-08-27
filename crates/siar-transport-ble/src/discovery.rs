@@ -60,14 +60,19 @@ impl DiscoveryBeacon {
 
     pub fn decode(bytes: &[u8]) -> Result<Self, DiscoveryBeaconError> {
         if bytes.len() != ENCODED_LEN {
-            return Err(DiscoveryBeaconError::WrongLength { got: bytes.len(), need: ENCODED_LEN });
+            return Err(DiscoveryBeaconError::WrongLength {
+                got: bytes.len(),
+                need: ENCODED_LEN,
+            });
         }
         let mut ephemeral_node_id = [0u8; 16];
         ephemeral_node_id.copy_from_slice(&bytes[1..17]);
         Ok(Self {
             protocol_version: bytes[0],
             ephemeral_node_id,
-            capability_bits: u32::from_be_bytes(bytes[17..21].try_into().expect("slice is exactly 4 bytes")),
+            capability_bits: u32::from_be_bytes(
+                bytes[17..21].try_into().expect("slice is exactly 4 bytes"),
+            ),
             epoch: u16::from_be_bytes(bytes[21..23].try_into().expect("slice is exactly 2 bytes")),
         })
     }
@@ -95,14 +100,21 @@ mod tests {
             capability_bits: capability_bits::BLE_TRANSPORT | capability_bits::DTN_RELAY,
             epoch: 42,
         };
-        let decoded = DiscoveryBeacon::decode(&beacon.encode()).expect("valid beacon should decode");
+        let decoded =
+            DiscoveryBeacon::decode(&beacon.encode()).expect("valid beacon should decode");
         assert_eq!(decoded, beacon);
     }
 
     #[test]
     fn decode_rejects_wrong_length() {
         let err = DiscoveryBeacon::decode(&[0u8; 10]).unwrap_err();
-        assert_eq!(err, DiscoveryBeaconError::WrongLength { got: 10, need: ENCODED_LEN });
+        assert_eq!(
+            err,
+            DiscoveryBeaconError::WrongLength {
+                got: 10,
+                need: ENCODED_LEN
+            }
+        );
     }
 
     #[test]
