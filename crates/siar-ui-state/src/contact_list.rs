@@ -36,7 +36,11 @@ impl ContactListState {
     }
 
     pub fn upsert(&mut self, contact: SavedContact) {
-        if let Some(existing) = self.contacts.iter_mut().find(|c| c.device_id == contact.device_id) {
+        if let Some(existing) = self
+            .contacts
+            .iter_mut()
+            .find(|c| c.device_id == contact.device_id)
+        {
             *existing = contact;
         } else {
             self.contacts.push(contact);
@@ -83,7 +87,10 @@ mod tests {
         state.upsert(contact(id));
         assert_eq!(state.ordered().len(), 1);
 
-        state.upsert(SavedContact { display_name: "Bob (renamed)".to_string(), ..contact(id) });
+        state.upsert(SavedContact {
+            display_name: "Bob (renamed)".to_string(),
+            ..contact(id)
+        });
         assert_eq!(state.ordered().len(), 1);
         assert_eq!(state.ordered()[0].display_name, "Bob (renamed)");
     }
