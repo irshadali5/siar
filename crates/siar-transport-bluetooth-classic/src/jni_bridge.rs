@@ -32,7 +32,9 @@ pub struct RfcommBridge {
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_siar_bluetoothclassic_NativeBluetoothClassicBridge_createBridge<'local>(
+pub extern "system" fn Java_com_siar_bluetoothclassic_NativeBluetoothClassicBridge_createBridge<
+    'local,
+>(
     _env: JNIEnv<'local>,
     _class: JClass<'local>,
 ) -> jlong {
@@ -44,7 +46,9 @@ pub extern "system" fn Java_com_siar_bluetoothclassic_NativeBluetoothClassicBrid
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_siar_bluetoothclassic_NativeBluetoothClassicBridge_destroyBridge<'local>(
+pub extern "system" fn Java_com_siar_bluetoothclassic_NativeBluetoothClassicBridge_destroyBridge<
+    'local,
+>(
     _env: JNIEnv<'local>,
     _class: JClass<'local>,
     handle: jlong,
@@ -86,15 +90,21 @@ fn bytes_to_jbyte_array(env: &mut JNIEnv, data: &[u8]) -> jbyteArray {
 /// close the socket, the same "tear it down, don't paper over it"
 /// stance `framing.rs`'s own doc comment describes.
 #[no_mangle]
-pub extern "system" fn Java_com_siar_bluetoothclassic_NativeBluetoothClassicBridge_onBytesReceived<'local>(
+pub extern "system" fn Java_com_siar_bluetoothclassic_NativeBluetoothClassicBridge_onBytesReceived<
+    'local,
+>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,
     handle: jlong,
     data: JByteArray<'local>,
 ) {
     // SAFETY: see `bridge_from_handle`.
-    let Some(bridge) = (unsafe { bridge_from_handle(handle) }) else { return };
-    let Ok(bytes) = env.convert_byte_array(&data) else { return };
+    let Some(bridge) = (unsafe { bridge_from_handle(handle) }) else {
+        return;
+    };
+    let Ok(bytes) = env.convert_byte_array(&data) else {
+        return;
+    };
 
     let mut bridge = bridge.lock().expect("RfcommBridge lock poisoned");
     if let Ok(envelopes) = bridge.decoder.push(&bytes) {
@@ -111,13 +121,17 @@ pub extern "system" fn Java_com_siar_bluetoothclassic_NativeBluetoothClassicBrid
 
 /// Pull side of `onBytesReceived`: `null` if nothing's ready yet.
 #[no_mangle]
-pub extern "system" fn Java_com_siar_bluetoothclassic_NativeBluetoothClassicBridge_nextReceivedEnvelope<'local>(
+pub extern "system" fn Java_com_siar_bluetoothclassic_NativeBluetoothClassicBridge_nextReceivedEnvelope<
+    'local,
+>(
     mut env: JNIEnv<'local>,
     _class: JClass<'local>,
     handle: jlong,
 ) -> jbyteArray {
     // SAFETY: see `bridge_from_handle`.
-    let Some(bridge) = (unsafe { bridge_from_handle(handle) }) else { return std::ptr::null_mut() };
+    let Some(bridge) = (unsafe { bridge_from_handle(handle) }) else {
+        return std::ptr::null_mut();
+    };
     let mut bridge = bridge.lock().expect("RfcommBridge lock poisoned");
     match bridge.received_envelopes.pop_front() {
         Some(data) => bytes_to_jbyte_array(&mut env, &data),
@@ -130,15 +144,21 @@ pub extern "system" fn Java_com_siar_bluetoothclassic_NativeBluetoothClassicBrid
 /// workspace follows) via `framing::encode_frame` and queues the wire
 /// bytes for `nextChunkToSend` to pull.
 #[no_mangle]
-pub extern "system" fn Java_com_siar_bluetoothclassic_NativeBluetoothClassicBridge_queueEnvelopeToSend<'local>(
+pub extern "system" fn Java_com_siar_bluetoothclassic_NativeBluetoothClassicBridge_queueEnvelopeToSend<
+    'local,
+>(
     env: JNIEnv<'local>,
     _class: JClass<'local>,
     handle: jlong,
     data: JByteArray<'local>,
 ) {
     // SAFETY: see `bridge_from_handle`.
-    let Some(bridge) = (unsafe { bridge_from_handle(handle) }) else { return };
-    let Ok(bytes) = env.convert_byte_array(&data) else { return };
+    let Some(bridge) = (unsafe { bridge_from_handle(handle) }) else {
+        return;
+    };
+    let Ok(bytes) = env.convert_byte_array(&data) else {
+        return;
+    };
 
     let mut bridge = bridge.lock().expect("RfcommBridge lock poisoned");
     bridge.frames_to_send.push_back(encode_frame(&bytes));
@@ -150,13 +170,17 @@ pub extern "system" fn Java_com_siar_bluetoothclassic_NativeBluetoothClassicBrid
 /// Kotlin may write this straight through in one call, since RFCOMM has
 /// no MTU to pace against.
 #[no_mangle]
-pub extern "system" fn Java_com_siar_bluetoothclassic_NativeBluetoothClassicBridge_nextChunkToSend<'local>(
+pub extern "system" fn Java_com_siar_bluetoothclassic_NativeBluetoothClassicBridge_nextChunkToSend<
+    'local,
+>(
     mut env: JNIEnv<'local>,
     _class: JClass<'local>,
     handle: jlong,
 ) -> jbyteArray {
     // SAFETY: see `bridge_from_handle`.
-    let Some(bridge) = (unsafe { bridge_from_handle(handle) }) else { return std::ptr::null_mut() };
+    let Some(bridge) = (unsafe { bridge_from_handle(handle) }) else {
+        return std::ptr::null_mut();
+    };
     let mut bridge = bridge.lock().expect("RfcommBridge lock poisoned");
     match bridge.frames_to_send.pop_front() {
         Some(data) => bytes_to_jbyte_array(&mut env, &data),
