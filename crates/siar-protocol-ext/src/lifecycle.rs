@@ -9,7 +9,9 @@
 /// highest-priority-first scheduling"); the scheduler itself is out of
 /// scope for this crate (see this crate's top-level doc comment) — this
 /// is only the priority vocabulary a future scheduler would consume.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub enum TrafficPriority {
     Critical,
     Control,
@@ -58,10 +60,17 @@ impl ExtensionLifecycle {
     /// the spec draws them as exits from the happy path generally, not
     /// from one specific stage, and a protocol violation in particular
     /// (spec §28) can genuinely occur at any point after negotiation.
-    pub fn advance(self, to: ExtensionLifecycle) -> Result<ExtensionLifecycle, InvalidLifecycleTransition> {
+    pub fn advance(
+        self,
+        to: ExtensionLifecycle,
+    ) -> Result<ExtensionLifecycle, InvalidLifecycleTransition> {
         use ExtensionLifecycle::*;
-        let is_failure_exit = matches!(to, Rejected | Unsupported | VersionMismatch | ProtocolError);
-        let is_terminal = matches!(self, Closed | Rejected | Unsupported | VersionMismatch | ProtocolError);
+        let is_failure_exit =
+            matches!(to, Rejected | Unsupported | VersionMismatch | ProtocolError);
+        let is_terminal = matches!(
+            self,
+            Closed | Rejected | Unsupported | VersionMismatch | ProtocolError
+        );
         let valid = match (self, to) {
             _ if is_terminal => false,
             _ if is_failure_exit => true,
@@ -82,7 +91,9 @@ impl ExtensionLifecycle {
 }
 
 /// spec §27, verbatim enum.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, thiserror::Error, serde::Serialize, serde::Deserialize,
+)]
 pub enum ExtensionError {
     #[error("extension unsupported")]
     Unsupported,
