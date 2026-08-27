@@ -44,7 +44,10 @@ impl PayloadReference {
     pub fn validate(&self) -> Result<(), InlinePayloadTooLarge> {
         if let Self::Inline(bytes) = self {
             if bytes.len() > MAX_INLINE_PAYLOAD_BYTES {
-                return Err(InlinePayloadTooLarge { actual: bytes.len(), max: MAX_INLINE_PAYLOAD_BYTES });
+                return Err(InlinePayloadTooLarge {
+                    actual: bytes.len(),
+                    max: MAX_INLINE_PAYLOAD_BYTES,
+                });
             }
         }
         Ok(())
@@ -66,7 +69,10 @@ mod tests {
         let payload = PayloadReference::Inline(vec![0u8; MAX_INLINE_PAYLOAD_BYTES + 1]);
         assert_eq!(
             payload.validate(),
-            Err(InlinePayloadTooLarge { actual: MAX_INLINE_PAYLOAD_BYTES + 1, max: MAX_INLINE_PAYLOAD_BYTES })
+            Err(InlinePayloadTooLarge {
+                actual: MAX_INLINE_PAYLOAD_BYTES + 1,
+                max: MAX_INLINE_PAYLOAD_BYTES
+            })
         );
     }
 
