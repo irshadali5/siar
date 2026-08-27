@@ -115,5 +115,6 @@ pub use spray::spray_allocation;
 pub use state::{BundleEvent, BundleState, InvalidBundleTransition};
 pub use store::{BundleStore, DtnStoreError, ForwardQuery, InMemoryBundleStore, StoredBundle};
 pub use types::{
-    BroadcastScope, BundleId, DtnDestination, DtnPriority, DtnSource, ForwardingClass, PayloadTypeId, RouteToken, StorageClass,
+    BroadcastScope, BundleId, DtnDestination, DtnPriority, DtnSource, ForwardingClass,
+    PayloadTypeId, RouteToken, StorageClass,
 };
