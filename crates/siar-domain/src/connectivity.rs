@@ -106,7 +106,12 @@ impl ConnectivityState {
     /// insertion order into `active` — two links coming up in either
     /// order should report the same effective mode.
     pub fn effective_mode(&self) -> EffectiveConnectivity {
-        let Some(best) = self.active.iter().copied().min_by_key(|link| link.preference_rank()) else {
+        let Some(best) = self
+            .active
+            .iter()
+            .copied()
+            .min_by_key(|link| link.preference_rank())
+        else {
             return EffectiveConnectivity::Isolated;
         };
         use TransportLink::*;
@@ -144,7 +149,10 @@ mod tests {
 
     #[test]
     fn no_links_is_isolated() {
-        assert_eq!(ConnectivityState::new().effective_mode(), EffectiveConnectivity::Isolated);
+        assert_eq!(
+            ConnectivityState::new().effective_mode(),
+            EffectiveConnectivity::Isolated
+        );
     }
 
     #[test]
@@ -153,7 +161,10 @@ mod tests {
         state.mark_up(Ble);
         state.mark_up(LocalLan);
         state.mark_up(InternetDirect);
-        assert_eq!(state.effective_mode(), EffectiveConnectivity::InternetDirect);
+        assert_eq!(
+            state.effective_mode(),
+            EffectiveConnectivity::InternetDirect
+        );
     }
 
     #[test]
@@ -169,11 +180,17 @@ mod tests {
     fn wifi_direct_and_wifi_aware_both_map_to_wifi_peer_to_peer() {
         let mut direct = ConnectivityState::new();
         direct.mark_up(WifiDirect);
-        assert_eq!(direct.effective_mode(), EffectiveConnectivity::WifiPeerToPeer);
+        assert_eq!(
+            direct.effective_mode(),
+            EffectiveConnectivity::WifiPeerToPeer
+        );
 
         let mut aware = ConnectivityState::new();
         aware.mark_up(WifiAware);
-        assert_eq!(aware.effective_mode(), EffectiveConnectivity::WifiPeerToPeer);
+        assert_eq!(
+            aware.effective_mode(),
+            EffectiveConnectivity::WifiPeerToPeer
+        );
     }
 
     #[test]
