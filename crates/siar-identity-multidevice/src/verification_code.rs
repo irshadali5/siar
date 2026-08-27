@@ -17,9 +17,16 @@ use crate::link_key::EphemeralLinkPublicKey;
 /// traffic (both public keys, the invite) cannot precompute the
 /// verification code without actually completing the Diffie-Hellman
 /// exchange.
-fn transcript(invite: &DeviceLinkInvite, responder_public: &EphemeralLinkPublicKey, shared_secret: &[u8; 32]) -> Vec<u8> {
+fn transcript(
+    invite: &DeviceLinkInvite,
+    responder_public: &EphemeralLinkPublicKey,
+    shared_secret: &[u8; 32],
+) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(&postcard::to_allocvec(invite).expect("postcard encoding of a fixed-shape struct cannot fail"));
+    bytes.extend_from_slice(
+        &postcard::to_allocvec(invite)
+            .expect("postcard encoding of a fixed-shape struct cannot fail"),
+    );
     bytes.extend_from_slice(&responder_public.0);
     bytes.extend_from_slice(shared_secret);
     bytes
@@ -32,7 +39,11 @@ fn transcript(invite: &DeviceLinkInvite, responder_public: &EphemeralLinkPublicK
 /// one linking attempt), matching the low end of the spec's own stated
 /// range rather than the high end, since a 12-digit code is
 /// meaningfully harder for a person to actually compare correctly.
-pub fn derive_verification_code(invite: &DeviceLinkInvite, responder_public: &EphemeralLinkPublicKey, shared_secret: &[u8; 32]) -> String {
+pub fn derive_verification_code(
+    invite: &DeviceLinkInvite,
+    responder_public: &EphemeralLinkPublicKey,
+    shared_secret: &[u8; 32],
+) -> String {
     let transcript_bytes = transcript(invite, responder_public, shared_secret);
     let hash = blake3::hash(&transcript_bytes);
     let hash_bytes = hash.as_bytes();
@@ -55,7 +66,13 @@ mod tests {
         let root = RootIdentityKey::generate();
         let inviter = EphemeralLinkKeyPair::generate();
         let new_device = EphemeralLinkKeyPair::generate();
-        let invite = DeviceLinkInvite::create(&root, AccountId::new(), DeviceId::new(), inviter.public_key(), 10_000);
+        let invite = DeviceLinkInvite::create(
+            &root,
+            AccountId::new(),
+            DeviceId::new(),
+            inviter.public_key(),
+            10_000,
+        );
         let shared_secret = inviter.diffie_hellman(&new_device.public_key());
         (invite, new_device.public_key(), shared_secret)
     }
@@ -73,13 +90,21 @@ mod tests {
         let root = RootIdentityKey::generate();
         let inviter = EphemeralLinkKeyPair::generate();
         let new_device = EphemeralLinkKeyPair::generate();
-        let invite = DeviceLinkInvite::create(&root, AccountId::new(), DeviceId::new(), inviter.public_key(), 10_000);
+        let invite = DeviceLinkInvite::create(
+            &root,
+            AccountId::new(),
+            DeviceId::new(),
+            inviter.public_key(),
+            10_000,
+        );
 
         let shared_a = inviter.diffie_hellman(&new_device.public_key());
         let shared_b = new_device.diffie_hellman(&inviter.public_key());
 
-        let code_inviter_side = derive_verification_code(&invite, &new_device.public_key(), &shared_a);
-        let code_new_device_side = derive_verification_code(&invite, &new_device.public_key(), &shared_b);
+        let code_inviter_side =
+            derive_verification_code(&invite, &new_device.public_key(), &shared_a);
+        let code_new_device_side =
+            derive_verification_code(&invite, &new_device.public_key(), &shared_b);
         assert_eq!(code_inviter_side, code_new_device_side);
     }
 
