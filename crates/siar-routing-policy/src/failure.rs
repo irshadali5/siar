@@ -39,7 +39,10 @@ impl RouteFailureClass {
     /// that was actually transient) rather than the spec dictating
     /// either choice explicitly for this variant.
     pub fn is_retryable(self) -> bool {
-        matches!(self, Self::Temporary | Self::TransportUnavailable | Self::Unknown)
+        matches!(
+            self,
+            Self::Temporary | Self::TransportUnavailable | Self::Unknown
+        )
     }
 }
 
