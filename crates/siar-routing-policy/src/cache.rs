@@ -30,8 +30,21 @@ impl RouteCache {
         Self::default()
     }
 
-    pub fn put(&mut self, destination: Destination, plan: RoutePlan, now_millis: u64, ttl_millis: u64) {
-        self.entries.insert(destination, CachedRoute { plan, observed_at_millis: now_millis, ttl_millis });
+    pub fn put(
+        &mut self,
+        destination: Destination,
+        plan: RoutePlan,
+        now_millis: u64,
+        ttl_millis: u64,
+    ) {
+        self.entries.insert(
+            destination,
+            CachedRoute {
+                plan,
+                observed_at_millis: now_millis,
+                ttl_millis,
+            },
+        );
     }
 
     /// Returns the cached plan only if it hasn't outlived its TTL as of
@@ -92,7 +105,12 @@ mod tests {
             },
             health: RouteHealth::Healthy,
         };
-        RoutePlan { primary: candidate, fallbacks: vec![], replicas: vec![], strategy: RouteStrategy::Single }
+        RoutePlan {
+            primary: candidate,
+            fallbacks: vec![],
+            replicas: vec![],
+            strategy: RouteStrategy::Single,
+        }
     }
 
     #[test]
