@@ -25,8 +25,13 @@ pub use capability::{
     BitrateRange, CodecProfile, FrameRateRange, Resolution, VideoCapabilities, VideoCodecCapability,
 };
 pub use codec::{AudioCodec, CodecImplementation, VideoCodec};
-pub use error::{AudioDecoder, AudioEncoder, DecodeError, EncodeError, EncodedAudioFrame, VideoDecoder, VideoEncoder};
+pub use error::{
+    AudioDecoder, AudioEncoder, DecodeError, EncodeError, EncodedAudioFrame, VideoDecoder,
+    VideoEncoder,
+};
 pub use frame::{DecodedVideoFrame, EncodedVideoFrame, RawVideoFrame};
 pub use negotiation::{negotiate_call, negotiate_direction, NegotiatedCall, NegotiatedDirection};
 pub use quirk::{matching_quirks, CodecQuirk, CodecWorkaround};
-pub use resolution::{rung_above, rung_below, QualityRung, AV1_SOFTWARE_LADDER, ANDROID_HARDWARE_LADDER};
+pub use resolution::{
+    rung_above, rung_below, QualityRung, ANDROID_HARDWARE_LADDER, AV1_SOFTWARE_LADDER,
+};
