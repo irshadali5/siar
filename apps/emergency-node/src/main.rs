@@ -140,7 +140,9 @@ use siar_crypto::DeviceIdentity;
 use siar_domain::DeviceId;
 use siar_dtn::dedup::SeenBundles;
 use siar_dtn::store::BundleStore;
-use siar_protocol::{DeviceKeyDirectory, RouteAdvertisement, TokenMailboxEnvelope, TokenMailboxStore, WireMessage};
+use siar_protocol::{
+    DeviceKeyDirectory, RouteAdvertisement, TokenMailboxEnvelope, TokenMailboxStore, WireMessage,
+};
 use siar_routing::device_routes::DeviceRoutes;
 use siar_routing::path::RelayAdvertisement;
 use siar_routing::scheduler::{PriorityScheduler, SchedulePriority};
@@ -188,8 +190,11 @@ struct Config {
 
 impl Config {
     fn from_args() -> Self {
-        let mut config =
-            Self { identity_path: default_identity_path(), quota_bytes: DEFAULT_QUOTA_BYTES, seen_capacity: DEFAULT_SEEN_CAPACITY };
+        let mut config = Self {
+            identity_path: default_identity_path(),
+            quota_bytes: DEFAULT_QUOTA_BYTES,
+            seen_capacity: DEFAULT_SEEN_CAPACITY,
+        };
 
         let mut args = std::env::args().skip(1);
         while let Some(flag) = args.next() {
@@ -225,7 +230,9 @@ fn default_identity_path() -> PathBuf {
     // current directory rather than panicking if it somehow isn't —
     // a relay node refusing to start over a missing env var is a worse
     // failure mode than writing its identity file next to the binary.
-    let base = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."));
+    let base = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."));
     base.join(".siar-emergency-node").join("identity.bin")
 }
 
@@ -289,7 +296,9 @@ async fn send_and_record(
     message: &WireMessage,
 ) -> Result<(), siar_transport::TransportError> {
     let started = std::time::Instant::now();
-    let result = endpoint.send(iroh::EndpointAddr::new(destination), message).await;
+    let result = endpoint
+        .send(iroh::EndpointAddr::new(destination), message)
+        .await;
     let elapsed_millis = u32::try_from(started.elapsed().as_millis()).unwrap_or(u32::MAX);
     let outcome = match &result {
         Ok(()) => siar_routing::link_health::SendOutcome::success(elapsed_millis),
@@ -324,12 +333,18 @@ async fn main() -> Result<()> {
     let db = siar_storage::open_in_memory().context("opening local database")?;
     let messages = Arc::new(siar_storage::StoolapMessageRepository::new(db.clone()));
     let outbox = Arc::new(siar_storage::StoolapOutboxRepository::new(db.clone()));
-    let blobs: Arc<dyn siar_storage::BlobRepository + Send + Sync> = Arc::new(siar_storage::StoolapBlobRepository::new(db));
-    let blob_store: Arc<dyn siar_transport::BlobStore> = Arc::new(siar_messaging::StorageBlobStore(blobs.clone()));
+    let blobs: Arc<dyn siar_storage::BlobRepository + Send + Sync> =
+        Arc::new(siar_storage::StoolapBlobRepository::new(db));
+    let blob_store: Arc<dyn siar_transport::BlobStore> =
+        Arc::new(siar_messaging::StorageBlobStore(blobs.clone()));
 
     let (tx, mut rx) = mpsc::channel::<siar_transport::IncomingFrame>(256);
     let iroh_secret = iroh::SecretKey::generate();
-    let endpoint = Arc::new(SiarEndpoint::bind(iroh_secret, tx, blob_store).await.context("binding endpoint")?);
+    let endpoint = Arc::new(
+        SiarEndpoint::bind(iroh_secret, tx, blob_store)
+            .await
+            .context("binding endpoint")?,
+    );
 
     let ticket = siar_messaging::PeerTicket {
         endpoint_addr: endpoint.addr(),
@@ -341,7 +356,14 @@ async fn main() -> Result<()> {
     // instead of rendered as a QR image.
     tracing::info!(ticket = %ticket.encode(), "emergency relay node ready");
 
-    let _service = Arc::new(siar_messaging::MessageService::new(device_id, identity, endpoint.clone(), messages, outbox, blobs));
+    let _service = Arc::new(siar_messaging::MessageService::new(
+        device_id,
+        identity,
+        endpoint.clone(),
+        messages,
+        outbox,
+        blobs,
+    ));
 
     // next.md §68's DTN storage, §31's dedup, §91's path table, §93's
     // scheduler, plus this pass's `DeviceRoutes` — see this file's top
@@ -363,7 +385,8 @@ async fn main() -> Result<()> {
     // dedup set as `bundle_store`'s `Mesh` path below (a `MessageId` is
     // globally unique regardless of which addressing scheme a given
     // message used, so one dedup set correctly covers both).
-    let token_mailbox: Mutex<TokenMailboxStore<TokenMailboxEnvelope>> = Mutex::new(TokenMailboxStore::new());
+    let token_mailbox: Mutex<TokenMailboxStore<TokenMailboxEnvelope>> =
+        Mutex::new(TokenMailboxStore::new());
     let scheduler: Mutex<PriorityScheduler<siar_domain::MessageId>> =
         Mutex::new(PriorityScheduler::new(DEFAULT_SCHEDULER_CAPACITY_PER_QUEUE));
 
@@ -393,7 +416,9 @@ async fn main() -> Result<()> {
                 interval.tick().await;
                 let now = siar_domain::now_millis();
                 transport_manager.sync_local_peers(now);
-                transport_manager.path_table().remove_stale(now, ROUTE_STALE_AFTER_MILLIS);
+                transport_manager
+                    .path_table()
+                    .remove_stale(now, ROUTE_STALE_AFTER_MILLIS);
 
                 // Snapshot of (destination, best direct entry) pairs,
                 // resolved and the lock dropped before any `.await`
@@ -438,7 +463,15 @@ async fn main() -> Result<()> {
                             reliability: entry.reliability,
                             advertised_at: now,
                         });
-                        if let Err(e) = send_and_record(&endpoint, &transport_manager, peer.id, Some(peer), &advertisement).await {
+                        if let Err(e) = send_and_record(
+                            &endpoint,
+                            &transport_manager,
+                            peer.id,
+                            Some(peer),
+                            &advertisement,
+                        )
+                        .await
+                        {
                             tracing::debug!(error = %e, peer = ?peer.id, "route advertisement send failed");
                         }
                     }
@@ -489,11 +522,14 @@ async fn main() -> Result<()> {
                 // response to an unverifiable identity claim, not an
                 // error worth this relay's own logging budget beyond a
                 // debug line.
-                let verified = device_keys.lock().expect("DeviceKeyDirectory lock poisoned").verify_and_pin(
-                    &check_in,
-                    siar_domain::now_millis(),
-                    MAILBOX_CHECKIN_MAX_AGE_MILLIS,
-                );
+                let verified = device_keys
+                    .lock()
+                    .expect("DeviceKeyDirectory lock poisoned")
+                    .verify_and_pin(
+                        &check_in,
+                        siar_domain::now_millis(),
+                        MAILBOX_CHECKIN_MAX_AGE_MILLIS,
+                    );
                 if let Err(e) = verified {
                     tracing::debug!(error = %e, device = ?check_in.device, from = ?frame.from, "rejected an unverifiable mailbox check-in");
                     // `continue` skips this iteration's flood-fallback
@@ -519,11 +555,10 @@ async fn main() -> Result<()> {
                 // claims — `DeviceRoutes` no longer trusts a bare,
                 // unauthenticated assertion the way it would have before
                 // this pass.
-                device_routes.lock().expect("DeviceRoutes lock poisoned").record(
-                    check_in.device,
-                    frame.from,
-                    siar_domain::now_millis(),
-                );
+                device_routes
+                    .lock()
+                    .expect("DeviceRoutes lock poisoned")
+                    .record(check_in.device, frame.from, siar_domain::now_millis());
 
                 // next.md §76–77's mailbox check-in — see
                 // `siar-protocol::mailbox`'s doc comment for what this
@@ -546,16 +581,33 @@ async fn main() -> Result<()> {
 
                 let mut delivered_count = 0usize;
                 for id in matching_ids {
-                    let Some(bundle) = bundle_store.lock().expect("BundleStore lock poisoned").get(id) else {
+                    let Some(bundle) = bundle_store
+                        .lock()
+                        .expect("BundleStore lock poisoned")
+                        .get(id)
+                    else {
                         continue; // evicted between the scan above and now
                     };
                     let envelope = bundle_to_envelope(bundle);
-                    match send_and_record(&endpoint, &transport_manager, frame.from, None, &WireMessage::Mesh(envelope)).await {
+                    match send_and_record(
+                        &endpoint,
+                        &transport_manager,
+                        frame.from,
+                        None,
+                        &WireMessage::Mesh(envelope),
+                    )
+                    .await
+                    {
                         Ok(()) => {
-                            bundle_store.lock().expect("BundleStore lock poisoned").mark_delivered(id);
+                            bundle_store
+                                .lock()
+                                .expect("BundleStore lock poisoned")
+                                .mark_delivered(id);
                             delivered_count += 1;
                         }
-                        Err(e) => tracing::debug!(error = %e, id = ?id, "mailbox delivery attempt failed"),
+                        Err(e) => {
+                            tracing::debug!(error = %e, id = ?id, "mailbox delivery attempt failed")
+                        }
                     }
                 }
                 tracing::info!(
@@ -573,7 +625,10 @@ async fn main() -> Result<()> {
                 // `siar_protocol::mailbox`'s doc comments for why these
                 // stay two structurally separate stores.
                 let now = siar_domain::now_millis();
-                let already_seen = seen.lock().expect("SeenBundles lock poisoned").check_and_record(envelope.id);
+                let already_seen = seen
+                    .lock()
+                    .expect("SeenBundles lock poisoned")
+                    .check_and_record(envelope.id);
                 if already_seen {
                     tracing::debug!(id = ?envelope.id, from = ?frame.from, "duplicate TokenMailboxEnvelope, dropping");
                     continue;
@@ -583,7 +638,10 @@ async fn main() -> Result<()> {
                     continue;
                 }
                 let token = envelope.destination_token;
-                token_mailbox.lock().expect("TokenMailboxStore lock poisoned").deposit(token, envelope);
+                token_mailbox
+                    .lock()
+                    .expect("TokenMailboxStore lock poisoned")
+                    .deposit(token, envelope);
                 tracing::info!(from = ?frame.from, "stored a TokenMailboxEnvelope for later collection");
             }
             WireMessage::AnonymousMailboxCheckIn(check_in) => {
@@ -593,7 +651,10 @@ async fn main() -> Result<()> {
                 // the `MailboxCheckIn` arm above. This relay hands back
                 // whatever is filed under it, no questions asked, the
                 // same way any bearer-token API would.
-                let deposits = token_mailbox.lock().expect("TokenMailboxStore lock poisoned").collect(check_in.token);
+                let deposits = token_mailbox
+                    .lock()
+                    .expect("TokenMailboxStore lock poisoned")
+                    .collect(check_in.token);
 
                 let mut delivered_count = 0usize;
                 // Failed sends are re-deposited rather than dropped —
@@ -604,7 +665,9 @@ async fn main() -> Result<()> {
                 let mut redeposit = Vec::new();
                 for envelope in deposits {
                     let message = WireMessage::TokenMailboxDeposit(envelope.clone());
-                    match send_and_record(&endpoint, &transport_manager, frame.from, None, &message).await {
+                    match send_and_record(&endpoint, &transport_manager, frame.from, None, &message)
+                        .await
+                    {
                         Ok(()) => delivered_count += 1,
                         Err(e) => {
                             tracing::debug!(error = %e, "anonymous mailbox delivery attempt failed, re-depositing");
@@ -613,7 +676,9 @@ async fn main() -> Result<()> {
                     }
                 }
                 if !redeposit.is_empty() {
-                    let mut store = token_mailbox.lock().expect("TokenMailboxStore lock poisoned");
+                    let mut store = token_mailbox
+                        .lock()
+                        .expect("TokenMailboxStore lock poisoned");
                     for envelope in redeposit {
                         store.deposit(check_in.token, envelope);
                     }
@@ -629,7 +694,9 @@ async fn main() -> Result<()> {
                 // verify (no signature; trusting a direct transport
                 // peer the same amount the existing naive-flood forward
                 // already does, not a new or stronger trust boundary).
-                let Ok(destination) = iroh::EndpointId::from_bytes(&advertisement.destination_endpoint) else {
+                let Ok(destination) =
+                    iroh::EndpointId::from_bytes(&advertisement.destination_endpoint)
+                else {
                     tracing::debug!(from = ?frame.from, "route advertisement had a malformed destination endpoint, dropping");
                     continue;
                 };
@@ -673,7 +740,10 @@ async fn main() -> Result<()> {
                 // dropped without touching the store — `check_and_record`
                 // both checks and marks in one call, same pattern
                 // `siar-dtn`'s own tests exercise.
-                let already_seen = seen.lock().expect("SeenBundles lock poisoned").check_and_record(mesh_envelope.id);
+                let already_seen = seen
+                    .lock()
+                    .expect("SeenBundles lock poisoned")
+                    .check_and_record(mesh_envelope.id);
                 if already_seen {
                     tracing::debug!(id = ?mesh_envelope.id, from = ?frame.from, "duplicate MeshEnvelope, dropping");
                     continue;
@@ -705,7 +775,10 @@ async fn main() -> Result<()> {
                 };
                 just_received = Some(bundle.id);
 
-                let evicted = bundle_store.lock().expect("BundleStore lock poisoned").insert(bundle, now);
+                let evicted = bundle_store
+                    .lock()
+                    .expect("BundleStore lock poisoned")
+                    .insert(bundle, now);
                 if evicted.is_empty() {
                     tracing::info!(id = ?mesh_envelope.id, from = ?frame.from, destination = ?destination, "stored MeshEnvelope for later carriage");
                 } else {
@@ -724,7 +797,10 @@ async fn main() -> Result<()> {
                 // bundle to it right now rather than waiting for it to
                 // either check in again or happen to be the next peer
                 // this relay hears from.
-                let known_endpoint = device_routes.lock().expect("DeviceRoutes lock poisoned").get(destination);
+                let known_endpoint = device_routes
+                    .lock()
+                    .expect("DeviceRoutes lock poisoned")
+                    .get(destination);
                 if let Some(target_endpoint) = known_endpoint {
                     if target_endpoint != frame.from {
                         // Resolved to a plain owned `Option<MeshBundle>`
@@ -739,12 +815,22 @@ async fn main() -> Result<()> {
                         // step later in this loop already relies on the
                         // same "resolve then match" split via `let-else`
                         // for the same reason.
-                        let consumed =
-                            bundle_store.lock().expect("BundleStore lock poisoned").consume_for_forward(mesh_envelope.id);
+                        let consumed = bundle_store
+                            .lock()
+                            .expect("BundleStore lock poisoned")
+                            .consume_for_forward(mesh_envelope.id);
                         if let Some(bundle) = consumed {
                             let envelope = bundle_to_envelope(bundle);
                             let message = WireMessage::Mesh(envelope);
-                            match send_and_record(&endpoint, &transport_manager, target_endpoint, None, &message).await {
+                            match send_and_record(
+                                &endpoint,
+                                &transport_manager,
+                                target_endpoint,
+                                None,
+                                &message,
+                            )
+                            .await
+                            {
                                 Ok(()) => {
                                     already_pushed = Some(mesh_envelope.id);
                                     tracing::info!(
@@ -788,7 +874,12 @@ async fn main() -> Result<()> {
             .expect("BundleStore lock poisoned")
             .iter()
             .filter(|bundle| Some(bundle.id) != just_received && Some(bundle.id) != already_pushed)
-            .map(|bundle| (bundle.id, SchedulePriority::from_message_priority(bundle.priority)))
+            .map(|bundle| {
+                (
+                    bundle.id,
+                    SchedulePriority::from_message_priority(bundle.priority),
+                )
+            })
             .collect();
 
         // Dequeued into a plain `Vec` first, with the `PriorityScheduler`
@@ -820,12 +911,18 @@ async fn main() -> Result<()> {
         };
 
         for id in ordered_ids {
-            let Some(bundle) = bundle_store.lock().expect("BundleStore lock poisoned").consume_for_forward(id) else {
+            let Some(bundle) = bundle_store
+                .lock()
+                .expect("BundleStore lock poisoned")
+                .consume_for_forward(id)
+            else {
                 continue; // hop_limit or replication_budget already exhausted
             };
             let envelope = bundle_to_envelope(bundle);
             let message = WireMessage::Mesh(envelope);
-            if let Err(e) = send_and_record(&endpoint, &transport_manager, frame.from, None, &message).await {
+            if let Err(e) =
+                send_and_record(&endpoint, &transport_manager, frame.from, None, &message).await
+            {
                 tracing::debug!(error = %e, id = ?id, to = ?frame.from, "forward attempt failed");
             } else {
                 tracing::debug!(id = ?id, to = ?frame.from, "forwarded a stored bundle on contact");
