@@ -31,7 +31,10 @@ use dav1d_sys::{
     dav1d_picture_unref, dav1d_send_data, Dav1dContext, Dav1dData, Dav1dPicture, Dav1dSettings,
     DAV1D_PIXEL_LAYOUT_I420,
 };
-use siar_media_core::{DecodeError, DecodedVideoFrame, EncodedVideoFrame, RawVideoFrame, Resolution, VideoCodec, VideoDecoder};
+use siar_media_core::{
+    DecodeError, DecodedVideoFrame, EncodedVideoFrame, RawVideoFrame, Resolution, VideoCodec,
+    VideoDecoder,
+};
 use std::ptr;
 
 pub struct Av1SoftwareDecoder {
@@ -85,7 +88,9 @@ impl Av1SoftwareDecoder {
         unsafe {
             let dst = dav1d_data_create(&mut data, encoded.len());
             if dst.is_null() {
-                return Err(DecodeError::Backend("dav1d_data_create returned null (allocation failure)".to_string()));
+                return Err(DecodeError::Backend(
+                    "dav1d_data_create returned null (allocation failure)".to_string(),
+                ));
             }
             std::slice::from_raw_parts_mut(dst, encoded.len()).copy_from_slice(encoded);
         }
@@ -145,7 +150,10 @@ impl VideoDecoder for Av1SoftwareDecoder {
 
     fn decode(&mut self, frame: &EncodedVideoFrame) -> Result<DecodedVideoFrame, DecodeError> {
         if frame.codec != VideoCodec::Av1 {
-            return Err(DecodeError::Unsupported(format!("expected AV1, got {:?}", frame.codec)));
+            return Err(DecodeError::Unsupported(format!(
+                "expected AV1, got {:?}",
+                frame.codec
+            )));
         }
 
         let pic = self.send_and_receive(&frame.data)?;
@@ -214,7 +222,13 @@ impl VideoDecoder for Av1SoftwareDecoder {
         unsafe { dav1d_picture_unref(&mut pic) };
 
         Ok(DecodedVideoFrame {
-            frame: RawVideoFrame { resolution, y_plane, u_plane, v_plane, timestamp_micros: frame.timestamp_micros },
+            frame: RawVideoFrame {
+                resolution,
+                y_plane,
+                u_plane,
+                v_plane,
+                timestamp_micros: frame.timestamp_micros,
+            },
         })
     }
 }
@@ -228,7 +242,8 @@ mod tests {
         // This alone exercises `dav1d_default_settings`, `dav1d_open`,
         // and (via `Drop`) `dav1d_close` against the real linked
         // libdav1d — it's a genuine link+run smoke test, not a mock.
-        let decoder = Av1SoftwareDecoder::new().expect("dav1d_open should succeed with default settings");
+        let decoder =
+            Av1SoftwareDecoder::new().expect("dav1d_open should succeed with default settings");
         drop(decoder);
     }
 
@@ -241,7 +256,10 @@ mod tests {
             is_keyframe: true,
             timestamp_micros: 0,
         };
-        assert!(matches!(decoder.decode(&frame), Err(DecodeError::Unsupported(_))));
+        assert!(matches!(
+            decoder.decode(&frame),
+            Err(DecodeError::Unsupported(_))
+        ));
     }
 
     #[test]
