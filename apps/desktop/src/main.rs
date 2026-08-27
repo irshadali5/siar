@@ -27,8 +27,8 @@ use anyhow::{Context, Result};
 use siar_crypto::DeviceIdentity;
 use siar_domain::{AccountId, DeviceId};
 use siar_messaging::{
-    GroupService, InMemoryDeviceDirectory, InMemoryKeyPackageDirectory, KeyPackageDirectory, MemberDevice,
-    MessageService, PeerTicket,
+    GroupService, InMemoryDeviceDirectory, InMemoryKeyPackageDirectory, KeyPackageDirectory,
+    MemberDevice, MessageService, PeerTicket,
 };
 use siar_storage::{ContactRepository, StoolapContactRepository, StoredContact};
 use siar_transport::SiarEndpoint;
@@ -77,15 +77,22 @@ fn resolve_data_paths() -> Result<DataPaths> {
 /// postcard/JSON — this file has exactly one field, and a plain-text
 /// UUID is trivially inspectable (`cat account_id.txt`) for anyone
 /// debugging a broken install, which a serialized envelope wouldn't be.
-fn load_or_create_id<T>(path: &std::path::Path, from_uuid: impl Fn(uuid::Uuid) -> T, to_uuid: impl Fn(&T) -> uuid::Uuid, generate: impl Fn() -> T) -> Result<T> {
+fn load_or_create_id<T>(
+    path: &std::path::Path,
+    from_uuid: impl Fn(uuid::Uuid) -> T,
+    to_uuid: impl Fn(&T) -> uuid::Uuid,
+    generate: impl Fn() -> T,
+) -> Result<T> {
     if path.exists() {
-        let text = std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
+        let text =
+            std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
         let id = uuid::Uuid::parse_str(text.trim())
             .with_context(|| format!("{} did not contain a valid UUID", path.display()))?;
         Ok(from_uuid(id))
     } else {
         let id = generate();
-        std::fs::write(path, to_uuid(&id).to_string()).with_context(|| format!("writing {}", path.display()))?;
+        std::fs::write(path, to_uuid(&id).to_string())
+            .with_context(|| format!("writing {}", path.display()))?;
         Ok(id)
     }
 }
@@ -182,11 +189,23 @@ pub(crate) async fn bootstrap_messaging() -> Result<Bootstrapped> {
         DeviceIdentity::load_from_file(&paths.identity).context("loading saved device identity")?
     } else {
         let identity = DeviceIdentity::generate();
-        identity.save_to_file(&paths.identity).context("saving new device identity")?;
+        identity
+            .save_to_file(&paths.identity)
+            .context("saving new device identity")?;
         identity
     };
-    let device_id = load_or_create_id(&paths.device_id, DeviceId::from_uuid, DeviceId::as_uuid, DeviceId::new)?;
-    let local_account = load_or_create_id(&paths.account_id, AccountId::from_uuid, AccountId::as_uuid, AccountId::new)?;
+    let device_id = load_or_create_id(
+        &paths.device_id,
+        DeviceId::from_uuid,
+        DeviceId::as_uuid,
+        DeviceId::new,
+    )?;
+    let local_account = load_or_create_id(
+        &paths.account_id,
+        AccountId::from_uuid,
+        AccountId::as_uuid,
+        AccountId::new,
+    )?;
 
     // plan.md §84: staged startup — local state (identity, DB) comes up
     // before anything touches the network, so the UI shell can render
@@ -197,7 +216,8 @@ pub(crate) async fn bootstrap_messaging() -> Result<Bootstrapped> {
     // discarded every message/group/contact row the moment the process
     // exited regardless of how stable the identity above is.
     let db_path = paths.database.display().to_string();
-    let db = siar_storage::open(&db_path).with_context(|| format!("opening local database at {db_path}"))?;
+    let db = siar_storage::open(&db_path)
+        .with_context(|| format!("opening local database at {db_path}"))?;
     let messages = Arc::new(siar_storage::StoolapMessageRepository::new(db.clone()));
     let outbox = Arc::new(siar_storage::StoolapOutboxRepository::new(db.clone()));
     let groups = Arc::new(siar_storage::StoolapGroupRepository::new(db.clone()));
@@ -232,8 +252,13 @@ pub(crate) async fn bootstrap_messaging() -> Result<Bootstrapped> {
     let saved_contacts = contact_repo.list().context("loading saved contacts")?;
     for contact in &saved_contacts {
         match PeerTicket::decode(&contact.ticket_text) {
-            Ok(ticket) => device_directory
-                .register(contact.account_id, MemberDevice { device_id: contact.device_id, ticket }),
+            Ok(ticket) => device_directory.register(
+                contact.account_id,
+                MemberDevice {
+                    device_id: contact.device_id,
+                    ticket,
+                },
+            ),
             Err(e) => tracing::warn!(
                 error = %e,
                 device_id = ?contact.device_id,
@@ -248,7 +273,9 @@ pub(crate) async fn bootstrap_messaging() -> Result<Bootstrapped> {
     // `siar-crypto`) is exactly the "more than one owner of the same
     // key material in one process" case it exists for. Same pattern
     // `apps/cli`'s `bootstrap()` already uses.
-    let group_identity = identity.try_clone().context("cloning device identity for GroupService")?;
+    let group_identity = identity
+        .try_clone()
+        .context("cloning device identity for GroupService")?;
     let group_service = Arc::new(GroupService::new(
         device_id,
         local_account,
@@ -277,7 +304,9 @@ pub(crate) async fn bootstrap_messaging() -> Result<Bootstrapped> {
         }
     };
 
-    let service = Arc::new(MessageService::new(device_id, identity, endpoint, messages, outbox, blobs));
+    let service = Arc::new(MessageService::new(
+        device_id, identity, endpoint, messages, outbox, blobs,
+    ));
     Ok(Bootstrapped {
         service,
         group_service,
