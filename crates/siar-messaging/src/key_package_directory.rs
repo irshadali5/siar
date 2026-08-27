@@ -69,7 +69,10 @@ impl KeyPackageDirectory for InMemoryKeyPackageDirectory {
     }
 
     fn take(&self, device: DeviceId) -> Option<Vec<u8>> {
-        let mut packages = self.packages.lock().expect("InMemoryKeyPackageDirectory lock poisoned");
+        let mut packages = self
+            .packages
+            .lock()
+            .expect("InMemoryKeyPackageDirectory lock poisoned");
         let queue = packages.get_mut(&device)?;
         let package = queue.pop_front();
         if queue.is_empty() {
