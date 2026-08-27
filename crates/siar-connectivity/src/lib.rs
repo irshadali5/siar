@@ -67,7 +67,10 @@ impl ConnectivityMonitor {
     /// monitor without one just never marks `WifiDirect` up, which is
     /// the correct answer for those builds anyway.
     #[cfg(target_os = "android")]
-    pub fn with_wifi_direct(mut self, bridge: Arc<Mutex<siar_transport_wifi_direct::WifiDirectBridge>>) -> Self {
+    pub fn with_wifi_direct(
+        mut self,
+        bridge: Arc<Mutex<siar_transport_wifi_direct::WifiDirectBridge>>,
+    ) -> Self {
         self.wifi_direct = Some(bridge);
         self
     }
