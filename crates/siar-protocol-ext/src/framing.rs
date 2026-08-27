@@ -40,7 +40,9 @@ pub enum FramingError {
 /// itself allocate or read more than that fixed amount.
 pub fn parse_frame_header(bytes: &[u8]) -> Result<FrameHeader, FramingError> {
     if bytes.len() < FRAME_HEADER_BYTES {
-        return Err(FramingError::HeaderTooShort { actual: bytes.len() });
+        return Err(FramingError::HeaderTooShort {
+            actual: bytes.len(),
+        });
     }
     let frame_length = u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
     let extension_session_id = SessionLocalExtensionId(u16::from_be_bytes([bytes[4], bytes[5]]));
@@ -48,10 +50,17 @@ pub fn parse_frame_header(bytes: &[u8]) -> Result<FrameHeader, FramingError> {
     let flags = bytes[7];
 
     if (frame_length as usize) < FRAME_HEADER_BYTES {
-        return Err(FramingError::FrameLengthImpossiblySmall { declared: frame_length });
+        return Err(FramingError::FrameLengthImpossiblySmall {
+            declared: frame_length,
+        });
     }
 
-    Ok(FrameHeader { frame_length, extension_session_id, frame_type, flags })
+    Ok(FrameHeader {
+        frame_length,
+        extension_session_id,
+        frame_type,
+        flags,
+    })
 }
 
 /// §18 steps 2-3: "validate length" + "check extension limit" — run
@@ -62,9 +71,15 @@ pub fn parse_frame_header(bytes: &[u8]) -> Result<FrameHeader, FramingError> {
 /// apply, keyed by [`FrameHeader::extension_session_id`]) before
 /// deciding whether the frame is even allowed to proceed — exactly the
 /// ordering §18's own four-step list describes.
-pub fn validate_frame_length(header: &FrameHeader, limits: &ExtensionLimits) -> Result<(), FramingError> {
+pub fn validate_frame_length(
+    header: &FrameHeader,
+    limits: &ExtensionLimits,
+) -> Result<(), FramingError> {
     if header.frame_length as usize > limits.max_frame_size {
-        return Err(FramingError::FrameTooLarge { declared: header.frame_length, max: limits.max_frame_size });
+        return Err(FramingError::FrameTooLarge {
+            declared: header.frame_length,
+            max: limits.max_frame_size,
+        });
     }
     Ok(())
 }
@@ -74,7 +89,12 @@ mod tests {
     use super::*;
 
     fn limits() -> ExtensionLimits {
-        ExtensionLimits { max_frame_size: 1024, max_in_flight_frames: 16, max_concurrent_streams: 4, max_buffered_bytes: 65536 }
+        ExtensionLimits {
+            max_frame_size: 1024,
+            max_in_flight_frames: 16,
+            max_concurrent_streams: 4,
+            max_buffered_bytes: 65536,
+        }
     }
 
     fn header_bytes(frame_length: u32, session_id: u16, frame_type: u8, flags: u8) -> Vec<u8> {
@@ -97,13 +117,19 @@ mod tests {
     #[test]
     fn a_truncated_buffer_never_reads_past_what_exists() {
         let short = vec![0u8; 4];
-        assert_eq!(parse_frame_header(&short), Err(FramingError::HeaderTooShort { actual: 4 }));
+        assert_eq!(
+            parse_frame_header(&short),
+            Err(FramingError::HeaderTooShort { actual: 4 })
+        );
     }
 
     #[test]
     fn a_frame_length_smaller_than_the_header_itself_is_rejected() {
         let bytes = header_bytes(3, 1, 0, 0); // declares 3 bytes total — impossible, header alone is 8
-        assert_eq!(parse_frame_header(&bytes), Err(FramingError::FrameLengthImpossiblySmall { declared: 3 }));
+        assert_eq!(
+            parse_frame_header(&bytes),
+            Err(FramingError::FrameLengthImpossiblySmall { declared: 3 })
+        );
     }
 
     #[test]
@@ -111,7 +137,13 @@ mod tests {
         let bytes = header_bytes(10_000_000, 1, 0, 0);
         let header = parse_frame_header(&bytes).unwrap(); // parsing the header itself always succeeds — it's fixed-size
         let result = validate_frame_length(&header, &limits());
-        assert_eq!(result, Err(FramingError::FrameTooLarge { declared: 10_000_000, max: 1024 }));
+        assert_eq!(
+            result,
+            Err(FramingError::FrameTooLarge {
+                declared: 10_000_000,
+                max: 1024
+            })
+        );
     }
 
     #[test]
