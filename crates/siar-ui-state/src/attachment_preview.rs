@@ -28,13 +28,19 @@ pub enum AttachmentPreview {
     /// raw RGBA so this crate never has to know how to turn pixels back
     /// into a displayable image; `apps/desktop` base64-encodes this into
     /// a `data:` URI at render time.
-    Ready { jpeg_bytes: Vec<u8>, width: u32, height: u32 },
+    Ready {
+        jpeg_bytes: Vec<u8>,
+        width: u32,
+        height: u32,
+    },
     /// Held as a display string, not a typed error — this crate has no
     /// dependency on `siar-media-image`/`siar-messaging` to name their
     /// error types (same infra-free boundary `lib.rs`'s module doc
     /// states for the whole crate), and a UI only ever shows this
     /// verbatim, never matches on it.
-    Failed { reason: String },
+    Failed {
+        reason: String,
+    },
 }
 
 #[derive(Debug, Default)]
@@ -52,19 +58,36 @@ impl AttachmentPreviewState {
     /// missing entry and an explicitly-not-yet-requested one render
     /// identically without the caller needing to handle `Option`.
     pub fn get(&self, message_id: MessageId) -> AttachmentPreview {
-        self.previews.get(&message_id).cloned().unwrap_or(AttachmentPreview::NotRequested)
+        self.previews
+            .get(&message_id)
+            .cloned()
+            .unwrap_or(AttachmentPreview::NotRequested)
     }
 
     pub fn set_loading(&mut self, message_id: MessageId) {
         self.previews.insert(message_id, AttachmentPreview::Loading);
     }
 
-    pub fn set_ready(&mut self, message_id: MessageId, jpeg_bytes: Vec<u8>, width: u32, height: u32) {
-        self.previews.insert(message_id, AttachmentPreview::Ready { jpeg_bytes, width, height });
+    pub fn set_ready(
+        &mut self,
+        message_id: MessageId,
+        jpeg_bytes: Vec<u8>,
+        width: u32,
+        height: u32,
+    ) {
+        self.previews.insert(
+            message_id,
+            AttachmentPreview::Ready {
+                jpeg_bytes,
+                width,
+                height,
+            },
+        );
     }
 
     pub fn set_failed(&mut self, message_id: MessageId, reason: String) {
-        self.previews.insert(message_id, AttachmentPreview::Failed { reason });
+        self.previews
+            .insert(message_id, AttachmentPreview::Failed { reason });
     }
 }
 
@@ -86,7 +109,14 @@ mod tests {
         assert_eq!(state.get(id), AttachmentPreview::Loading);
 
         state.set_ready(id, vec![1, 2, 3], 160, 90);
-        assert_eq!(state.get(id), AttachmentPreview::Ready { jpeg_bytes: vec![1, 2, 3], width: 160, height: 90 });
+        assert_eq!(
+            state.get(id),
+            AttachmentPreview::Ready {
+                jpeg_bytes: vec![1, 2, 3],
+                width: 160,
+                height: 90
+            }
+        );
     }
 
     #[test]
@@ -94,7 +124,12 @@ mod tests {
         let mut state = AttachmentPreviewState::new();
         let id = MessageId::new();
         state.set_failed(id, "unsupported format".to_string());
-        assert_eq!(state.get(id), AttachmentPreview::Failed { reason: "unsupported format".to_string() });
+        assert_eq!(
+            state.get(id),
+            AttachmentPreview::Failed {
+                reason: "unsupported format".to_string()
+            }
+        );
     }
 
     #[test]
@@ -104,7 +139,14 @@ mod tests {
         let b = MessageId::new();
         state.set_ready(a, vec![1], 1, 1);
         state.set_loading(b);
-        assert_eq!(state.get(a), AttachmentPreview::Ready { jpeg_bytes: vec![1], width: 1, height: 1 });
+        assert_eq!(
+            state.get(a),
+            AttachmentPreview::Ready {
+                jpeg_bytes: vec![1],
+                width: 1,
+                height: 1
+            }
+        );
         assert_eq!(state.get(b), AttachmentPreview::Loading);
     }
 }
