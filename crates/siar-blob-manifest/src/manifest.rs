@@ -58,17 +58,26 @@ pub fn build_manifest(
 ) -> Result<BlobManifest, ManifestError> {
     let total_size = ciphertext.len() as u64;
     if total_size > limits.max_file_bytes {
-        return Err(ManifestError::FileTooLarge { actual: total_size, max: limits.max_file_bytes });
+        return Err(ManifestError::FileTooLarge {
+            actual: total_size,
+            max: limits.max_file_bytes,
+        });
     }
 
     let raw_chunks = chunk_fixed_size(ciphertext, chunk_size);
     if raw_chunks.len() > limits.max_chunks as usize {
-        return Err(ManifestError::TooManyChunks { actual: raw_chunks.len(), max: limits.max_chunks });
+        return Err(ManifestError::TooManyChunks {
+            actual: raw_chunks.len(),
+            max: limits.max_chunks,
+        });
     }
 
     let estimated_manifest_bytes = raw_chunks.len() as u64 * ESTIMATED_BYTES_PER_CHUNK_DESCRIPTOR;
     if estimated_manifest_bytes > limits.max_manifest_bytes {
-        return Err(ManifestError::ManifestTooLarge { actual: estimated_manifest_bytes, max: limits.max_manifest_bytes });
+        return Err(ManifestError::ManifestTooLarge {
+            actual: estimated_manifest_bytes,
+            max: limits.max_manifest_bytes,
+        });
     }
 
     let mut offset = 0u64;
@@ -89,7 +98,13 @@ pub fn build_manifest(
 
     let blob_id = BlobId::from_ciphertext(ciphertext);
 
-    Ok(BlobManifest { version: 1, blob_id, total_size, chunk_size, chunks })
+    Ok(BlobManifest {
+        version: 1,
+        blob_id,
+        total_size,
+        chunk_size,
+        chunks,
+    })
 }
 
 #[cfg(test)]
@@ -121,18 +136,33 @@ mod tests {
 
     #[test]
     fn a_file_over_the_size_limit_is_rejected() {
-        let limits = ManifestLimits { max_file_bytes: 100, ..ManifestLimits::default() };
+        let limits = ManifestLimits {
+            max_file_bytes: 100,
+            ..ManifestLimits::default()
+        };
         let ciphertext = vec![0u8; 200];
         let result = build_manifest(&ciphertext, 50, &limits);
-        assert_eq!(result, Err(ManifestError::FileTooLarge { actual: 200, max: 100 }));
+        assert_eq!(
+            result,
+            Err(ManifestError::FileTooLarge {
+                actual: 200,
+                max: 100
+            })
+        );
     }
 
     #[test]
     fn too_many_chunks_is_rejected_before_hashing_anything() {
-        let limits = ManifestLimits { max_chunks: 2, ..ManifestLimits::default() };
+        let limits = ManifestLimits {
+            max_chunks: 2,
+            ..ManifestLimits::default()
+        };
         let ciphertext = vec![0u8; 300];
         let result = build_manifest(&ciphertext, 100, &limits); // would need 3 chunks
-        assert_eq!(result, Err(ManifestError::TooManyChunks { actual: 3, max: 2 }));
+        assert_eq!(
+            result,
+            Err(ManifestError::TooManyChunks { actual: 3, max: 2 })
+        );
     }
 
     #[test]
