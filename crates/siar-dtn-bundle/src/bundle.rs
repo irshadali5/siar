@@ -5,7 +5,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::payload::PayloadReference;
-use crate::types::{BundleId, DtnDestination, DtnPriority, DtnSource, ForwardingClass, PayloadTypeId};
+use crate::types::{
+    BundleId, DtnDestination, DtnPriority, DtnSource, ForwardingClass, PayloadTypeId,
+};
 
 /// §8: relays carry ciphertext, never plaintext. This crate has no
 /// decrypt path and no reason for one — the same stance `siar-dtn`'s
@@ -115,7 +117,10 @@ mod tests {
             replication_budget,
             forwarding_class: ForwardingClass::SprayAndWait,
             payload_ref: PayloadReference::Inline(vec![9, 9, 9]),
-            integrity: BundleIntegrity { payload_hash: [0u8; 32], origin_signature: None },
+            integrity: BundleIntegrity {
+                payload_hash: [0u8; 32],
+                origin_signature: None,
+            },
         }
     }
 
@@ -128,9 +133,14 @@ mod tests {
 
     #[test]
     fn forwarded_decrements_hop_limit_until_it_hits_zero() {
-        let b = bundle(1, 2).forwarded().expect("hop_limit 1 -> 0 should still forward");
+        let b = bundle(1, 2)
+            .forwarded()
+            .expect("hop_limit 1 -> 0 should still forward");
         assert_eq!(b.hop_limit, 0);
-        assert!(b.forwarded().is_none(), "hop_limit already 0 must not forward further");
+        assert!(
+            b.forwarded().is_none(),
+            "hop_limit already 0 must not forward further"
+        );
     }
 
     #[test]
