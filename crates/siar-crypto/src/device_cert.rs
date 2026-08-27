@@ -11,7 +11,10 @@ use serde::{Deserialize, Serialize};
 /// What actually gets signed: the new device's two public keys bound
 /// together, so a certificate can't be replayed to vouch for a
 /// mismatched (verifying_key, x25519_public) pair.
-fn signing_payload(new_device_verifying_key: &[u8; 32], new_device_x25519_public: &[u8; 32]) -> Vec<u8> {
+fn signing_payload(
+    new_device_verifying_key: &[u8; 32],
+    new_device_x25519_public: &[u8; 32],
+) -> Vec<u8> {
     let mut payload = Vec::with_capacity(64);
     payload.extend_from_slice(new_device_verifying_key);
     payload.extend_from_slice(new_device_x25519_public);
@@ -61,7 +64,10 @@ pub fn verify_device_certificate(
     if cert.signer_verifying_key != expected_signer.to_bytes() {
         return Err(CryptoError::InvalidSignature);
     }
-    let payload = signing_payload(&cert.new_device_verifying_key, &cert.new_device_x25519_public);
+    let payload = signing_payload(
+        &cert.new_device_verifying_key,
+        &cert.new_device_x25519_public,
+    );
     let signature_bytes: [u8; 64] = cert
         .signature
         .as_slice()
