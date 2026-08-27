@@ -57,7 +57,10 @@ impl TokenBucket {
     fn refill(&mut self, now_millis: u64) {
         let elapsed = now_millis.saturating_sub(self.last_refill_millis);
         let added = elapsed.saturating_mul(self.refill_rate_per_sec);
-        self.milli_tokens = self.milli_tokens.saturating_add(added).min(self.capacity_milli_tokens);
+        self.milli_tokens = self
+            .milli_tokens
+            .saturating_add(added)
+            .min(self.capacity_milli_tokens);
         self.last_refill_millis = now_millis;
     }
 
@@ -129,10 +132,10 @@ mod tests {
         let mut bucket = TokenBucket::new(1000, 100, 0);
         bucket.try_consume(1000, 0);
         assert!(!bucket.try_consume(50, 100)); // only 10 tokens back at t=100ms
-        // Refill baseline moved to t=100 despite the rejection — from
-        // t=100, another 400ms at 100/sec adds exactly 40 more,
-        // landing at 10 + 40 = 50 available, not 100 (which a reset
-        // baseline would incorrectly allow).
+                                               // Refill baseline moved to t=100 despite the rejection — from
+                                               // t=100, another 400ms at 100/sec adds exactly 40 more,
+                                               // landing at 10 + 40 = 50 available, not 100 (which a reset
+                                               // baseline would incorrectly allow).
         assert_eq!(bucket.available(500), 50);
     }
 
