@@ -30,7 +30,11 @@ pub struct BundleStore {
 
 impl BundleStore {
     pub fn new(quota_bytes: u64) -> Self {
-        Self { quota_bytes, used_bytes: 0, bundles: Vec::new() }
+        Self {
+            quota_bytes,
+            used_bytes: 0,
+            bundles: Vec::new(),
+        }
     }
 
     pub fn used_bytes(&self) -> u64 {
@@ -62,7 +66,10 @@ impl BundleStore {
     /// reason — the caller needs an owned value it can hold across that
     /// `.await`.
     pub fn get(&self, id: MessageId) -> Option<MeshBundle> {
-        self.bundles.iter().find(|stored| stored.bundle.id == id).map(|stored| stored.bundle.clone())
+        self.bundles
+            .iter()
+            .find(|stored| stored.bundle.id == id)
+            .map(|stored| stored.bundle.clone())
     }
 
     /// Every bundle currently held, delivered or not — next.md Phase 8's
@@ -78,7 +85,11 @@ impl BundleStore {
     /// there's nothing here for the caller to have gotten wrong in that
     /// case worth erroring over.
     pub fn mark_delivered(&mut self, id: MessageId) {
-        if let Some(stored) = self.bundles.iter_mut().find(|stored| stored.bundle.id == id) {
+        if let Some(stored) = self
+            .bundles
+            .iter_mut()
+            .find(|stored| stored.bundle.id == id)
+        {
             stored.delivered = true;
         }
     }
@@ -103,7 +114,10 @@ impl BundleStore {
     /// way to know from here whether the *next* encounter is with the
     /// destination itself.
     pub fn consume_for_forward(&mut self, id: MessageId) -> Option<MeshBundle> {
-        let stored = self.bundles.iter_mut().find(|stored| stored.bundle.id == id)?;
+        let stored = self
+            .bundles
+            .iter_mut()
+            .find(|stored| stored.bundle.id == id)?;
         if stored.bundle.hop_limit == 0 || stored.bundle.replication_budget == 0 {
             return None;
         }
@@ -153,16 +167,27 @@ impl BundleStore {
         }
 
         self.used_bytes += incoming_size;
-        self.bundles.push(StoredBundle { bundle, delivered: false });
+        self.bundles.push(StoredBundle {
+            bundle,
+            delivered: false,
+        });
         evicted
     }
 
     fn recompute_used_bytes(&mut self) {
-        self.used_bytes = self.bundles.iter().map(|stored| stored.bundle.ciphertext.len() as u64).sum();
+        self.used_bytes = self
+            .bundles
+            .iter()
+            .map(|stored| stored.bundle.ciphertext.len() as u64)
+            .sum();
     }
 
     fn pick_eviction_victim(&self) -> Option<usize> {
-        self.bundles.iter().enumerate().min_by_key(|(_, stored)| eviction_rank(stored)).map(|(index, _)| index)
+        self.bundles
+            .iter()
+            .enumerate()
+            .min_by_key(|(_, stored)| eviction_rank(stored))
+            .map(|(index, _)| index)
     }
 }
 
@@ -279,13 +304,17 @@ mod tests {
         let id = b.id;
         store.insert(b, 0);
 
-        let forwarded_once = store.consume_for_forward(id).expect("first forward should succeed");
+        let forwarded_once = store
+            .consume_for_forward(id)
+            .expect("first forward should succeed");
         assert_eq!(forwarded_once.hop_limit, 1);
         assert_eq!(forwarded_once.replication_budget, 1);
 
         // The stored entry itself was decremented, not just a throwaway
         // clone — a second forward sees the already-reduced limits.
-        let forwarded_twice = store.consume_for_forward(id).expect("second forward should succeed");
+        let forwarded_twice = store
+            .consume_for_forward(id)
+            .expect("second forward should succeed");
         assert_eq!(forwarded_twice.hop_limit, 0);
         assert_eq!(forwarded_twice.replication_budget, 0);
 
@@ -296,7 +325,9 @@ mod tests {
     #[test]
     fn consume_for_forward_on_an_absent_id_returns_none() {
         let mut store = BundleStore::new(100);
-        assert!(store.consume_for_forward(siar_domain::MessageId::new()).is_none());
+        assert!(store
+            .consume_for_forward(siar_domain::MessageId::new())
+            .is_none());
     }
 
     #[test]
