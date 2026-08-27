@@ -3,12 +3,16 @@
 
 use crate::components;
 use crate::state::AppState;
+use dioxus::prelude::*;
 use siar_domain::{ConversationId, DeliveryState, MessageContent};
-use siar_messaging::{GroupService, IncomingEvent, InMemoryDeviceDirectory, MemberDevice, MessageService, PeerTicket};
+use siar_messaging::{
+    GroupService, InMemoryDeviceDirectory, IncomingEvent, MemberDevice, MessageService, PeerTicket,
+};
 use siar_protocol::v1::EnvelopeKind;
 use siar_protocol::WireMessage;
-use siar_ui_state::{AppCommand, ConversationKind, ConversationSummary, GroupSummary, PendingInvite, TimelineWindow};
-use dioxus::prelude::*;
+use siar_ui_state::{
+    AppCommand, ConversationKind, ConversationSummary, GroupSummary, PendingInvite, TimelineWindow,
+};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -74,7 +78,13 @@ pub fn App() -> Element {
                         active_peer.0,
                         cmd_rx,
                     ));
-                    spawn(incoming_loop(boot.service, boot.group_service, state, active_peer.0, boot.incoming_rx));
+                    spawn(incoming_loop(
+                        boot.service,
+                        boot.group_service,
+                        state,
+                        active_peer.0,
+                        boot.incoming_rx,
+                    ));
                 }
                 Err(e) => tracing::error!(error = %e, "failed to bootstrap messaging"),
             }
@@ -157,7 +167,13 @@ async fn command_loop(
     active_peer: Signal<Option<PeerTicket>>,
     mut commands: mpsc::Receiver<AppCommand>,
 ) {
-    let CommandLoopContext { service, group_service, device_directory, contact_repo, local_account } = ctx;
+    let CommandLoopContext {
+        service,
+        group_service,
+        device_directory,
+        contact_repo,
+        local_account,
+    } = ctx;
     while let Some(command) = commands.recv().await {
         match command {
             AppCommand::SendMessage { conversation, text } => {
@@ -185,21 +201,27 @@ async fn command_loop(
             AppCommand::MarkRead { conversation, .. } => {
                 state.conversations.write().mark_read(conversation);
             }
-            AppCommand::CreateGroup { founder } => match group_service.create_group_mls(ConversationId::new(), founder) {
-                Ok(group_state) => {
-                    let conversation_id = group_state.conversation_id;
-                    upsert_group_summary(&mut state, &group_state, local_account);
-                    state.conversations.write().upsert(ConversationSummary {
-                        id: conversation_id,
-                        display_name: format!("Group {}", conversation_id.fmt_short()),
-                        last_message_preview: None,
-                        unread_count: 0,
-                        kind: ConversationKind::Group,
-                    });
+            AppCommand::CreateGroup { founder } => {
+                match group_service.create_group_mls(ConversationId::new(), founder) {
+                    Ok(group_state) => {
+                        let conversation_id = group_state.conversation_id;
+                        upsert_group_summary(&mut state, &group_state, local_account);
+                        state.conversations.write().upsert(ConversationSummary {
+                            id: conversation_id,
+                            display_name: format!("Group {}", conversation_id.fmt_short()),
+                            last_message_preview: None,
+                            unread_count: 0,
+                            kind: ConversationKind::Group,
+                        });
+                    }
+                    Err(e) => tracing::warn!(error = %e, "create_group_mls failed"),
                 }
-                Err(e) => tracing::warn!(error = %e, "create_group_mls failed"),
-            },
-            AppCommand::AddGroupMember { conversation, new_member, input } => {
+            }
+            AppCommand::AddGroupMember {
+                conversation,
+                new_member,
+                input,
+            } => {
                 let peer_ticket = match PeerTicket::decode(&input.peer_ticket_text) {
                     Ok(ticket) => ticket,
                     Err(e) => {
@@ -207,8 +229,13 @@ async fn command_loop(
                         continue;
                     }
                 };
-                device_directory
-                    .register(new_member, MemberDevice { device_id: input.peer_device, ticket: peer_ticket });
+                device_directory.register(
+                    new_member,
+                    MemberDevice {
+                        device_id: input.peer_device,
+                        ticket: peer_ticket,
+                    },
+                );
 
                 match group_service
                     .add_member_mls(conversation, new_member, input.peer_device, &input.key_package_bytes)
@@ -222,7 +249,10 @@ async fn command_loop(
                     Err(e) => tracing::warn!(error = %e, "add_member_mls failed"),
                 }
             }
-            AppCommand::SendGroupMessage { conversation, text } => match group_service.send_text_mls(conversation, text.clone()).await {
+            AppCommand::SendGroupMessage { conversation, text } => match group_service
+                .send_text_mls(conversation, text.clone())
+                .await
+            {
                 Ok(message_id) => {
                     state.timeline.write().push_latest(TimelineWindow {
                         message_id,
@@ -237,11 +267,15 @@ async fn command_loop(
             },
             AppCommand::AcceptGroupInvite { conversation } => {
                 let Some(invite) = state.pending_invites.write().remove(conversation) else {
-                    tracing::warn!(?conversation, "AcceptGroupInvite dropped — no pending invite (already handled?)");
+                    tracing::warn!(
+                        ?conversation,
+                        "AcceptGroupInvite dropped — no pending invite (already handled?)"
+                    );
                     continue;
                 };
-                let parsed_state: Result<siar_domain::GroupState, _> = base64_decode(&invite.state_input)
-                    .and_then(|bytes| postcard::from_bytes(&bytes).map_err(|e| e.to_string()));
+                let parsed_state: Result<siar_domain::GroupState, _> =
+                    base64_decode(&invite.state_input)
+                        .and_then(|bytes| postcard::from_bytes(&bytes).map_err(|e| e.to_string()));
                 let group_state = match parsed_state {
                     Ok(s) => s,
                     Err(e) => {
@@ -251,7 +285,11 @@ async fn command_loop(
                         continue;
                     }
                 };
-                match group_service.join_group_mls(conversation, &invite.welcome_bytes, group_state.clone()) {
+                match group_service.join_group_mls(
+                    conversation,
+                    &invite.welcome_bytes,
+                    group_state.clone(),
+                ) {
                     Ok(()) => {
                         upsert_group_summary(&mut state, &group_state, local_account);
                         state.conversations.write().upsert(ConversationSummary {
@@ -268,7 +306,13 @@ async fn command_loop(
             AppCommand::DeclineGroupInvite { conversation } => {
                 state.pending_invites.write().remove(conversation);
             }
-            AppCommand::SaveContact { device_id, account_id, display_name, ticket_text, key_package_b64 } => {
+            AppCommand::SaveContact {
+                device_id,
+                account_id,
+                display_name,
+                ticket_text,
+                key_package_b64,
+            } => {
                 // Validate the ticket before persisting anything — a
                 // saved contact with an undecodable ticket is worse
                 // than no saved contact at all (it would silently fail
@@ -308,9 +352,15 @@ async fn command_loop(
                 Ok(()) => state.contacts.write().remove(device_id),
                 Err(e) => tracing::warn!(error = %e, "failed to remove contact"),
             },
-            AppCommand::LoadAttachmentPreview { message_id, reference } => {
+            AppCommand::LoadAttachmentPreview {
+                message_id,
+                reference,
+            } => {
                 let Some(peer) = active_peer.read().clone() else {
-                    tracing::warn!(?message_id, "dropped LoadAttachmentPreview — no active peer paired yet");
+                    tracing::warn!(
+                        ?message_id,
+                        "dropped LoadAttachmentPreview — no active peer paired yet"
+                    );
                     continue;
                 };
                 // Spawned rather than awaited inline: fetch_attachment
@@ -357,16 +407,24 @@ async fn load_attachment_preview(
 ) {
     if !matches!(
         reference.media_type,
-        siar_domain::MediaType::ImagePng | siar_domain::MediaType::ImageJpeg | siar_domain::MediaType::ImageWebp
+        siar_domain::MediaType::ImagePng
+            | siar_domain::MediaType::ImageJpeg
+            | siar_domain::MediaType::ImageWebp
     ) {
-        state.attachment_previews.write().set_failed(message_id, "not a previewable image type".to_string());
+        state
+            .attachment_previews
+            .write()
+            .set_failed(message_id, "not a previewable image type".to_string());
         return;
     }
 
     let plaintext = match service.fetch_attachment(&peer, &reference).await {
         Ok(bytes) => bytes,
         Err(e) => {
-            state.attachment_previews.write().set_failed(message_id, format!("fetch failed: {e}"));
+            state
+                .attachment_previews
+                .write()
+                .set_failed(message_id, format!("fetch failed: {e}"));
             return;
         }
     };
@@ -386,16 +444,24 @@ async fn load_attachment_preview(
 
     match result {
         Ok(Ok(encoded)) => {
+            state.attachment_previews.write().set_ready(
+                message_id,
+                encoded.jpeg_bytes,
+                encoded.width,
+                encoded.height,
+            );
+        }
+        Ok(Err(e)) => {
             state
                 .attachment_previews
                 .write()
-                .set_ready(message_id, encoded.jpeg_bytes, encoded.width, encoded.height);
-        }
-        Ok(Err(e)) => {
-            state.attachment_previews.write().set_failed(message_id, format!("{e}"));
+                .set_failed(message_id, format!("{e}"));
         }
         Err(e) => {
-            state.attachment_previews.write().set_failed(message_id, format!("decode task panicked: {e}"));
+            state
+                .attachment_previews
+                .write()
+                .set_failed(message_id, format!("decode task panicked: {e}"));
         }
     }
 }
@@ -407,7 +473,11 @@ fn now_millis() -> u64 {
         .unwrap_or(0)
 }
 
-fn upsert_group_summary(state: &mut AppState, group_state: &siar_domain::GroupState, local_account: siar_domain::AccountId) {
+fn upsert_group_summary(
+    state: &mut AppState,
+    group_state: &siar_domain::GroupState,
+    local_account: siar_domain::AccountId,
+) {
     state.groups.write().upsert(GroupSummary {
         conversation_id: group_state.conversation_id,
         display_label: format!("Group {}", group_state.conversation_id.fmt_short()),
@@ -425,7 +495,9 @@ fn upsert_group_summary(state: &mut AppState, group_state: &siar_domain::GroupSt
 /// copy-pasted copy drifting out of sync with this one.
 pub(crate) fn base64_decode(s: &str) -> Result<Vec<u8>, String> {
     use base64::Engine;
-    base64::engine::general_purpose::STANDARD.decode(s.trim()).map_err(|e| e.to_string())
+    base64::engine::general_purpose::STANDARD
+        .decode(s.trim())
+        .map_err(|e| e.to_string())
 }
 
 /// plan.md §112's receive flow, feeding straight into the UI signals.
@@ -506,7 +578,10 @@ async fn incoming_loop(
                     Ok(Some(content)) => {
                         let conversation = envelope.conversation_id;
                         if let MessageContent::Text(text) = &content {
-                            state.conversations.write().set_preview(conversation, text.as_str().to_string());
+                            state
+                                .conversations
+                                .write()
+                                .set_preview(conversation, text.as_str().to_string());
                             state.conversations.write().increment_unread(conversation);
                         }
                         state.timeline.write().push_latest(TimelineWindow {
