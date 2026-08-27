@@ -50,8 +50,14 @@ impl DeviceLinkInvite {
             expires_at_millis: u64,
             nonce: &'a [u8; 16],
         }
-        postcard::to_allocvec(&Payload { account_id, inviter_device, ephemeral_link_key, expires_at_millis, nonce })
-            .expect("postcard encoding of a fixed-shape struct cannot fail")
+        postcard::to_allocvec(&Payload {
+            account_id,
+            inviter_device,
+            ephemeral_link_key,
+            expires_at_millis,
+            nonce,
+        })
+        .expect("postcard encoding of a fixed-shape struct cannot fail")
     }
 
     /// `nonce` is generated internally, not accepted as a parameter —
@@ -67,15 +73,37 @@ impl DeviceLinkInvite {
     ) -> Self {
         let mut nonce = [0u8; 16];
         OsRng.fill_bytes(&mut nonce);
-        let payload = Self::signing_payload(account_id, inviter_device, &ephemeral_link_key, expires_at_millis, &nonce);
+        let payload = Self::signing_payload(
+            account_id,
+            inviter_device,
+            &ephemeral_link_key,
+            expires_at_millis,
+            &nonce,
+        );
         let signature = root_key.sign(&payload).to_vec();
-        Self { account_id, inviter_device, ephemeral_link_key, expires_at_millis, nonce, signature }
+        Self {
+            account_id,
+            inviter_device,
+            ephemeral_link_key,
+            expires_at_millis,
+            nonce,
+            signature,
+        }
     }
 
     pub fn verify_signature(&self, root_public_key: &RootPublicKey) -> Result<(), IdentityError> {
-        let payload =
-            Self::signing_payload(self.account_id, self.inviter_device, &self.ephemeral_link_key, self.expires_at_millis, &self.nonce);
-        let signature: [u8; 64] = self.signature.as_slice().try_into().map_err(|_| IdentityError::MalformedKey)?;
+        let payload = Self::signing_payload(
+            self.account_id,
+            self.inviter_device,
+            &self.ephemeral_link_key,
+            self.expires_at_millis,
+            &self.nonce,
+        );
+        let signature: [u8; 64] = self
+            .signature
+            .as_slice()
+            .try_into()
+            .map_err(|_| IdentityError::MalformedKey)?;
         root_public_key.verify(&payload, &signature)
     }
 
@@ -104,7 +132,13 @@ mod tests {
 
     fn make_invite(root: &RootIdentityKey, expires_at_millis: u64) -> DeviceLinkInvite {
         let ephemeral = EphemeralLinkKeyPair::generate();
-        DeviceLinkInvite::create(root, AccountId::new(), DeviceId::new(), ephemeral.public_key(), expires_at_millis)
+        DeviceLinkInvite::create(
+            root,
+            AccountId::new(),
+            DeviceId::new(),
+            ephemeral.public_key(),
+            expires_at_millis,
+        )
     }
 
     #[test]
@@ -119,7 +153,9 @@ mod tests {
         let root = RootIdentityKey::generate();
         let impostor_root = RootIdentityKey::generate();
         let invite = make_invite(&root, 10_000);
-        assert!(invite.verify_signature(&impostor_root.root_public_key()).is_err());
+        assert!(invite
+            .verify_signature(&impostor_root.root_public_key())
+            .is_err());
     }
 
     #[test]
