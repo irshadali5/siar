@@ -163,7 +163,10 @@ mod tests {
         let alice_secret = MailboxTokenSecret::establish(&alice, &bob.x25519_public());
         let bob_secret = MailboxTokenSecret::establish(&bob, &alice.x25519_public());
 
-        assert_eq!(alice_secret.token_for_epoch(42), bob_secret.token_for_epoch(42));
+        assert_eq!(
+            alice_secret.token_for_epoch(42),
+            bob_secret.token_for_epoch(42)
+        );
     }
 
     #[test]
@@ -198,7 +201,10 @@ mod tests {
         // not collide with the real one.
         let mallory_secret = MailboxTokenSecret::establish(&mallory, &bob.x25519_public());
 
-        assert_ne!(real_secret.token_for_epoch(1), mallory_secret.token_for_epoch(1));
+        assert_ne!(
+            real_secret.token_for_epoch(1),
+            mallory_secret.token_for_epoch(1)
+        );
     }
 
     #[test]
