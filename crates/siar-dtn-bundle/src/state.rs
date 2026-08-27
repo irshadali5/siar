@@ -77,12 +77,18 @@ impl BundleState {
     }
 
     pub fn is_terminal(self) -> bool {
-        matches!(self, Self::Completed | Self::Expired | Self::Evicted | Self::Cancelled | Self::Rejected)
+        matches!(
+            self,
+            Self::Completed | Self::Expired | Self::Evicted | Self::Cancelled | Self::Rejected
+        )
     }
 
     /// §19's own distinction, made a real, unambiguous check.
     pub fn is_delivered(self) -> bool {
-        matches!(self, Self::DestinationReached | Self::Acknowledged | Self::Completed)
+        matches!(
+            self,
+            Self::DestinationReached | Self::Acknowledged | Self::Completed
+        )
     }
 }
 
