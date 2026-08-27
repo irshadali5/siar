@@ -45,7 +45,9 @@ fn max_supported_size(link: TransportLink) -> PayloadSizeClass {
     match link {
         Ble => PayloadSizeClass::Tiny,
         BluetoothClassic => PayloadSizeClass::Medium,
-        WifiDirect | WifiAware | LocalLan | InternetDirect | InternetRelay => PayloadSizeClass::Large,
+        WifiDirect | WifiAware | LocalLan | InternetDirect | InternetRelay => {
+            PayloadSizeClass::Large
+        }
     }
 }
 
@@ -123,7 +125,13 @@ mod tests {
     use crate::path::NextHop;
 
     fn entry(link: TransportLink, reliability: f32, rtt_millis: Option<u32>) -> PathEntry {
-        PathEntry { link, next_hop: NextHop::Direct, last_seen: 0, rtt_millis, reliability }
+        PathEntry {
+            link,
+            next_hop: NextHop::Direct,
+            last_seen: 0,
+            rtt_millis,
+            reliability,
+        }
     }
 
     #[test]
@@ -136,23 +144,38 @@ mod tests {
 
     #[test]
     fn ble_rejects_anything_past_tiny() {
-        assert!(is_suitable_for_payload(TransportLink::Ble, PayloadSizeClass::Tiny));
-        assert!(!is_suitable_for_payload(TransportLink::Ble, PayloadSizeClass::Small));
+        assert!(is_suitable_for_payload(
+            TransportLink::Ble,
+            PayloadSizeClass::Tiny
+        ));
+        assert!(!is_suitable_for_payload(
+            TransportLink::Ble,
+            PayloadSizeClass::Small
+        ));
     }
 
     #[test]
     fn fast_transports_still_accept_tiny_payloads() {
         // next.md §9: a 10-byte SOS over Wi-Fi/Iroh is fine even though
         // those transports are "for" medium/large per §53's table.
-        assert!(is_suitable_for_payload(TransportLink::InternetDirect, PayloadSizeClass::Tiny));
-        assert!(is_suitable_for_payload(TransportLink::WifiDirect, PayloadSizeClass::Tiny));
+        assert!(is_suitable_for_payload(
+            TransportLink::InternetDirect,
+            PayloadSizeClass::Tiny
+        ));
+        assert!(is_suitable_for_payload(
+            TransportLink::WifiDirect,
+            PayloadSizeClass::Tiny
+        ));
     }
 
     #[test]
     fn higher_bandwidth_and_lower_rtt_scores_higher() {
         let fast = entry(TransportLink::LocalLan, 0.9, Some(20));
         let slow = entry(TransportLink::Ble, 0.9, Some(200));
-        assert!(route_score(&fast, MessagePriority::Normal) > route_score(&slow, MessagePriority::Normal));
+        assert!(
+            route_score(&fast, MessagePriority::Normal)
+                > route_score(&slow, MessagePriority::Normal)
+        );
     }
 
     #[test]
@@ -160,22 +183,33 @@ mod tests {
         let slow_but_reachable = entry(TransportLink::Ble, 0.5, Some(500));
         let fast = entry(TransportLink::LocalLan, 1.0, Some(5));
         // At Normal priority the fast path wins comfortably.
-        assert!(route_score(&fast, MessagePriority::Normal) > route_score(&slow_but_reachable, MessagePriority::Normal));
+        assert!(
+            route_score(&fast, MessagePriority::Normal)
+                > route_score(&slow_but_reachable, MessagePriority::Normal)
+        );
         // At Emergency priority both scores are dominated by the flat
         // bonus — the fast path still wins (it's strictly better on
         // every other factor too), but the gap should have shrunk in
         // relative terms rather than grown, showing the bonus is doing
         // the dwarfing.
-        let normal_gap = route_score(&fast, MessagePriority::Normal) - route_score(&slow_but_reachable, MessagePriority::Normal);
-        let emergency_gap = route_score(&fast, MessagePriority::Emergency) - route_score(&slow_but_reachable, MessagePriority::Emergency);
-        assert_eq!(normal_gap, emergency_gap, "the flat Emergency bonus should cancel out, leaving the same underlying gap");
+        let normal_gap = route_score(&fast, MessagePriority::Normal)
+            - route_score(&slow_but_reachable, MessagePriority::Normal);
+        let emergency_gap = route_score(&fast, MessagePriority::Emergency)
+            - route_score(&slow_but_reachable, MessagePriority::Emergency);
+        assert_eq!(
+            normal_gap, emergency_gap,
+            "the flat Emergency bonus should cancel out, leaving the same underlying gap"
+        );
     }
 
     #[test]
     fn best_route_picks_highest_scoring_suitable_candidate() {
-        let candidates =
-            vec![entry(TransportLink::Ble, 0.9, Some(50)), entry(TransportLink::LocalLan, 0.9, Some(20))];
-        let chosen = best_route(&candidates, MessagePriority::Normal, PayloadSizeClass::Tiny).expect("should find a route");
+        let candidates = vec![
+            entry(TransportLink::Ble, 0.9, Some(50)),
+            entry(TransportLink::LocalLan, 0.9, Some(20)),
+        ];
+        let chosen = best_route(&candidates, MessagePriority::Normal, PayloadSizeClass::Tiny)
+            .expect("should find a route");
         assert_eq!(chosen.link, TransportLink::LocalLan);
     }
 
@@ -183,6 +217,11 @@ mod tests {
     fn best_route_excludes_unsuitable_candidates_even_if_they_would_score_higher() {
         // BLE is the only candidate but the payload is too large for it.
         let candidates = vec![entry(TransportLink::Ble, 1.0, Some(1))];
-        assert!(best_route(&candidates, MessagePriority::Normal, PayloadSizeClass::Large).is_none());
+        assert!(best_route(
+            &candidates,
+            MessagePriority::Normal,
+            PayloadSizeClass::Large
+        )
+        .is_none());
     }
 }
