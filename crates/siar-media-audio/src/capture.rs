@@ -78,7 +78,9 @@ pub struct SharedPcmBuffer {
 
 impl SharedPcmBuffer {
     fn new() -> Self {
-        Self { inner: Arc::new(Mutex::new(VecDeque::new())) }
+        Self {
+            inner: Arc::new(Mutex::new(VecDeque::new())),
+        }
     }
 
     fn push(&self, samples: &[i16]) {
@@ -120,8 +122,12 @@ impl AudioCapture {
     /// `SharedPcmBuffer` the encoding loop pulls from.
     pub fn start() -> Result<(Self, SharedPcmBuffer), CaptureError> {
         let host = cpal::default_host();
-        let device = host.default_input_device().ok_or(CaptureError::NoInputDevice)?;
-        let config = device.default_input_config().map_err(|e| CaptureError::Cpal(e.to_string()))?;
+        let device = host
+            .default_input_device()
+            .ok_or(CaptureError::NoInputDevice)?;
+        let config = device
+            .default_input_config()
+            .map_err(|e| CaptureError::Cpal(e.to_string()))?;
 
         let sample_rate = config.sample_rate();
         if !OPUS_SUPPORTED_RATES.contains(&sample_rate) {
@@ -152,8 +158,10 @@ impl AudioCapture {
                         // Standard full-scale float-to-i16 conversion;
                         // clamp guards against a device that (against
                         // spec) hands back values outside [-1.0, 1.0].
-                        let converted: Vec<i16> =
-                            data.iter().map(|s| (s.clamp(-1.0, 1.0) * i16::MAX as f32) as i16).collect();
+                        let converted: Vec<i16> = data
+                            .iter()
+                            .map(|s| (s.clamp(-1.0, 1.0) * i16::MAX as f32) as i16)
+                            .collect();
                         buffer_for_callback.push(&converted);
                     },
                     err_fn,
@@ -163,17 +171,30 @@ impl AudioCapture {
             other => return Err(CaptureError::UnsupportedSampleFormat(other)),
         };
 
-        stream.play().map_err(|e| CaptureError::Cpal(e.to_string()))?;
+        stream
+            .play()
+            .map_err(|e| CaptureError::Cpal(e.to_string()))?;
 
-        Ok((Self { stream, sample_rate, channels }, buffer))
+        Ok((
+            Self {
+                stream,
+                sample_rate,
+                channels,
+            },
+            buffer,
+        ))
     }
 
     pub fn pause(&self) -> Result<(), CaptureError> {
-        self.stream.pause().map_err(|e| CaptureError::Cpal(e.to_string()))
+        self.stream
+            .pause()
+            .map_err(|e| CaptureError::Cpal(e.to_string()))
     }
 
     pub fn resume(&self) -> Result<(), CaptureError> {
-        self.stream.play().map_err(|e| CaptureError::Cpal(e.to_string()))
+        self.stream
+            .play()
+            .map_err(|e| CaptureError::Cpal(e.to_string()))
     }
 }
 
@@ -185,7 +206,10 @@ mod tests {
     fn shared_buffer_pulls_exact_frame_or_none() {
         let buffer = SharedPcmBuffer::new();
         buffer.push(&[1, 2, 3]);
-        assert!(buffer.pull_frame(4).is_none(), "must not return a short frame");
+        assert!(
+            buffer.pull_frame(4).is_none(),
+            "must not return a short frame"
+        );
         buffer.push(&[4]);
         assert_eq!(buffer.pull_frame(4), Some(vec![1, 2, 3, 4]));
         assert!(buffer.pull_frame(1).is_none());
@@ -198,6 +222,9 @@ mod tests {
             buffer.push(&[0]);
         }
         let remaining = buffer.inner.lock().unwrap().len();
-        assert!(remaining <= 48_000 * 2 * 2, "buffer grew past its documented cap: {remaining}");
+        assert!(
+            remaining <= 48_000 * 2 * 2,
+            "buffer grew past its documented cap: {remaining}"
+        );
     }
 }
