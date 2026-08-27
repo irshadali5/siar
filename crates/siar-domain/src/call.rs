@@ -83,10 +83,26 @@ pub struct MediaQuality {
 }
 
 const QUALITY_LADDER: &[MediaQuality] = &[
-    MediaQuality { video_bitrate_kbps: 150, audio_bitrate_kbps: 16, resolution_height: 180 },
-    MediaQuality { video_bitrate_kbps: 400, audio_bitrate_kbps: 24, resolution_height: 360 },
-    MediaQuality { video_bitrate_kbps: 1000, audio_bitrate_kbps: 32, resolution_height: 480 },
-    MediaQuality { video_bitrate_kbps: 2500, audio_bitrate_kbps: 32, resolution_height: 720 },
+    MediaQuality {
+        video_bitrate_kbps: 150,
+        audio_bitrate_kbps: 16,
+        resolution_height: 180,
+    },
+    MediaQuality {
+        video_bitrate_kbps: 400,
+        audio_bitrate_kbps: 24,
+        resolution_height: 360,
+    },
+    MediaQuality {
+        video_bitrate_kbps: 1000,
+        audio_bitrate_kbps: 32,
+        resolution_height: 480,
+    },
+    MediaQuality {
+        video_bitrate_kbps: 2500,
+        audio_bitrate_kbps: 32,
+        resolution_height: 720,
+    },
 ];
 
 /// plan.md §51: "do not blindly stream at fixed bitrate" — steps down
@@ -157,7 +173,11 @@ mod tests {
     #[test]
     fn quality_steps_down_under_high_packet_loss() {
         let good = QUALITY_LADDER[3];
-        let bad_conditions = NetworkConditions { round_trip_millis: 50, packet_loss_fraction: 0.1, jitter_millis: 10 };
+        let bad_conditions = NetworkConditions {
+            round_trip_millis: 50,
+            packet_loss_fraction: 0.1,
+            jitter_millis: 10,
+        };
         let next = adapt_quality(good, bad_conditions);
         assert!(next.video_bitrate_kbps < good.video_bitrate_kbps);
     }
@@ -165,7 +185,11 @@ mod tests {
     #[test]
     fn quality_steps_up_under_good_conditions() {
         let low = QUALITY_LADDER[0];
-        let good_conditions = NetworkConditions { round_trip_millis: 40, packet_loss_fraction: 0.0, jitter_millis: 5 };
+        let good_conditions = NetworkConditions {
+            round_trip_millis: 40,
+            packet_loss_fraction: 0.0,
+            jitter_millis: 5,
+        };
         let next = adapt_quality(low, good_conditions);
         assert!(next.video_bitrate_kbps > low.video_bitrate_kbps);
     }
@@ -173,21 +197,33 @@ mod tests {
     #[test]
     fn quality_does_not_exceed_the_top_of_the_ladder() {
         let top = QUALITY_LADDER[QUALITY_LADDER.len() - 1];
-        let great_conditions = NetworkConditions { round_trip_millis: 10, packet_loss_fraction: 0.0, jitter_millis: 1 };
+        let great_conditions = NetworkConditions {
+            round_trip_millis: 10,
+            packet_loss_fraction: 0.0,
+            jitter_millis: 1,
+        };
         assert_eq!(adapt_quality(top, great_conditions), top);
     }
 
     #[test]
     fn quality_does_not_go_below_the_bottom_of_the_ladder() {
         let bottom = QUALITY_LADDER[0];
-        let terrible_conditions = NetworkConditions { round_trip_millis: 900, packet_loss_fraction: 0.5, jitter_millis: 500 };
+        let terrible_conditions = NetworkConditions {
+            round_trip_millis: 900,
+            packet_loss_fraction: 0.5,
+            jitter_millis: 500,
+        };
         assert_eq!(adapt_quality(bottom, terrible_conditions), bottom);
     }
 
     #[test]
     fn mediocre_conditions_hold_steady_rather_than_flicker() {
         let mid = QUALITY_LADDER[1];
-        let mediocre = NetworkConditions { round_trip_millis: 200, packet_loss_fraction: 0.02, jitter_millis: 50 };
+        let mediocre = NetworkConditions {
+            round_trip_millis: 200,
+            packet_loss_fraction: 0.02,
+            jitter_millis: 50,
+        };
         assert_eq!(adapt_quality(mid, mediocre), mid);
     }
 }
