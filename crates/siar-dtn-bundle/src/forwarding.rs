@@ -45,7 +45,10 @@ pub enum ForwardingDecision {
     /// the bundle (the caller owns that, same "decide, don't mutate"
     /// split `siar_routing_policy::scoring`-equivalent modules in this workspace's
     /// sibling crates already use).
-    Spray { targets: Vec<RouteToken>, retain: u8 },
+    Spray {
+        targets: Vec<RouteToken>,
+        retain: u8,
+    },
     /// Expired (§20), budget exhausted, or no eligible peer at all —
     /// nothing to do with this bundle right now.
     Hold,
@@ -61,9 +64,9 @@ pub enum ForwardingDecision {
 /// re-derives from the `BroadcastScope` value itself.
 fn peer_is_destination(peer_token: &RouteToken, destination: &DtnDestination) -> bool {
     match destination {
-        DtnDestination::DeviceOpaque(token) | DtnDestination::AccountOpaque(token) | DtnDestination::GroupOpaque(token) => {
-            peer_token == token
-        }
+        DtnDestination::DeviceOpaque(token)
+        | DtnDestination::AccountOpaque(token)
+        | DtnDestination::GroupOpaque(token) => peer_token == token,
         DtnDestination::LocalBroadcast(_) => true,
     }
 }
@@ -89,20 +92,31 @@ fn peer_is_destination(peer_token: &RouteToken, destination: &DtnDestination) ->
 ///    - `SprayAndWait`: real allocation via
 ///      [`spray_allocation`] (§23, already built, now actually called)
 ///      against however many peers were encountered.
-pub fn decide_forwarding(bundle: &DtnBundle, encountered_peers: &[EncounteredPeer], now_millis: u64) -> ForwardingDecision {
+pub fn decide_forwarding(
+    bundle: &DtnBundle,
+    encountered_peers: &[EncounteredPeer],
+    now_millis: u64,
+) -> ForwardingDecision {
     if bundle.is_expired(now_millis) {
         return ForwardingDecision::Hold;
     }
 
-    if let Some(destination_peer) = encountered_peers.iter().find(|p| peer_is_destination(&p.route_token, &bundle.destination)) {
-        return ForwardingDecision::DeliverDirect { to: destination_peer.route_token.clone() };
+    if let Some(destination_peer) = encountered_peers
+        .iter()
+        .find(|p| peer_is_destination(&p.route_token, &bundle.destination))
+    {
+        return ForwardingDecision::DeliverDirect {
+            to: destination_peer.route_token.clone(),
+        };
     }
 
     match bundle.forwarding_class {
         ForwardingClass::DirectOnly => ForwardingDecision::Hold,
         ForwardingClass::GatewayPreferred => {
             if let Some(gateway) = encountered_peers.iter().find(|p| p.is_gateway) {
-                ForwardingDecision::ForwardToGateway { to: gateway.route_token.clone() }
+                ForwardingDecision::ForwardToGateway {
+                    to: gateway.route_token.clone(),
+                }
             } else {
                 spray_decision(bundle, encountered_peers)
             }
@@ -115,11 +129,16 @@ fn spray_decision(bundle: &DtnBundle, encountered_peers: &[EncounteredPeer]) -> 
     if encountered_peers.is_empty() {
         return ForwardingDecision::Hold;
     }
-    let (spray_count, retain) = spray_allocation(bundle.replication_budget, encountered_peers.len() as u8);
+    let (spray_count, retain) =
+        spray_allocation(bundle.replication_budget, encountered_peers.len() as u8);
     if spray_count == 0 {
         return ForwardingDecision::Hold;
     }
-    let targets = encountered_peers.iter().take(spray_count as usize).map(|p| p.route_token.clone()).collect();
+    let targets = encountered_peers
+        .iter()
+        .take(spray_count as usize)
+        .map(|p| p.route_token.clone())
+        .collect();
     ForwardingDecision::Spray { targets, retain }
 }
 
@@ -130,7 +149,12 @@ mod tests {
     use crate::payload::PayloadReference;
     use crate::types::{BundleId, DtnPriority, DtnSource, PayloadTypeId};
 
-    fn bundle(destination: DtnDestination, forwarding_class: ForwardingClass, expires_at_millis: u64, replication_budget: u8) -> DtnBundle {
+    fn bundle(
+        destination: DtnDestination,
+        forwarding_class: ForwardingClass,
+        expires_at_millis: u64,
+        replication_budget: u8,
+    ) -> DtnBundle {
         DtnBundle {
             bundle_id: BundleId::new(),
             source: DtnSource(RouteToken(vec![0])),
@@ -143,47 +167,96 @@ mod tests {
             replication_budget,
             forwarding_class,
             payload_ref: PayloadReference::Inline(vec![9]),
-            integrity: BundleIntegrity { payload_hash: [0u8; 32], origin_signature: None },
+            integrity: BundleIntegrity {
+                payload_hash: [0u8; 32],
+                origin_signature: None,
+            },
         }
     }
 
     fn peer(token: u8, is_gateway: bool) -> EncounteredPeer {
-        EncounteredPeer { route_token: RouteToken(vec![token]), is_gateway }
+        EncounteredPeer {
+            route_token: RouteToken(vec![token]),
+            is_gateway,
+        }
     }
 
     #[test]
     fn an_expired_bundle_is_always_held_regardless_of_encountered_peers() {
         let dest_token = RouteToken(vec![7]);
-        let b = bundle(DtnDestination::DeviceOpaque(dest_token.clone()), ForwardingClass::SprayAndWait, 500, 4);
-        let peers = vec![EncounteredPeer { route_token: dest_token, is_gateway: false }];
+        let b = bundle(
+            DtnDestination::DeviceOpaque(dest_token.clone()),
+            ForwardingClass::SprayAndWait,
+            500,
+            4,
+        );
+        let peers = vec![EncounteredPeer {
+            route_token: dest_token,
+            is_gateway: false,
+        }];
         assert_eq!(decide_forwarding(&b, &peers, 999), ForwardingDecision::Hold);
     }
 
     #[test]
     fn direct_delivery_always_wins_even_for_spray_and_wait() {
         let dest_token = RouteToken(vec![7]);
-        let b = bundle(DtnDestination::DeviceOpaque(dest_token.clone()), ForwardingClass::SprayAndWait, 10_000, 4);
-        let peers = vec![peer(1, false), EncounteredPeer { route_token: dest_token.clone(), is_gateway: false }, peer(2, true)];
-        assert_eq!(decide_forwarding(&b, &peers, 0), ForwardingDecision::DeliverDirect { to: dest_token });
+        let b = bundle(
+            DtnDestination::DeviceOpaque(dest_token.clone()),
+            ForwardingClass::SprayAndWait,
+            10_000,
+            4,
+        );
+        let peers = vec![
+            peer(1, false),
+            EncounteredPeer {
+                route_token: dest_token.clone(),
+                is_gateway: false,
+            },
+            peer(2, true),
+        ];
+        assert_eq!(
+            decide_forwarding(&b, &peers, 0),
+            ForwardingDecision::DeliverDirect { to: dest_token }
+        );
     }
 
     #[test]
     fn direct_only_never_relays_when_destination_is_absent() {
-        let b = bundle(DtnDestination::DeviceOpaque(RouteToken(vec![7])), ForwardingClass::DirectOnly, 10_000, 4);
+        let b = bundle(
+            DtnDestination::DeviceOpaque(RouteToken(vec![7])),
+            ForwardingClass::DirectOnly,
+            10_000,
+            4,
+        );
         let peers = vec![peer(1, false), peer(2, true)];
         assert_eq!(decide_forwarding(&b, &peers, 0), ForwardingDecision::Hold);
     }
 
     #[test]
     fn gateway_preferred_forwards_to_a_gateway_when_one_is_present() {
-        let b = bundle(DtnDestination::DeviceOpaque(RouteToken(vec![7])), ForwardingClass::GatewayPreferred, 10_000, 4);
+        let b = bundle(
+            DtnDestination::DeviceOpaque(RouteToken(vec![7])),
+            ForwardingClass::GatewayPreferred,
+            10_000,
+            4,
+        );
         let peers = vec![peer(1, false), peer(2, true)];
-        assert_eq!(decide_forwarding(&b, &peers, 0), ForwardingDecision::ForwardToGateway { to: RouteToken(vec![2]) });
+        assert_eq!(
+            decide_forwarding(&b, &peers, 0),
+            ForwardingDecision::ForwardToGateway {
+                to: RouteToken(vec![2])
+            }
+        );
     }
 
     #[test]
     fn gateway_preferred_falls_back_to_spraying_when_no_gateway_is_present() {
-        let b = bundle(DtnDestination::DeviceOpaque(RouteToken(vec![7])), ForwardingClass::GatewayPreferred, 10_000, 4);
+        let b = bundle(
+            DtnDestination::DeviceOpaque(RouteToken(vec![7])),
+            ForwardingClass::GatewayPreferred,
+            10_000,
+            4,
+        );
         let peers = vec![peer(1, false), peer(2, false)];
         let decision = decide_forwarding(&b, &peers, 0);
         assert!(matches!(decision, ForwardingDecision::Spray { .. }));
@@ -191,15 +264,31 @@ mod tests {
 
     #[test]
     fn spray_and_wait_sprays_to_available_peers_respecting_the_budget() {
-        let b = bundle(DtnDestination::DeviceOpaque(RouteToken(vec![7])), ForwardingClass::SprayAndWait, 10_000, 1);
+        let b = bundle(
+            DtnDestination::DeviceOpaque(RouteToken(vec![7])),
+            ForwardingClass::SprayAndWait,
+            10_000,
+            1,
+        );
         let peers = vec![peer(1, false), peer(2, false), peer(3, false)];
         let decision = decide_forwarding(&b, &peers, 0);
-        assert_eq!(decision, ForwardingDecision::Spray { targets: vec![RouteToken(vec![1])], retain: 0 });
+        assert_eq!(
+            decision,
+            ForwardingDecision::Spray {
+                targets: vec![RouteToken(vec![1])],
+                retain: 0
+            }
+        );
     }
 
     #[test]
     fn no_encountered_peers_at_all_holds() {
-        let b = bundle(DtnDestination::DeviceOpaque(RouteToken(vec![7])), ForwardingClass::SprayAndWait, 10_000, 4);
+        let b = bundle(
+            DtnDestination::DeviceOpaque(RouteToken(vec![7])),
+            ForwardingClass::SprayAndWait,
+            10_000,
+            4,
+        );
         assert_eq!(decide_forwarding(&b, &[], 0), ForwardingDecision::Hold);
     }
 
@@ -212,6 +301,11 @@ mod tests {
             4,
         );
         let peers = vec![peer(1, false)];
-        assert_eq!(decide_forwarding(&b, &peers, 0), ForwardingDecision::DeliverDirect { to: RouteToken(vec![1]) });
+        assert_eq!(
+            decide_forwarding(&b, &peers, 0),
+            ForwardingDecision::DeliverDirect {
+                to: RouteToken(vec![1])
+            }
+        );
     }
 }
