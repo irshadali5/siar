@@ -10,14 +10,7 @@
 /// attempts (0 on the first retry after the initial failure).
 pub fn backoff_millis(attempts: u32) -> u64 {
     const SCHEDULE_MS: &[u64] = &[
-        1_000,
-        2_000,
-        5_000,
-        10_000,
-        30_000,
-        60_000,
-        300_000,
-        900_000,
+        1_000, 2_000, 5_000, 10_000, 30_000, 60_000, 300_000, 900_000,
     ];
     let index = (attempts as usize).min(SCHEDULE_MS.len() - 1);
     SCHEDULE_MS[index]
