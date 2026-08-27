@@ -8,20 +8,22 @@
 //! `protocol::v1` type first, so `domain` can evolve freely and old
 //! clients speaking `v1` keep working when `v2` ships.
 
-pub mod v1;
+mod blob;
 mod codec;
 mod limits;
-mod blob;
-mod mesh;
 mod mailbox;
+mod mesh;
 mod route_advertisement;
+pub mod v1;
 
 pub use blob::{BlobRequest, BlobResponse, MAX_BLOB_FRAME_BYTES};
-pub use codec::{decode_frame, decode_frame_generic, encode_frame, encode_frame_generic, CodecError};
+pub use codec::{
+    decode_frame, decode_frame_generic, encode_frame, encode_frame_generic, CodecError,
+};
 pub use limits::{MAX_CONTROL_FRAME_BYTES, MAX_TEXT_FRAME_BYTES};
 pub use mailbox::{
-    AnonymousMailboxCheckIn, DeviceKeyDirectory, MailboxCheckIn, MailboxCheckInError, TokenMailboxEnvelope,
-    TokenMailboxStore,
+    AnonymousMailboxCheckIn, DeviceKeyDirectory, MailboxCheckIn, MailboxCheckInError,
+    TokenMailboxEnvelope, TokenMailboxStore,
 };
 pub use mesh::MeshEnvelope;
 pub use route_advertisement::RouteAdvertisement;
