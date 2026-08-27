@@ -120,7 +120,12 @@ impl MailboxCheckIn {
         let verifying_key = identity.verifying_key().to_bytes();
         let payload = Self::signing_payload(device, &verifying_key, now_millis);
         let signature = identity.sign(&payload).to_bytes().to_vec();
-        Self { device, verifying_key, issued_at_millis: now_millis, signature }
+        Self {
+            device,
+            verifying_key,
+            issued_at_millis: now_millis,
+            signature,
+        }
     }
 
     /// Canonical bytes the signature covers — `device`'s raw UUID bytes,
@@ -128,7 +133,11 @@ impl MailboxCheckIn {
     /// binding all three together so an attacker can't splice a valid
     /// signature from one check-in onto a different `device` or a
     /// replayed-but-relabeled `issued_at_millis`.
-    fn signing_payload(device: DeviceId, verifying_key: &[u8; 32], issued_at_millis: u64) -> Vec<u8> {
+    fn signing_payload(
+        device: DeviceId,
+        verifying_key: &[u8; 32],
+        issued_at_millis: u64,
+    ) -> Vec<u8> {
         let mut payload = Vec::with_capacity(16 + 32 + 8);
         payload.extend_from_slice(device.as_uuid().as_bytes());
         payload.extend_from_slice(verifying_key);
@@ -143,12 +152,18 @@ impl MailboxCheckIn {
     /// logic over caller-supplied data" shape as everything else in
     /// this workspace's protocol/routing layer.
     pub fn verify(&self, now_millis: u64, max_age_millis: u64) -> Result<(), MailboxCheckInError> {
-        let verifying_key = VerifyingKey::from_bytes(&self.verifying_key).map_err(|_| MailboxCheckInError::MalformedKey)?;
-        let signature_bytes: [u8; 64] =
-            self.signature.as_slice().try_into().map_err(|_| MailboxCheckInError::MalformedKey)?;
+        let verifying_key = VerifyingKey::from_bytes(&self.verifying_key)
+            .map_err(|_| MailboxCheckInError::MalformedKey)?;
+        let signature_bytes: [u8; 64] = self
+            .signature
+            .as_slice()
+            .try_into()
+            .map_err(|_| MailboxCheckInError::MalformedKey)?;
         let signature = Signature::from_bytes(&signature_bytes);
-        let payload = Self::signing_payload(self.device, &self.verifying_key, self.issued_at_millis);
-        DeviceIdentity::verify(&verifying_key, &payload, &signature).map_err(|_| MailboxCheckInError::BadSignature)?;
+        let payload =
+            Self::signing_payload(self.device, &self.verifying_key, self.issued_at_millis);
+        DeviceIdentity::verify(&verifying_key, &payload, &signature)
+            .map_err(|_| MailboxCheckInError::BadSignature)?;
 
         // Two-sided window: rejects both a stale, possibly-replayed
         // check-in AND one absurdly far in the future (which could
@@ -188,7 +203,9 @@ pub struct DeviceKeyDirectory {
 
 impl DeviceKeyDirectory {
     pub fn new() -> Self {
-        Self { pinned: HashMap::new() }
+        Self {
+            pinned: HashMap::new(),
+        }
     }
 
     /// Verifies `check_in` (signature + freshness, via
@@ -204,7 +221,9 @@ impl DeviceKeyDirectory {
     ) -> Result<(), MailboxCheckInError> {
         check_in.verify(now_millis, max_age_millis)?;
         match self.pinned.get(&check_in.device) {
-            Some(pinned_key) if *pinned_key != check_in.verifying_key => Err(MailboxCheckInError::KeyMismatch),
+            Some(pinned_key) if *pinned_key != check_in.verifying_key => {
+                Err(MailboxCheckInError::KeyMismatch)
+            }
             Some(_) => Ok(()),
             None => {
                 self.pinned.insert(check_in.device, check_in.verifying_key);
@@ -261,7 +280,9 @@ impl AnonymousMailboxCheckIn {
     /// could be built over stale input, since the token itself is
     /// simply a deterministic function of the secret and the epoch.
     pub fn new(secret: &MailboxTokenSecret, now_millis: u64) -> Self {
-        Self { token: secret.token_for_epoch(epoch_for(now_millis)) }
+        Self {
+            token: secret.token_for_epoch(epoch_for(now_millis)),
+        }
     }
 }
 
@@ -292,7 +313,9 @@ pub struct TokenMailboxStore<V> {
 
 impl<V> TokenMailboxStore<V> {
     pub fn new() -> Self {
-        Self { entries: HashMap::new() }
+        Self {
+            entries: HashMap::new(),
+        }
     }
 
     /// Files `value` under `token` — appends rather than replaces,
@@ -388,7 +411,10 @@ mod tests {
         // matching private key.
         check_in.verifying_key = attacker_identity.verifying_key().to_bytes();
 
-        assert!(matches!(check_in.verify(1_000, 60_000), Err(MailboxCheckInError::BadSignature)));
+        assert!(matches!(
+            check_in.verify(1_000, 60_000),
+            Err(MailboxCheckInError::BadSignature)
+        ));
     }
 
     #[test]
@@ -396,21 +422,30 @@ mod tests {
         let identity = DeviceIdentity::generate();
         let mut check_in = MailboxCheckIn::new(&identity, DeviceId::new(), 1_000);
         check_in.device = DeviceId::new(); // splice attempt: different device, same signature
-        assert!(matches!(check_in.verify(1_000, 60_000), Err(MailboxCheckInError::BadSignature)));
+        assert!(matches!(
+            check_in.verify(1_000, 60_000),
+            Err(MailboxCheckInError::BadSignature)
+        ));
     }
 
     #[test]
     fn a_stale_check_in_is_rejected() {
         let identity = DeviceIdentity::generate();
         let check_in = MailboxCheckIn::new(&identity, DeviceId::new(), 1_000);
-        assert!(matches!(check_in.verify(1_000 + 61_000, 60_000), Err(MailboxCheckInError::Expired)));
+        assert!(matches!(
+            check_in.verify(1_000 + 61_000, 60_000),
+            Err(MailboxCheckInError::Expired)
+        ));
     }
 
     #[test]
     fn a_check_in_from_too_far_in_the_future_is_rejected() {
         let identity = DeviceIdentity::generate();
         let check_in = MailboxCheckIn::new(&identity, DeviceId::new(), 1_000 + 61_000);
-        assert!(matches!(check_in.verify(1_000, 60_000), Err(MailboxCheckInError::Expired)));
+        assert!(matches!(
+            check_in.verify(1_000, 60_000),
+            Err(MailboxCheckInError::Expired)
+        ));
     }
 
     #[test]
@@ -440,7 +475,9 @@ mod tests {
         let first_check_in = MailboxCheckIn::new(&identity, device, 1_000);
 
         let mut directory = DeviceKeyDirectory::new();
-        directory.verify_and_pin(&first_check_in, 1_000, 60_000).unwrap();
+        directory
+            .verify_and_pin(&first_check_in, 1_000, 60_000)
+            .unwrap();
 
         // A different, legitimately self-signed identity claiming the
         // *same* `DeviceId` — passes `MailboxCheckIn::verify` on its
@@ -473,14 +510,20 @@ mod tests {
         // exactly one field, and it isn't a `DeviceId` — the whole
         // point being that nothing in this message *could* leak one,
         // not just that nothing currently does.
-        let secret = MailboxTokenSecret::establish(&DeviceIdentity::generate(), &DeviceIdentity::generate().x25519_public());
+        let secret = MailboxTokenSecret::establish(
+            &DeviceIdentity::generate(),
+            &DeviceIdentity::generate().x25519_public(),
+        );
         let AnonymousMailboxCheckIn { token: _ } = AnonymousMailboxCheckIn::new(&secret, 0);
     }
 
     #[test]
     fn token_mailbox_store_returns_everything_deposited_under_one_token() {
         let mut store: TokenMailboxStore<&'static str> = TokenMailboxStore::new();
-        let secret = MailboxTokenSecret::establish(&DeviceIdentity::generate(), &DeviceIdentity::generate().x25519_public());
+        let secret = MailboxTokenSecret::establish(
+            &DeviceIdentity::generate(),
+            &DeviceIdentity::generate().x25519_public(),
+        );
         let token = secret.token_for_epoch(1);
 
         store.deposit(token, "first bundle");
@@ -491,7 +534,10 @@ mod tests {
     #[test]
     fn token_mailbox_store_collect_consumes_what_it_returns() {
         let mut store: TokenMailboxStore<&'static str> = TokenMailboxStore::new();
-        let secret = MailboxTokenSecret::establish(&DeviceIdentity::generate(), &DeviceIdentity::generate().x25519_public());
+        let secret = MailboxTokenSecret::establish(
+            &DeviceIdentity::generate(),
+            &DeviceIdentity::generate().x25519_public(),
+        );
         let token = secret.token_for_epoch(1);
 
         store.deposit(token, "one-time bundle");
@@ -504,7 +550,10 @@ mod tests {
     #[test]
     fn token_mailbox_store_never_conflates_two_different_tokens() {
         let mut store: TokenMailboxStore<&'static str> = TokenMailboxStore::new();
-        let secret = MailboxTokenSecret::establish(&DeviceIdentity::generate(), &DeviceIdentity::generate().x25519_public());
+        let secret = MailboxTokenSecret::establish(
+            &DeviceIdentity::generate(),
+            &DeviceIdentity::generate().x25519_public(),
+        );
         let token_epoch_1 = secret.token_for_epoch(1);
         let token_epoch_2 = secret.token_for_epoch(2);
 
@@ -541,7 +590,9 @@ mod tests {
             payload_hash: [0u8; 32],
             ciphertext: vec![1, 2, 3],
         };
-        let envelope = envelope.forwarded().expect("hop_limit 1 -> 0 should still forward");
+        let envelope = envelope
+            .forwarded()
+            .expect("hop_limit 1 -> 0 should still forward");
         assert_eq!(envelope.hop_limit, 0);
         assert!(envelope.forwarded().is_none());
     }
