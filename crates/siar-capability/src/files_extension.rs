@@ -13,7 +13,9 @@
 use crate::descriptor::{CapabilityDescriptor, CapabilityParameters, CapabilityRequirement};
 use crate::extension::ExtensionNegotiator;
 use crate::id::{CapabilityId, CapabilityNamespace};
-use crate::registry::{CapabilityDefinition, CapabilityDependency, CapabilityRegistry, ParameterSchema, SecurityClass};
+use crate::registry::{
+    CapabilityDefinition, CapabilityDependency, CapabilityRegistry, ParameterSchema, SecurityClass,
+};
 use crate::set::CapabilitySet;
 use crate::version::CapabilityVersion;
 
@@ -55,18 +57,48 @@ impl FilesExtensionNegotiator {
     pub fn new(max_chunk_size: u32) -> Self {
         let mut registry = CapabilityRegistry::new();
         for (code, name, schema, class) in [
-            (FIXED_CHUNKING, "files.fixed_chunking", ParameterSchema::None, SecurityClass::Functional),
-            (RESUME, "files.resume", ParameterSchema::None, SecurityClass::Functional),
-            (PARALLEL_CHUNKS, "files.parallel_chunks", ParameterSchema::None, SecurityClass::Functional),
+            (
+                FIXED_CHUNKING,
+                "files.fixed_chunking",
+                ParameterSchema::None,
+                SecurityClass::Functional,
+            ),
+            (
+                RESUME,
+                "files.resume",
+                ParameterSchema::None,
+                SecurityClass::Functional,
+            ),
+            (
+                PARALLEL_CHUNKS,
+                "files.parallel_chunks",
+                ParameterSchema::None,
+                SecurityClass::Functional,
+            ),
             (
                 CIPHERTEXT_ADDRESSING,
                 "files.ciphertext_addressing",
                 ParameterSchema::None,
                 SecurityClass::SecuritySensitive,
             ),
-            (PARTIAL_READ, "files.partial_read", ParameterSchema::None, SecurityClass::Functional),
-            (MULTI_SOURCE, "files.multi_source", ParameterSchema::None, SecurityClass::Functional),
-            (MAX_CHUNK_SIZE, "files.max_chunk_size", ParameterSchema::U32, SecurityClass::Functional),
+            (
+                PARTIAL_READ,
+                "files.partial_read",
+                ParameterSchema::None,
+                SecurityClass::Functional,
+            ),
+            (
+                MULTI_SOURCE,
+                "files.multi_source",
+                ParameterSchema::None,
+                SecurityClass::Functional,
+            ),
+            (
+                MAX_CHUNK_SIZE,
+                "files.max_chunk_size",
+                ParameterSchema::U32,
+                SecurityClass::Functional,
+            ),
         ] {
             registry.register(CapabilityDefinition {
                 id: id(code),
@@ -94,17 +126,42 @@ impl ExtensionNegotiator for FilesExtensionNegotiator {
         let mut set = CapabilitySet::new();
         let v1 = CapabilityVersion::new(1, 0);
         let descriptors = [
-            CapabilityDescriptor::new(id(FIXED_CHUNKING), v1, CapabilityRequirement::Required, CapabilityParameters::None),
-            CapabilityDescriptor::new(id(RESUME), v1, CapabilityRequirement::Optional, CapabilityParameters::None),
-            CapabilityDescriptor::new(id(PARALLEL_CHUNKS), v1, CapabilityRequirement::Optional, CapabilityParameters::None),
+            CapabilityDescriptor::new(
+                id(FIXED_CHUNKING),
+                v1,
+                CapabilityRequirement::Required,
+                CapabilityParameters::None,
+            ),
+            CapabilityDescriptor::new(
+                id(RESUME),
+                v1,
+                CapabilityRequirement::Optional,
+                CapabilityParameters::None,
+            ),
+            CapabilityDescriptor::new(
+                id(PARALLEL_CHUNKS),
+                v1,
+                CapabilityRequirement::Optional,
+                CapabilityParameters::None,
+            ),
             CapabilityDescriptor::new(
                 id(CIPHERTEXT_ADDRESSING),
                 v1,
                 CapabilityRequirement::Required,
                 CapabilityParameters::None,
             ),
-            CapabilityDescriptor::new(id(PARTIAL_READ), v1, CapabilityRequirement::Optional, CapabilityParameters::None),
-            CapabilityDescriptor::new(id(MULTI_SOURCE), v1, CapabilityRequirement::Optional, CapabilityParameters::None),
+            CapabilityDescriptor::new(
+                id(PARTIAL_READ),
+                v1,
+                CapabilityRequirement::Optional,
+                CapabilityParameters::None,
+            ),
+            CapabilityDescriptor::new(
+                id(MULTI_SOURCE),
+                v1,
+                CapabilityRequirement::Optional,
+                CapabilityParameters::None,
+            ),
             CapabilityDescriptor::new(
                 id(MAX_CHUNK_SIZE),
                 v1,
@@ -113,7 +170,8 @@ impl ExtensionNegotiator for FilesExtensionNegotiator {
             ),
         ];
         for descriptor in descriptors {
-            set.insert(descriptor).expect("7 descriptors is well under MAX_CAPABILITIES_PER_SET");
+            set.insert(descriptor)
+                .expect("7 descriptors is well under MAX_CAPABILITIES_PER_SET");
         }
         set
     }
@@ -149,8 +207,12 @@ mod tests {
         let a = FilesExtensionNegotiator::new(4 * 1024 * 1024);
         let b = FilesExtensionNegotiator::new(1024 * 1024);
 
-        let from_a = a.negotiate(&b.advertise(), &CapabilityPolicy::new()).unwrap();
-        let from_b = b.negotiate(&a.advertise(), &CapabilityPolicy::new()).unwrap();
+        let from_a = a
+            .negotiate(&b.advertise(), &CapabilityPolicy::new())
+            .unwrap();
+        let from_b = b
+            .negotiate(&a.advertise(), &CapabilityPolicy::new())
+            .unwrap();
 
         let a_ids: Vec<_> = from_a.iter().map(|d| d.id).collect();
         let b_ids: Vec<_> = from_b.iter().map(|d| d.id).collect();
@@ -162,7 +224,9 @@ mod tests {
         let a = FilesExtensionNegotiator::new(4 * 1024 * 1024);
         let b = FilesExtensionNegotiator::new(4 * 1024 * 1024);
 
-        let negotiated = a.negotiate(&b.advertise(), &CapabilityPolicy::new()).unwrap();
+        let negotiated = a
+            .negotiate(&b.advertise(), &CapabilityPolicy::new())
+            .unwrap();
         assert!(negotiated.contains(&id(FIXED_CHUNKING)));
         assert!(negotiated.contains(&id(CIPHERTEXT_ADDRESSING)));
         assert!(negotiated.contains(&id(MAX_CHUNK_SIZE)));
