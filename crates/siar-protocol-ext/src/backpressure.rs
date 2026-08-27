@@ -23,7 +23,10 @@ pub struct QueueFull {
 
 impl<T> BoundedQueue<T> {
     pub fn new(capacity: usize) -> Self {
-        Self { items: VecDeque::with_capacity(capacity.min(1024)), capacity }
+        Self {
+            items: VecDeque::with_capacity(capacity.min(1024)),
+            capacity,
+        }
     }
 
     /// Real rejection, not silent unbounded growth — the producer gets
@@ -33,7 +36,12 @@ impl<T> BoundedQueue<T> {
     /// decision, not this queue's.
     pub fn try_push(&mut self, item: T) -> Result<(), (T, QueueFull)> {
         if self.items.len() >= self.capacity {
-            return Err((item, QueueFull { capacity: self.capacity }));
+            return Err((
+                item,
+                QueueFull {
+                    capacity: self.capacity,
+                },
+            ));
         }
         self.items.push_back(item);
         Ok(())
