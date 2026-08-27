@@ -223,7 +223,9 @@ pub struct PathTable {
 
 impl PathTable {
     pub fn new() -> Self {
-        Self { routes: std::collections::HashMap::new() }
+        Self {
+            routes: std::collections::HashMap::new(),
+        }
     }
 
     /// Records or refreshes one candidate route. Replaces an existing
@@ -233,7 +235,10 @@ impl PathTable {
     /// create a second candidate.
     pub fn upsert_route(&mut self, destination: EndpointId, entry: PathEntry) {
         let entries = self.routes.entry(destination).or_default();
-        if let Some(existing) = entries.iter_mut().find(|existing| existing.link == entry.link && existing.next_hop == entry.next_hop) {
+        if let Some(existing) = entries
+            .iter_mut()
+            .find(|existing| existing.link == entry.link && existing.next_hop == entry.next_hop)
+        {
             *existing = entry;
         } else {
             entries.push(entry);
@@ -241,7 +246,10 @@ impl PathTable {
     }
 
     pub fn routes_for(&self, destination: EndpointId) -> &[PathEntry] {
-        self.routes.get(&destination).map(Vec::as_slice).unwrap_or(&[])
+        self.routes
+            .get(&destination)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
     }
 
     /// The single best current candidate route to `destination`, by
@@ -255,7 +263,11 @@ impl PathTable {
                 .preference_rank()
                 .cmp(&b.link.preference_rank())
                 .then_with(|| b.reliability.total_cmp(&a.reliability))
-                .then_with(|| a.rtt_millis.unwrap_or(u32::MAX).cmp(&b.rtt_millis.unwrap_or(u32::MAX)))
+                .then_with(|| {
+                    a.rtt_millis
+                        .unwrap_or(u32::MAX)
+                        .cmp(&b.rtt_millis.unwrap_or(u32::MAX))
+                })
         })
     }
 
@@ -280,7 +292,11 @@ impl PathTable {
     /// later. It's genuinely usable today by anything that already has
     /// a `PathTable` (this workspace's own `TransportManager`), even
     /// though nothing currently acts on its answer.
-    pub fn recommend_upgrade(&self, destination: EndpointId, current_link: TransportLink) -> Option<TransportLink> {
+    pub fn recommend_upgrade(
+        &self,
+        destination: EndpointId,
+        current_link: TransportLink,
+    ) -> Option<TransportLink> {
         let best = self.best_route_for(destination)?;
         if best.link.preference_rank() < current_link.preference_rank() {
             Some(best.link)
@@ -407,7 +423,13 @@ mod tests {
     }
 
     fn entry(link: TransportLink, last_seen: u64) -> PathEntry {
-        PathEntry { link, next_hop: NextHop::Direct, last_seen, rtt_millis: Some(50), reliability: 0.9 }
+        PathEntry {
+            link,
+            next_hop: NextHop::Direct,
+            last_seen,
+            rtt_millis: Some(50),
+            reliability: 0.9,
+        }
     }
 
     #[test]
@@ -473,7 +495,10 @@ mod tests {
         table.upsert_route(destination, entry(TransportLink::Ble, 0));
         table.upsert_route(destination, entry(TransportLink::LocalLan, 0));
         table.upsert_route(destination, entry(TransportLink::WifiDirect, 0));
-        assert_eq!(table.best_route_for(destination).unwrap().link, TransportLink::LocalLan);
+        assert_eq!(
+            table.best_route_for(destination).unwrap().link,
+            TransportLink::LocalLan
+        );
     }
 
     #[test]
@@ -482,7 +507,13 @@ mod tests {
         let destination = test_endpoint_id(8);
         table.upsert_route(
             destination,
-            PathEntry { link: TransportLink::Ble, next_hop: NextHop::Direct, last_seen: 0, rtt_millis: Some(200), reliability: 0.5 },
+            PathEntry {
+                link: TransportLink::Ble,
+                next_hop: NextHop::Direct,
+                last_seen: 0,
+                rtt_millis: Some(200),
+                reliability: 0.5,
+            },
         );
         table.upsert_route(
             destination,
@@ -511,7 +542,10 @@ mod tests {
         let destination = test_endpoint_id(10);
         table.upsert_route(destination, entry(TransportLink::Ble, 0));
         table.upsert_route(destination, entry(TransportLink::WifiDirect, 0));
-        assert_eq!(table.recommend_upgrade(destination, TransportLink::Ble), Some(TransportLink::WifiDirect));
+        assert_eq!(
+            table.recommend_upgrade(destination, TransportLink::Ble),
+            Some(TransportLink::WifiDirect)
+        );
     }
 
     #[test]
@@ -520,13 +554,19 @@ mod tests {
         let destination = test_endpoint_id(11);
         table.upsert_route(destination, entry(TransportLink::Ble, 0));
         table.upsert_route(destination, entry(TransportLink::WifiDirect, 0));
-        assert_eq!(table.recommend_upgrade(destination, TransportLink::WifiDirect), None);
+        assert_eq!(
+            table.recommend_upgrade(destination, TransportLink::WifiDirect),
+            None
+        );
     }
 
     #[test]
     fn recommend_upgrade_is_none_with_no_known_route() {
         let table = PathTable::new();
-        assert_eq!(table.recommend_upgrade(test_endpoint_id(12), TransportLink::Ble), None);
+        assert_eq!(
+            table.recommend_upgrade(test_endpoint_id(12), TransportLink::Ble),
+            None
+        );
     }
 
     #[test]
@@ -536,12 +576,25 @@ mod tests {
         let destination = test_endpoint_id(21);
         table.upsert_route(
             relay,
-            PathEntry { link: TransportLink::LocalLan, next_hop: NextHop::Direct, last_seen: 100, rtt_millis: Some(30), reliability: 0.9 },
+            PathEntry {
+                link: TransportLink::LocalLan,
+                next_hop: NextHop::Direct,
+                last_seen: 100,
+                rtt_millis: Some(30),
+                reliability: 0.9,
+            },
         );
-        let advertisement =
-            RelayAdvertisement { via: relay, destination, rtt_millis: Some(70), reliability: 0.8, last_seen: 90 };
+        let advertisement = RelayAdvertisement {
+            via: relay,
+            destination,
+            rtt_millis: Some(70),
+            reliability: 0.8,
+            last_seen: 90,
+        };
 
-        let composed = table.compose_via_relay(&advertisement).expect("relay has a direct route");
+        let composed = table
+            .compose_via_relay(&advertisement)
+            .expect("relay has a direct route");
         assert_eq!(composed.link, TransportLink::LocalLan);
         assert_eq!(composed.next_hop, NextHop::Via(relay));
         assert_eq!(composed.rtt_millis, Some(100));
@@ -576,7 +629,13 @@ mod tests {
         let far_relay = test_endpoint_id(25);
         table.upsert_route(
             relay,
-            PathEntry { link: TransportLink::Ble, next_hop: NextHop::Via(far_relay), last_seen: 0, rtt_millis: Some(50), reliability: 0.9 },
+            PathEntry {
+                link: TransportLink::Ble,
+                next_hop: NextHop::Via(far_relay),
+                last_seen: 0,
+                rtt_millis: Some(50),
+                reliability: 0.9,
+            },
         );
         let advertisement = RelayAdvertisement {
             via: relay,
@@ -594,11 +653,23 @@ mod tests {
         let relay = test_endpoint_id(27);
         table.upsert_route(
             relay,
-            PathEntry { link: TransportLink::Ble, next_hop: NextHop::Direct, last_seen: 0, rtt_millis: Some(500), reliability: 0.5 },
+            PathEntry {
+                link: TransportLink::Ble,
+                next_hop: NextHop::Direct,
+                last_seen: 0,
+                rtt_millis: Some(500),
+                reliability: 0.5,
+            },
         );
         table.upsert_route(
             relay,
-            PathEntry { link: TransportLink::LocalLan, next_hop: NextHop::Direct, last_seen: 0, rtt_millis: Some(20), reliability: 0.99 },
+            PathEntry {
+                link: TransportLink::LocalLan,
+                next_hop: NextHop::Direct,
+                last_seen: 0,
+                rtt_millis: Some(20),
+                reliability: 0.99,
+            },
         );
         let advertisement = RelayAdvertisement {
             via: relay,
@@ -607,7 +678,9 @@ mod tests {
             reliability: 1.0,
             last_seen: 0,
         };
-        let composed = table.compose_via_relay(&advertisement).expect("relay has a direct route");
+        let composed = table
+            .compose_via_relay(&advertisement)
+            .expect("relay has a direct route");
         assert_eq!(composed.link, TransportLink::LocalLan);
     }
 
@@ -617,8 +690,13 @@ mod tests {
         let relay = test_endpoint_id(29);
         let destination = test_endpoint_id(30);
         table.upsert_route(relay, entry(TransportLink::LocalLan, 0));
-        let advertisement =
-            RelayAdvertisement { via: relay, destination, rtt_millis: Some(10), reliability: 1.0, last_seen: 0 };
+        let advertisement = RelayAdvertisement {
+            via: relay,
+            destination,
+            rtt_millis: Some(10),
+            reliability: 1.0,
+            last_seen: 0,
+        };
         table.compose_via_relay(&advertisement);
         assert!(table.routes_for(destination).is_empty());
     }
@@ -638,8 +716,13 @@ mod tests {
     }
 
     fn addr_with_relay_only(id: EndpointId) -> iroh::EndpointAddr {
-        let relay_url: iroh::RelayUrl = "https://relay.example.com".parse().expect("valid relay URL");
-        iroh::EndpointAddr { id, addrs: std::collections::BTreeSet::from([iroh::TransportAddr::Relay(relay_url)]) }
+        let relay_url: iroh::RelayUrl = "https://relay.example.com"
+            .parse()
+            .expect("valid relay URL");
+        iroh::EndpointAddr {
+            id,
+            addrs: std::collections::BTreeSet::from([iroh::TransportAddr::Relay(relay_url)]),
+        }
     }
 
     #[test]
@@ -668,7 +751,10 @@ mod tests {
         // just the peer's).
         let addr = addr_with_ips(
             test_endpoint_id(43),
-            &["192.168.1.5:4433".parse().unwrap(), "8.8.8.8:4433".parse().unwrap()],
+            &[
+                "192.168.1.5:4433".parse().unwrap(),
+                "8.8.8.8:4433".parse().unwrap(),
+            ],
         );
         assert_eq!(classify_endpoint_addr(&addr), TransportLink::LocalLan);
     }
