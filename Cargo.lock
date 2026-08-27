@@ -7371,6 +7371,8 @@ name = "siar-resource-limits"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "siar-domain",
+ "siar-protocol-ext",
 ]
 
 [[package]]
