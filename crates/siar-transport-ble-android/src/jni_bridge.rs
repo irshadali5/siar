@@ -57,7 +57,11 @@ pub extern "system" fn Java_com_siar_ble_NativeBleBridge_createBridge<'local>(
     _class: JClass<'local>,
     reassembly_capacity: jint,
 ) -> jlong {
-    let capacity = if reassembly_capacity > 0 { reassembly_capacity as usize } else { 8 };
+    let capacity = if reassembly_capacity > 0 {
+        reassembly_capacity as usize
+    } else {
+        8
+    };
     let bridge = BleLinkBridge {
         reassembly: ReassemblyBuffer::new(capacity),
         received_envelopes: VecDeque::new(),
@@ -115,9 +119,15 @@ pub extern "system" fn Java_com_siar_ble_NativeBleBridge_onFragmentReceived<'loc
     data: JByteArray<'local>,
 ) {
     // SAFETY: see `bridge_from_handle`.
-    let Some(bridge) = (unsafe { bridge_from_handle(handle) }) else { return };
-    let Ok(bytes) = env.convert_byte_array(&data) else { return };
-    let Ok(fragment) = BleFragment::decode(&bytes) else { return };
+    let Some(bridge) = (unsafe { bridge_from_handle(handle) }) else {
+        return;
+    };
+    let Ok(bytes) = env.convert_byte_array(&data) else {
+        return;
+    };
+    let Ok(fragment) = BleFragment::decode(&bytes) else {
+        return;
+    };
 
     let mut bridge = bridge.lock().expect("BleLinkBridge lock poisoned");
     if let Ok(ReassemblyOutcome::Complete(envelope)) = bridge.reassembly.insert(fragment) {
@@ -133,7 +143,9 @@ pub extern "system" fn Java_com_siar_ble_NativeBleBridge_nextReceivedEnvelope<'l
     handle: jlong,
 ) -> jbyteArray {
     // SAFETY: see `bridge_from_handle`.
-    let Some(bridge) = (unsafe { bridge_from_handle(handle) }) else { return std::ptr::null_mut() };
+    let Some(bridge) = (unsafe { bridge_from_handle(handle) }) else {
+        return std::ptr::null_mut();
+    };
     let mut bridge = bridge.lock().expect("BleLinkBridge lock poisoned");
     match bridge.received_envelopes.pop_front() {
         Some(data) => bytes_to_jbyte_array(&mut env, &data),
@@ -157,8 +169,12 @@ pub extern "system" fn Java_com_siar_ble_NativeBleBridge_queueEnvelopeToSend<'lo
     max_fragment_bytes: jint,
 ) {
     // SAFETY: see `bridge_from_handle`.
-    let Some(bridge) = (unsafe { bridge_from_handle(handle) }) else { return };
-    let Ok(bytes) = env.convert_byte_array(&data) else { return };
+    let Some(bridge) = (unsafe { bridge_from_handle(handle) }) else {
+        return;
+    };
+    let Ok(bytes) = env.convert_byte_array(&data) else {
+        return;
+    };
     if max_fragment_bytes <= 0 {
         return;
     }
@@ -167,7 +183,12 @@ pub extern "system" fn Java_com_siar_ble_NativeBleBridge_queueEnvelopeToSend<'lo
     let transfer_id = bridge.next_transfer_id;
     bridge.next_transfer_id = bridge.next_transfer_id.wrapping_add(1);
 
-    let Ok(fragments) = fragment_envelope(protocol as u8, transfer_id, &bytes, max_fragment_bytes as usize) else {
+    let Ok(fragments) = fragment_envelope(
+        protocol as u8,
+        transfer_id,
+        &bytes,
+        max_fragment_bytes as usize,
+    ) else {
         return;
     };
     for fragment in fragments {
@@ -188,7 +209,9 @@ pub extern "system" fn Java_com_siar_ble_NativeBleBridge_nextFragmentToSend<'loc
     handle: jlong,
 ) -> jbyteArray {
     // SAFETY: see `bridge_from_handle`.
-    let Some(bridge) = (unsafe { bridge_from_handle(handle) }) else { return std::ptr::null_mut() };
+    let Some(bridge) = (unsafe { bridge_from_handle(handle) }) else {
+        return std::ptr::null_mut();
+    };
     let mut bridge = bridge.lock().expect("BleLinkBridge lock poisoned");
     match bridge.fragments_to_send.pop_front() {
         Some(data) => bytes_to_jbyte_array(&mut env, &data),
