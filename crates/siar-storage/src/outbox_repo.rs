@@ -3,8 +3,8 @@
 
 use crate::{blob_codec::encode_blob, message_repo::StoredMessage, StorageError};
 use siar_domain::MessageId;
-use stoolap::Database;
 use std::sync::Arc;
+use stoolap::Database;
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
@@ -39,7 +39,11 @@ pub trait OutboxRepository {
     /// yet (plan.md §46) — push the next retry out without counting this
     /// as a failed attempt (`attempts` is unchanged; a real send failure
     /// goes through `record_failure` instead, which does bump it).
-    fn reschedule(&self, message_id: MessageId, next_attempt_at_millis: i64) -> Result<(), StorageError>;
+    fn reschedule(
+        &self,
+        message_id: MessageId,
+        next_attempt_at_millis: i64,
+    ) -> Result<(), StorageError>;
 
     /// Send attempt failed — bump `attempts` and schedule the next try.
     fn record_failure(
@@ -64,7 +68,9 @@ impl OutboxRepository for StoolapOutboxRepository {
         // BEGIN/COMMIT as literal SQL (stoolap's documented transaction
         // pattern) rather than a bespoke Rust Transaction type, since that
         // literal form is what's confirmed in stoolap's own docs.
-        self.db.execute("BEGIN", ()).map_err(StorageError::from_stoolap)?;
+        self.db
+            .execute("BEGIN", ())
+            .map_err(StorageError::from_stoolap)?;
 
         let insert_result = self.db.execute(
             "INSERT INTO messages
@@ -100,7 +106,9 @@ impl OutboxRepository for StoolapOutboxRepository {
             return Err(StorageError::from_stoolap(e));
         }
 
-        self.db.execute("COMMIT", ()).map_err(StorageError::from_stoolap)?;
+        self.db
+            .execute("COMMIT", ())
+            .map_err(StorageError::from_stoolap)?;
         Ok(())
     }
 
@@ -126,7 +134,8 @@ impl OutboxRepository for StoolapOutboxRepository {
             let peer_ticket_hex: String = row.get(3).map_err(StorageError::from_stoolap)?;
             out.push(OutboxOperation {
                 message_id: MessageId::from_uuid(
-                    Uuid::parse_str(&message_id).map_err(|e| StorageError::MalformedId(e.to_string()))?,
+                    Uuid::parse_str(&message_id)
+                        .map_err(|e| StorageError::MalformedId(e.to_string()))?,
                 ),
                 next_attempt_at_millis: next_attempt_at,
                 attempts: attempts as u32,
@@ -146,7 +155,11 @@ impl OutboxRepository for StoolapOutboxRepository {
         Ok(())
     }
 
-    fn reschedule(&self, message_id: MessageId, next_attempt_at_millis: i64) -> Result<(), StorageError> {
+    fn reschedule(
+        &self,
+        message_id: MessageId,
+        next_attempt_at_millis: i64,
+    ) -> Result<(), StorageError> {
         self.db
             .execute(
                 "UPDATE outbox SET next_attempt_at = $1 WHERE message_id = $2",
