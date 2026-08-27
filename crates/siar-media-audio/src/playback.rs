@@ -23,7 +23,10 @@ pub enum PlaybackError {
     /// The decoder's sample rate doesn't match the output device's
     /// default config rate — see this module's doc comment on why that
     /// isn't silently handled.
-    SampleRateMismatch { decoder_rate: u32, device_rate: u32 },
+    SampleRateMismatch {
+        decoder_rate: u32,
+        device_rate: u32,
+    },
 }
 
 impl std::fmt::Display for PlaybackError {
@@ -56,7 +59,9 @@ pub struct PlaybackQueue {
 
 impl PlaybackQueue {
     fn new() -> Self {
-        Self { inner: Arc::new(Mutex::new(VecDeque::new())) }
+        Self {
+            inner: Arc::new(Mutex::new(VecDeque::new())),
+        }
     }
 
     pub fn push(&self, samples: &[i16]) {
@@ -97,12 +102,19 @@ pub struct AudioPlayback {
 impl AudioPlayback {
     pub fn start(decoder_sample_rate: u32) -> Result<(Self, PlaybackQueue), PlaybackError> {
         let host = cpal::default_host();
-        let device = host.default_output_device().ok_or(PlaybackError::NoOutputDevice)?;
-        let config = device.default_output_config().map_err(|e| PlaybackError::Cpal(e.to_string()))?;
+        let device = host
+            .default_output_device()
+            .ok_or(PlaybackError::NoOutputDevice)?;
+        let config = device
+            .default_output_config()
+            .map_err(|e| PlaybackError::Cpal(e.to_string()))?;
 
         let device_rate = config.sample_rate();
         if device_rate != decoder_sample_rate {
-            return Err(PlaybackError::SampleRateMismatch { decoder_rate: decoder_sample_rate, device_rate });
+            return Err(PlaybackError::SampleRateMismatch {
+                decoder_rate: decoder_sample_rate,
+                device_rate,
+            });
         }
         let channels = config.channels();
 
@@ -117,7 +129,9 @@ impl AudioPlayback {
             SampleFormat::I16 => device
                 .build_output_stream(
                     stream_config,
-                    move |out: &mut [i16], _: &cpal::OutputCallbackInfo| queue_for_callback.fill_or_silence(out),
+                    move |out: &mut [i16], _: &cpal::OutputCallbackInfo| {
+                        queue_for_callback.fill_or_silence(out)
+                    },
                     err_fn,
                     None,
                 )
@@ -139,17 +153,30 @@ impl AudioPlayback {
             other => return Err(PlaybackError::UnsupportedSampleFormat(other)),
         };
 
-        stream.play().map_err(|e| PlaybackError::Cpal(e.to_string()))?;
+        stream
+            .play()
+            .map_err(|e| PlaybackError::Cpal(e.to_string()))?;
 
-        Ok((Self { stream, sample_rate: device_rate, channels }, queue))
+        Ok((
+            Self {
+                stream,
+                sample_rate: device_rate,
+                channels,
+            },
+            queue,
+        ))
     }
 
     pub fn pause(&self) -> Result<(), PlaybackError> {
-        self.stream.pause().map_err(|e| PlaybackError::Cpal(e.to_string()))
+        self.stream
+            .pause()
+            .map_err(|e| PlaybackError::Cpal(e.to_string()))
     }
 
     pub fn resume(&self) -> Result<(), PlaybackError> {
-        self.stream.play().map_err(|e| PlaybackError::Cpal(e.to_string()))
+        self.stream
+            .play()
+            .map_err(|e| PlaybackError::Cpal(e.to_string()))
     }
 }
 
