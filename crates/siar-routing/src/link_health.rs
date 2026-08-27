@@ -34,11 +34,17 @@ pub struct SendOutcome {
 
 impl SendOutcome {
     pub fn success(rtt_millis: u32) -> Self {
-        Self { success: true, rtt_millis: Some(rtt_millis) }
+        Self {
+            success: true,
+            rtt_millis: Some(rtt_millis),
+        }
     }
 
     pub fn failure() -> Self {
-        Self { success: false, rtt_millis: None }
+        Self {
+            success: false,
+            rtt_millis: None,
+        }
     }
 }
 
@@ -58,8 +64,14 @@ pub struct LinkHealth {
 
 impl LinkHealth {
     pub fn new(capacity: usize) -> Self {
-        assert!(capacity >= 1, "a zero-capacity window could never track anything");
-        Self { window: VecDeque::new(), capacity }
+        assert!(
+            capacity >= 1,
+            "a zero-capacity window could never track anything"
+        );
+        Self {
+            window: VecDeque::new(),
+            capacity,
+        }
     }
 
     pub fn record_outcome(&mut self, outcome: SendOutcome) {
@@ -87,8 +99,13 @@ impl LinkHealth {
     /// `None` if there are none yet, matching `PathEntry.rtt_millis`'s
     /// own `Option<u32>` shape rather than inventing a fake zero.
     pub fn average_rtt_millis(&self) -> Option<u32> {
-        let samples: Vec<u64> =
-            self.window.iter().filter(|o| o.success).filter_map(|o| o.rtt_millis).map(u32::into).collect();
+        let samples: Vec<u64> = self
+            .window
+            .iter()
+            .filter(|o| o.success)
+            .filter_map(|o| o.rtt_millis)
+            .map(u32::into)
+            .collect();
         if samples.is_empty() {
             return None;
         }
