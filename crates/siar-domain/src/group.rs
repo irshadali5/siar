@@ -63,15 +63,25 @@ pub struct GroupMember {
 /// (plan.md §122's illegal-states-unrepresentable rule, applied here).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DurableGroupEvent {
-    MemberAdded { account: AccountId, epoch: GroupEpoch },
-    MemberRemoved { account: AccountId, epoch: GroupEpoch },
-    GroupRenamed { new_name: String },
+    MemberAdded {
+        account: AccountId,
+        epoch: GroupEpoch,
+    },
+    MemberRemoved {
+        account: AccountId,
+        epoch: GroupEpoch,
+    },
+    GroupRenamed {
+        new_name: String,
+    },
     /// A membership or key-material change advanced the epoch — the
     /// event itself doesn't carry the new key (that's the deferred MLS
     /// integration's job), just the fact that it happened and to which
     /// epoch, so the durable event log stays a complete audit trail even
     /// before real group crypto is wired in.
-    EpochAdvanced { new_epoch: GroupEpoch },
+    EpochAdvanced {
+        new_epoch: GroupEpoch,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -115,8 +125,16 @@ impl GroupState {
     /// group with one founder". Does not validate `members` against any
     /// event history; the caller (a repository reading its own rows
     /// back) is trusted to hand back what it was given.
-    pub fn from_parts(conversation_id: ConversationId, epoch: GroupEpoch, members: Vec<GroupMember>) -> Self {
-        Self { conversation_id, epoch, members }
+    pub fn from_parts(
+        conversation_id: ConversationId,
+        epoch: GroupEpoch,
+        members: Vec<GroupMember>,
+    ) -> Self {
+        Self {
+            conversation_id,
+            epoch,
+            members,
+        }
     }
 
     pub fn members(&self) -> &[GroupMember] {
@@ -172,8 +190,14 @@ impl GroupState {
 /// separate from `GroupState` since "who's in the group" (accounts) and
 /// "which of their devices get this" (plan.md §38's multi-device fanout)
 /// are different questions the sender needs to answer independently.
-pub fn fanout_targets(members: &[GroupMember], devices_by_account: impl Fn(AccountId) -> Vec<DeviceId>) -> Vec<DeviceId> {
-    members.iter().flat_map(|m| devices_by_account(m.account)).collect()
+pub fn fanout_targets(
+    members: &[GroupMember],
+    devices_by_account: impl Fn(AccountId) -> Vec<DeviceId>,
+) -> Vec<DeviceId> {
+    members
+        .iter()
+        .flat_map(|m| devices_by_account(m.account))
+        .collect()
 }
 
 #[cfg(test)]
@@ -194,7 +218,10 @@ mod tests {
         let founder = AccountId::new();
         let bob = AccountId::new();
         let mut state = GroupState::new(ConversationId::new(), founder);
-        state.apply(&DurableGroupEvent::MemberAdded { account: bob, epoch: GroupEpoch::INITIAL.next() });
+        state.apply(&DurableGroupEvent::MemberAdded {
+            account: bob,
+            epoch: GroupEpoch::INITIAL.next(),
+        });
 
         assert!(state.is_admin(founder));
         assert!(!state.is_admin(bob));
@@ -223,8 +250,14 @@ mod tests {
         let founder = AccountId::new();
         let bob = AccountId::new();
         let mut state = GroupState::new(ConversationId::new(), founder);
-        state.apply(&DurableGroupEvent::MemberAdded { account: bob, epoch: GroupEpoch::INITIAL });
-        state.apply(&DurableGroupEvent::MemberRemoved { account: bob, epoch: GroupEpoch::INITIAL });
+        state.apply(&DurableGroupEvent::MemberAdded {
+            account: bob,
+            epoch: GroupEpoch::INITIAL,
+        });
+        state.apply(&DurableGroupEvent::MemberRemoved {
+            account: bob,
+            epoch: GroupEpoch::INITIAL,
+        });
         assert!(!state.is_member(bob));
         assert!(state.is_member(founder));
     }
@@ -233,16 +266,27 @@ mod tests {
     fn adding_an_existing_member_twice_is_a_no_op() {
         let mut state = GroupState::new(ConversationId::new(), AccountId::new());
         let bob = AccountId::new();
-        state.apply(&DurableGroupEvent::MemberAdded { account: bob, epoch: GroupEpoch::INITIAL });
-        state.apply(&DurableGroupEvent::MemberAdded { account: bob, epoch: GroupEpoch::INITIAL });
-        assert_eq!(state.members().iter().filter(|m| m.account == bob).count(), 1);
+        state.apply(&DurableGroupEvent::MemberAdded {
+            account: bob,
+            epoch: GroupEpoch::INITIAL,
+        });
+        state.apply(&DurableGroupEvent::MemberAdded {
+            account: bob,
+            epoch: GroupEpoch::INITIAL,
+        });
+        assert_eq!(
+            state.members().iter().filter(|m| m.account == bob).count(),
+            1
+        );
     }
 
     #[test]
     fn epoch_advances_only_on_epoch_advanced_events() {
         let mut state = GroupState::new(ConversationId::new(), AccountId::new());
         assert_eq!(state.epoch, GroupEpoch::INITIAL);
-        state.apply(&DurableGroupEvent::EpochAdvanced { new_epoch: GroupEpoch::INITIAL.next() });
+        state.apply(&DurableGroupEvent::EpochAdvanced {
+            new_epoch: GroupEpoch::INITIAL.next(),
+        });
         assert_eq!(state.epoch.number(), 1);
     }
 
@@ -251,8 +295,16 @@ mod tests {
         let alice = AccountId::new();
         let bob = AccountId::new();
         let members = vec![
-            GroupMember { account: alice, role: MemberRole::Admin, joined_at_epoch: GroupEpoch::INITIAL },
-            GroupMember { account: bob, role: MemberRole::Member, joined_at_epoch: GroupEpoch::INITIAL },
+            GroupMember {
+                account: alice,
+                role: MemberRole::Admin,
+                joined_at_epoch: GroupEpoch::INITIAL,
+            },
+            GroupMember {
+                account: bob,
+                role: MemberRole::Member,
+                joined_at_epoch: GroupEpoch::INITIAL,
+            },
         ];
         let alice_devices = vec![DeviceId::new(), DeviceId::new()];
         let bob_devices = vec![DeviceId::new()];
