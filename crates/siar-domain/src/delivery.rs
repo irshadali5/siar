@@ -115,6 +115,9 @@ mod tests {
     #[test]
     fn mesh_carry_can_expire_instead_of_delivering() {
         assert!(CarriedByPeers { copies: 3 }.can_transition_to(Expired));
-        assert!(!Sent.can_transition_to(Expired), "a directly-sent message has no DTN expiry concept");
+        assert!(
+            !Sent.can_transition_to(Expired),
+            "a directly-sent message has no DTN expiry concept"
+        );
     }
 }
