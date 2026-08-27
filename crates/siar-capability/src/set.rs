@@ -37,11 +37,7 @@ impl CapabilitySet {
     /// creating a duplicate entry that canonical ordering would then
     /// need a tie-break rule for).
     pub fn insert(&mut self, descriptor: CapabilityDescriptor) -> Result<(), CapabilitySetError> {
-        if let Some(existing) = self
-            .descriptors
-            .iter_mut()
-            .find(|d| d.id == descriptor.id)
-        {
+        if let Some(existing) = self.descriptors.iter_mut().find(|d| d.id == descriptor.id) {
             *existing = descriptor;
             return Ok(());
         }
@@ -150,7 +146,10 @@ mod tests {
         for code in 0..MAX_CAPABILITIES_PER_SET as u32 {
             set.insert(desc(CapabilityNamespace::Core, code)).unwrap();
         }
-        let overflow = set.insert(desc(CapabilityNamespace::Core, MAX_CAPABILITIES_PER_SET as u32));
+        let overflow = set.insert(desc(
+            CapabilityNamespace::Core,
+            MAX_CAPABILITIES_PER_SET as u32,
+        ));
         assert_eq!(
             overflow.unwrap_err(),
             CapabilitySetError::TooManyCapabilities {
