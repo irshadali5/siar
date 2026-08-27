@@ -41,4 +41,6 @@
 #[cfg(target_os = "android")]
 mod jni_bridge;
 #[cfg(target_os = "android")]
-pub use jni_bridge::{drain_output, output_ready_notifier, push_input, MediaSession, SessionOutput};
+pub use jni_bridge::{
+    drain_output, output_ready_notifier, push_input, MediaSession, SessionOutput,
+};
