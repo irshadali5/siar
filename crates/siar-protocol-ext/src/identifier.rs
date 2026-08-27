@@ -14,12 +14,16 @@ use std::fmt;
 /// Validated on construction: non-empty, ASCII, no `/` (the field
 /// separator in the canonical form), since a namespace containing `/`
 /// would make [`ProtocolId::canonical_name`] ambiguous to parse back.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub struct NamespaceId(String);
 
 /// `messaging` in `org.example.comm/messaging/1` — spec §5. Same
 /// validation reasoning as [`NamespaceId`].
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub struct ProtocolName(String);
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -85,7 +89,9 @@ impl fmt::Display for ProtocolName {
 
 /// Wire-incompatible version number — spec §7 "Major version": "Peers
 /// sharing no major version cannot use that extension together."
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub struct ProtocolMajor(pub u16);
 
 /// Backward-compatible feature-expansion counter within one
@@ -97,13 +103,17 @@ pub struct ProtocolMajor(pub u16);
 /// framing that capability negotiation, not the version number alone,
 /// determines the effective feature set (§8: "Version alone is
 /// insufficient").
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub struct ProtocolMinor(pub u16);
 
 /// spec §6's `ProtocolId` struct, exactly as given there — the strong
 /// identifier every extension is keyed by throughout this crate,
 /// instead of an arbitrary string.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub struct ProtocolId {
     pub namespace: NamespaceId,
     pub protocol: ProtocolName,
@@ -112,7 +122,11 @@ pub struct ProtocolId {
 
 impl ProtocolId {
     pub fn new(namespace: NamespaceId, protocol: ProtocolName, major: ProtocolMajor) -> Self {
-        Self { namespace, protocol, major }
+        Self {
+            namespace,
+            protocol,
+            major,
+        }
     }
 
     /// `org.example.comm/messaging/1` — spec §5's canonical form,
@@ -144,7 +158,9 @@ impl std::str::FromStr for ProtocolId {
         let namespace = parts.next().ok_or(IdentifierError::Empty)?;
         let protocol = parts.next().ok_or(IdentifierError::Empty)?;
         let major = parts.next().ok_or(IdentifierError::Empty)?;
-        let major: u16 = major.parse().map_err(|_| IdentifierError::InvalidMajorVersion(major.to_string()))?;
+        let major: u16 = major
+            .parse()
+            .map_err(|_| IdentifierError::InvalidMajorVersion(major.to_string()))?;
         Ok(Self {
             namespace: NamespaceId::new(namespace)?,
             protocol: ProtocolName::new(protocol)?,
@@ -171,7 +187,10 @@ mod tests {
 
     #[test]
     fn rejects_separator_in_segment() {
-        assert!(matches!(NamespaceId::new("a/b"), Err(IdentifierError::ContainsSeparator(_))));
+        assert!(matches!(
+            NamespaceId::new("a/b"),
+            Err(IdentifierError::ContainsSeparator(_))
+        ));
     }
 
     #[test]
