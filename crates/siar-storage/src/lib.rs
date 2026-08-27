@@ -20,14 +20,14 @@
 //! WAL/commit correctness, which hasn't had time to be battle-tested.
 //! Treat this crate as prototype-grade until stoolap has more mileage.
 
-mod error;
-mod schema;
 mod blob_codec;
+mod blob_repo;
+mod contact_repo;
+mod error;
+mod group_repo;
 mod message_repo;
 mod outbox_repo;
-mod blob_repo;
-mod group_repo;
-mod contact_repo;
+mod schema;
 
 pub use blob_repo::{BlobRepository, StoolapBlobRepository};
 pub use contact_repo::{ContactRepository, StoolapContactRepository, StoredContact};
@@ -36,8 +36,8 @@ pub use group_repo::{GroupRepository, StoolapGroupRepository};
 pub use message_repo::{MessageRepository, StoolapMessageRepository, StoredMessage};
 pub use outbox_repo::{OutboxOperation, OutboxRepository, StoolapOutboxRepository};
 
-use stoolap::Database;
 use std::sync::Arc;
+use stoolap::Database;
 
 /// Opens (or creates) the local database and applies the schema.
 /// One `Database` handle is meant to be shared (via `Arc`) across every
