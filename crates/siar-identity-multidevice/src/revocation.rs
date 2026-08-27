@@ -48,8 +48,16 @@ pub enum RevocationError {
 /// 1` — never supplied by the caller, so there's no way to call this
 /// and accidentally produce a directory the account's own history
 /// would consider stale.
-pub fn revoke_device(root_key: &RootIdentityKey, current: &DeviceDirectory, device_to_revoke: DeviceId) -> Result<DeviceDirectory, RevocationError> {
-    let entry = current.devices.iter().find(|d| d.device_id == device_to_revoke).ok_or(RevocationError::DeviceNotFound(device_to_revoke))?;
+pub fn revoke_device(
+    root_key: &RootIdentityKey,
+    current: &DeviceDirectory,
+    device_to_revoke: DeviceId,
+) -> Result<DeviceDirectory, RevocationError> {
+    let entry = current
+        .devices
+        .iter()
+        .find(|d| d.device_id == device_to_revoke)
+        .ok_or(RevocationError::DeviceNotFound(device_to_revoke))?;
     if entry.status == DeviceStatus::Revoked {
         return Err(RevocationError::AlreadyRevoked(device_to_revoke));
     }
@@ -59,14 +67,23 @@ pub fn revoke_device(root_key: &RootIdentityKey, current: &DeviceDirectory, devi
         .iter()
         .map(|d| {
             if d.device_id == device_to_revoke {
-                DeviceDirectoryEntry { device_id: d.device_id, certificate: d.certificate.clone(), status: DeviceStatus::Revoked }
+                DeviceDirectoryEntry {
+                    device_id: d.device_id,
+                    certificate: d.certificate.clone(),
+                    status: DeviceStatus::Revoked,
+                }
             } else {
                 d.clone()
             }
         })
         .collect();
 
-    Ok(DeviceDirectory::sign(root_key, current.account_id, current.generation + 1, updated_devices))
+    Ok(DeviceDirectory::sign(
+        root_key,
+        current.account_id,
+        current.generation + 1,
+        updated_devices,
+    ))
 }
 
 /// Verifies a revocation actually happened correctly — real,
@@ -78,9 +95,16 @@ pub fn revoke_device(root_key: &RootIdentityKey, current: &DeviceDirectory, devi
 /// change, changed" — borrowed from Part 06's own bundle-immutability
 /// reasoning, applied here to a directory update instead of a bundle
 /// hop).
-pub fn verify_revocation(before: &DeviceDirectory, after: &DeviceDirectory, revoked_device: DeviceId) -> Result<(), IdentityError> {
+pub fn verify_revocation(
+    before: &DeviceDirectory,
+    after: &DeviceDirectory,
+    revoked_device: DeviceId,
+) -> Result<(), IdentityError> {
     if after.generation <= before.generation {
-        return Err(IdentityError::RollbackRejected { given: after.generation, highest: before.generation });
+        return Err(IdentityError::RollbackRejected {
+            given: after.generation,
+            highest: before.generation,
+        });
     }
     let now_revoked = after.devices.iter().find(|d| d.device_id == revoked_device);
     match now_revoked {
@@ -91,7 +115,10 @@ pub fn verify_revocation(before: &DeviceDirectory, after: &DeviceDirectory, revo
         if before_entry.device_id == revoked_device {
             continue;
         }
-        let still_present = after.devices.iter().any(|d| d.device_id == before_entry.device_id && d.status == before_entry.status);
+        let still_present = after
+            .devices
+            .iter()
+            .any(|d| d.device_id == before_entry.device_id && d.status == before_entry.status);
         if !still_present {
             return Err(IdentityError::RevocationMismatch);
         }
@@ -107,18 +134,47 @@ mod tests {
     use crate::trust_store::TrustedAccountStore;
     use siar_domain::AccountId;
 
-    fn two_device_directory(root: &RootIdentityKey, account: siar_domain::AccountId) -> (DeviceDirectory, DeviceId, DeviceId) {
+    fn two_device_directory(
+        root: &RootIdentityKey,
+        account: siar_domain::AccountId,
+    ) -> (DeviceDirectory, DeviceId, DeviceId) {
         let device_a = DeviceId::new();
         let device_b = DeviceId::new();
-        let cert_a = DeviceCertificate::issue(root, account, device_a, [1u8; 32], 0, None, DeviceCapabilitySet::SEND_MESSAGE, 1);
-        let cert_b = DeviceCertificate::issue(root, account, device_b, [2u8; 32], 0, None, DeviceCapabilitySet::SEND_MESSAGE, 1);
+        let cert_a = DeviceCertificate::issue(
+            root,
+            account,
+            device_a,
+            [1u8; 32],
+            0,
+            None,
+            DeviceCapabilitySet::SEND_MESSAGE,
+            1,
+        );
+        let cert_b = DeviceCertificate::issue(
+            root,
+            account,
+            device_b,
+            [2u8; 32],
+            0,
+            None,
+            DeviceCapabilitySet::SEND_MESSAGE,
+            1,
+        );
         let directory = DeviceDirectory::sign(
             root,
             account,
             1,
             vec![
-                DeviceDirectoryEntry { device_id: device_a, certificate: cert_a, status: DeviceStatus::Active },
-                DeviceDirectoryEntry { device_id: device_b, certificate: cert_b, status: DeviceStatus::Active },
+                DeviceDirectoryEntry {
+                    device_id: device_a,
+                    certificate: cert_a,
+                    status: DeviceStatus::Active,
+                },
+                DeviceDirectoryEntry {
+                    device_id: device_b,
+                    certificate: cert_b,
+                    status: DeviceStatus::Active,
+                },
             ],
         );
         (directory, device_a, device_b)
@@ -168,7 +224,9 @@ mod tests {
         let account = AccountId::new();
         let (directory, _, device_b) = two_device_directory(&root, account);
         let mut store = TrustedAccountStore::new();
-        store.accept(directory.clone(), &root.root_public_key()).unwrap();
+        store
+            .accept(directory.clone(), &root.root_public_key())
+            .unwrap();
 
         let revoked = revoke_device(&root, &directory, device_b).unwrap();
         store.accept(revoked, &root.root_public_key()).unwrap();
@@ -179,6 +237,9 @@ mod tests {
         // output instead of a fixture.
         let result = store.accept(directory, &root.root_public_key());
         assert!(result.is_err());
-        assert!(!store.directory_for(account).unwrap().is_device_trusted(device_b));
+        assert!(!store
+            .directory_for(account)
+            .unwrap()
+            .is_device_trusted(device_b));
     }
 }
