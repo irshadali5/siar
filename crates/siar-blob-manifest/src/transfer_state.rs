@@ -106,6 +106,12 @@ mod tests {
     fn starting_a_transfer_that_was_never_accepted_is_rejected() {
         let s = TransferState::Offered;
         let result = s.transition(TransferEvent::Start);
-        assert_eq!(result, Err(InvalidTransition { state: TransferState::Offered, event: TransferEvent::Start }));
+        assert_eq!(
+            result,
+            Err(InvalidTransition {
+                state: TransferState::Offered,
+                event: TransferEvent::Start
+            })
+        );
     }
 }
