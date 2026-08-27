@@ -47,7 +47,11 @@ impl<T> FairScheduler<T> {
     /// (§20: every queue in this crate is bounded, no exceptions —
     /// including a `Critical` one, since even emergency traffic must
     /// not be able to grow a queue without limit).
-    pub fn new(weights: HashMap<TrafficPriority, u32>, per_tier_capacity: usize, max_consecutive_critical: u32) -> Self {
+    pub fn new(
+        weights: HashMap<TrafficPriority, u32>,
+        per_tier_capacity: usize,
+        max_consecutive_critical: u32,
+    ) -> Self {
         let mut queues = HashMap::new();
         for tier in TIERS {
             queues.insert(tier, BoundedQueue::new(per_tier_capacity));
@@ -78,8 +82,15 @@ impl<T> FairScheduler<T> {
         Self::new(weights, per_tier_capacity, 8)
     }
 
-    pub fn enqueue(&mut self, priority: TrafficPriority, item: T) -> Result<(), (T, crate::backpressure::QueueFull)> {
-        self.queues.get_mut(&priority).expect("every TrafficPriority tier has a queue").try_push(item)
+    pub fn enqueue(
+        &mut self,
+        priority: TrafficPriority,
+        item: T,
+    ) -> Result<(), (T, crate::backpressure::QueueFull)> {
+        self.queues
+            .get_mut(&priority)
+            .expect("every TrafficPriority tier has a queue")
+            .try_push(item)
     }
 
     /// Picks the next item to dispatch, or `None` if every queue is
@@ -93,7 +104,12 @@ impl<T> FairScheduler<T> {
     #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> Option<T> {
         if self.consecutive_critical_picks < self.max_consecutive_critical {
-            if let Some(item) = self.queues.get_mut(&TrafficPriority::Critical).unwrap().pop() {
+            if let Some(item) = self
+                .queues
+                .get_mut(&TrafficPriority::Critical)
+                .unwrap()
+                .pop()
+            {
                 self.consecutive_critical_picks += 1;
                 return Some(item);
             }
@@ -135,9 +151,13 @@ mod tests {
     #[test]
     fn critical_traffic_preempts_everything_else_up_to_the_bound() {
         let mut scheduler: FairScheduler<String> = FairScheduler::with_default_weights(100);
-        scheduler.enqueue(TrafficPriority::Bulk, "bulk-1".to_string()).unwrap();
+        scheduler
+            .enqueue(TrafficPriority::Bulk, "bulk-1".to_string())
+            .unwrap();
         for i in 0..8 {
-            scheduler.enqueue(TrafficPriority::Critical, format!("sos-{i}")).unwrap();
+            scheduler
+                .enqueue(TrafficPriority::Critical, format!("sos-{i}"))
+                .unwrap();
         }
         // First 8 picks are all Critical — the bound is exactly 8.
         for i in 0..8 {
@@ -148,10 +168,14 @@ mod tests {
     #[test]
     fn bulk_traffic_is_never_permanently_starved_by_sustained_critical_load() {
         let mut scheduler: FairScheduler<String> = FairScheduler::with_default_weights(1000);
-        scheduler.enqueue(TrafficPriority::Bulk, "bulk-1".to_string()).unwrap();
+        scheduler
+            .enqueue(TrafficPriority::Bulk, "bulk-1".to_string())
+            .unwrap();
         // Flood Critical far past the consecutive-pick bound.
         for i in 0..100 {
-            scheduler.enqueue(TrafficPriority::Critical, format!("sos-{i}")).unwrap();
+            scheduler
+                .enqueue(TrafficPriority::Critical, format!("sos-{i}"))
+                .unwrap();
         }
         let mut picks = Vec::new();
         for _ in 0..20 {
@@ -162,7 +186,10 @@ mod tests {
         // §22's own named failure mode this test guards against:
         // naive highest-priority-first scheduling would never let
         // "bulk-1" surface at all while Critical items remain queued.
-        assert!(picks.contains(&"bulk-1".to_string()), "bulk traffic must surface even under sustained Critical flooding");
+        assert!(
+            picks.contains(&"bulk-1".to_string()),
+            "bulk traffic must surface even under sustained Critical flooding"
+        );
     }
 
     #[test]
@@ -191,8 +218,12 @@ mod tests {
         ]);
         let mut scheduler = FairScheduler::new(weights, 100, 0);
         for i in 0..10 {
-            scheduler.enqueue(TrafficPriority::Normal, format!("n{i}")).unwrap();
-            scheduler.enqueue(TrafficPriority::Bulk, format!("b{i}")).unwrap();
+            scheduler
+                .enqueue(TrafficPriority::Normal, format!("n{i}"))
+                .unwrap();
+            scheduler
+                .enqueue(TrafficPriority::Bulk, format!("b{i}"))
+                .unwrap();
         }
         let mut normal_count = 0;
         let mut bulk_count = 0;
@@ -203,6 +234,9 @@ mod tests {
                 _ => {}
             }
         }
-        assert!(normal_count > bulk_count, "Normal (weight 5) should be picked more often than Bulk (weight 1)");
+        assert!(
+            normal_count > bulk_count,
+            "Normal (weight 5) should be picked more often than Bulk (weight 1)"
+        );
     }
 }
