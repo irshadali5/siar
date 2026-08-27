@@ -47,7 +47,11 @@ impl GroupListState {
     }
 
     pub fn upsert(&mut self, summary: GroupSummary) {
-        if let Some(existing) = self.groups.iter_mut().find(|g| g.conversation_id == summary.conversation_id) {
+        if let Some(existing) = self
+            .groups
+            .iter_mut()
+            .find(|g| g.conversation_id == summary.conversation_id)
+        {
             *existing = summary;
         } else {
             self.groups.push(summary);
@@ -59,7 +63,9 @@ impl GroupListState {
     }
 
     pub fn get(&self, conversation_id: ConversationId) -> Option<&GroupSummary> {
-        self.groups.iter().find(|g| g.conversation_id == conversation_id)
+        self.groups
+            .iter()
+            .find(|g| g.conversation_id == conversation_id)
     }
 }
 
@@ -95,12 +101,16 @@ impl PendingInviteState {
     /// welcome for a session we already have" idempotency, one layer
     /// up at the not-yet-accepted stage.
     pub fn add(&mut self, invite: PendingInvite) {
-        self.invites.retain(|i| i.conversation_id != invite.conversation_id);
+        self.invites
+            .retain(|i| i.conversation_id != invite.conversation_id);
         self.invites.push(invite);
     }
 
     pub fn remove(&mut self, conversation_id: ConversationId) -> Option<PendingInvite> {
-        let index = self.invites.iter().position(|i| i.conversation_id == conversation_id)?;
+        let index = self
+            .invites
+            .iter()
+            .position(|i| i.conversation_id == conversation_id)?;
         Some(self.invites.remove(index))
     }
 
@@ -114,7 +124,11 @@ impl PendingInviteState {
     /// same reason `ConversationListState::mark_read` exists instead of
     /// components reaching into the `Vec` directly.
     pub fn set_state_input(&mut self, conversation_id: ConversationId, text: String) {
-        if let Some(invite) = self.invites.iter_mut().find(|i| i.conversation_id == conversation_id) {
+        if let Some(invite) = self
+            .invites
+            .iter_mut()
+            .find(|i| i.conversation_id == conversation_id)
+        {
             invite.state_input = text;
         }
     }
@@ -138,7 +152,13 @@ mod tests {
     use super::*;
 
     fn summary(id: ConversationId) -> GroupSummary {
-        GroupSummary { conversation_id: id, display_label: "test".to_string(), member_count: 1, is_admin: true, epoch: 0 }
+        GroupSummary {
+            conversation_id: id,
+            display_label: "test".to_string(),
+            member_count: 1,
+            is_admin: true,
+            epoch: 0,
+        }
     }
 
     #[test]
@@ -148,7 +168,10 @@ mod tests {
         state.upsert(summary(id));
         assert_eq!(state.ordered().len(), 1);
 
-        state.upsert(GroupSummary { member_count: 3, ..summary(id) });
+        state.upsert(GroupSummary {
+            member_count: 3,
+            ..summary(id)
+        });
         assert_eq!(state.ordered().len(), 1);
         assert_eq!(state.ordered()[0].member_count, 3);
     }
@@ -204,11 +227,37 @@ mod tests {
         let mut state = PendingInviteState::new();
         let a = ConversationId::new();
         let b = ConversationId::new();
-        state.add(PendingInvite { conversation_id: a, from_device: DeviceId::new(), welcome_bytes: vec![], state_input: String::new() });
-        state.add(PendingInvite { conversation_id: b, from_device: DeviceId::new(), welcome_bytes: vec![], state_input: String::new() });
+        state.add(PendingInvite {
+            conversation_id: a,
+            from_device: DeviceId::new(),
+            welcome_bytes: vec![],
+            state_input: String::new(),
+        });
+        state.add(PendingInvite {
+            conversation_id: b,
+            from_device: DeviceId::new(),
+            welcome_bytes: vec![],
+            state_input: String::new(),
+        });
 
         state.set_state_input(a, "pasted-text".to_string());
-        assert_eq!(state.pending().iter().find(|i| i.conversation_id == a).unwrap().state_input, "pasted-text");
-        assert_eq!(state.pending().iter().find(|i| i.conversation_id == b).unwrap().state_input, "");
+        assert_eq!(
+            state
+                .pending()
+                .iter()
+                .find(|i| i.conversation_id == a)
+                .unwrap()
+                .state_input,
+            "pasted-text"
+        );
+        assert_eq!(
+            state
+                .pending()
+                .iter()
+                .find(|i| i.conversation_id == b)
+                .unwrap()
+                .state_input,
+            ""
+        );
     }
 }
