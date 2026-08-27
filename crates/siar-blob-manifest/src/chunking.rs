@@ -63,7 +63,10 @@ mod tests {
     #[test]
     fn a_small_file_becomes_one_chunk() {
         let data = vec![0u8; 100];
-        assert_eq!(ChunkSizeClass::for_file_size(100).default_chunk_size(100), 100);
+        assert_eq!(
+            ChunkSizeClass::for_file_size(100).default_chunk_size(100),
+            100
+        );
         let chunks = chunk_fixed_size(&data, 100);
         assert_eq!(chunks.len(), 1);
     }
@@ -80,8 +83,17 @@ mod tests {
 
     #[test]
     fn size_classification_matches_spec_examples() {
-        assert_eq!(ChunkSizeClass::for_file_size(500_000), ChunkSizeClass::Small);
-        assert_eq!(ChunkSizeClass::for_file_size(4_000_000), ChunkSizeClass::Medium);
-        assert_eq!(ChunkSizeClass::for_file_size(50_000_000), ChunkSizeClass::Large);
+        assert_eq!(
+            ChunkSizeClass::for_file_size(500_000),
+            ChunkSizeClass::Small
+        );
+        assert_eq!(
+            ChunkSizeClass::for_file_size(4_000_000),
+            ChunkSizeClass::Medium
+        );
+        assert_eq!(
+            ChunkSizeClass::for_file_size(50_000_000),
+            ChunkSizeClass::Large
+        );
     }
 }
