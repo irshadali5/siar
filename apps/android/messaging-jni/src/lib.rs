@@ -180,8 +180,8 @@
 
 use siar_domain::{AccountId, ConversationId, DeviceId, MediaType, MessageContent, MessageText};
 use siar_messaging::{
-    GroupService, IncomingEvent, InMemoryDeviceDirectory, InMemoryKeyPackageDirectory, KeyPackageDirectory,
-    MemberDevice, MessageService, PeerTicket,
+    GroupService, InMemoryDeviceDirectory, InMemoryKeyPackageDirectory, IncomingEvent,
+    KeyPackageDirectory, MemberDevice, MessageService, PeerTicket,
 };
 use siar_protocol::v1::EnvelopeKind;
 use siar_transport::{IncomingFrame, PeerTransport, SiarEndpoint};
@@ -196,7 +196,9 @@ fn base64_encode(bytes: &[u8]) -> String {
 
 fn base64_decode(s: &str) -> Result<Vec<u8>, String> {
     use base64::Engine;
-    base64::engine::general_purpose::STANDARD.decode(s.trim()).map_err(|e| e.to_string())
+    base64::engine::general_purpose::STANDARD
+        .decode(s.trim())
+        .map_err(|e| e.to_string())
 }
 
 fn parse_uuid(s: &str) -> Result<uuid::Uuid, String> {
@@ -677,7 +679,12 @@ fn bootstrap_inner(base_dir: &str) -> Result<String, String> {
     if let Some(existing) = guard.as_ref() {
         let ticket = existing.my_ticket.encode();
         drop(guard);
-        if let Some(handle) = app_arc.pump_handle.lock().expect("pump_handle lock poisoned").take() {
+        if let Some(handle) = app_arc
+            .pump_handle
+            .lock()
+            .expect("pump_handle lock poisoned")
+            .take()
+        {
             handle.abort();
         }
         return Ok(ticket);
@@ -688,13 +695,19 @@ fn bootstrap_inner(base_dir: &str) -> Result<String, String> {
 }
 
 fn my_ticket_inner() -> String {
-    app_handle().expect("bootstrap must run before my_ticket").my_ticket.encode()
+    app_handle()
+        .expect("bootstrap must run before my_ticket")
+        .my_ticket
+        .encode()
 }
 
 fn add_peer_inner(ticket: &str) -> Result<(), String> {
     let app = app_handle().ok_or("bootstrap must run before add_peer")?;
     let peer = PeerTicket::decode(ticket).map_err(|e| e.to_string())?;
-    app.known_peers.lock().expect("known_peers lock poisoned").insert(peer.endpoint_addr.id, peer);
+    app.known_peers
+        .lock()
+        .expect("known_peers lock poisoned")
+        .insert(peer.endpoint_addr.id, peer);
     Ok(())
 }
 
@@ -706,13 +719,19 @@ fn send_text_inner(peer_ticket: &str, text: &str) -> Result<String, String> {
     // time blanket `InternetDirect` — see `siar_routing::path::
     // classify_endpoint_addr`'s own doc comment for exactly what this
     // is (advertised reachability) and isn't (a measured path).
-    siar_android_connectivity::mark_link_up(siar_routing::path::classify_endpoint_addr(&peer.endpoint_addr));
+    siar_android_connectivity::mark_link_up(siar_routing::path::classify_endpoint_addr(
+        &peer.endpoint_addr,
+    ));
     runtime().block_on(async {
         // Phase-1 stand-in, same as `apps/cli`'s own `send`: a real
         // client looks up (or creates) the conversation with this peer
         // rather than minting a fresh one per call.
         let conversation = ConversationId::new();
-        app.service.send_text(conversation, &peer, text).await.map(|id| id.to_string()).map_err(|e| e.to_string())
+        app.service
+            .send_text(conversation, &peer, text)
+            .await
+            .map(|id| id.to_string())
+            .map_err(|e| e.to_string())
     })
 }
 
@@ -722,7 +741,10 @@ fn check_mailbox_inner(relay_ticket: &str) -> Result<(), String> {
     let check_in = app.service.sign_mailbox_check_in(siar_domain::now_millis());
     runtime().block_on(async {
         app.endpoint
-            .send(relay.endpoint_addr.clone(), &siar_protocol::WireMessage::MailboxCheckIn(check_in))
+            .send(
+                relay.endpoint_addr.clone(),
+                &siar_protocol::WireMessage::MailboxCheckIn(check_in),
+            )
             .await
             .map_err(|e| e.to_string())
     })
@@ -733,7 +755,11 @@ fn check_mailbox_inner(relay_ticket: &str) -> Result<(), String> {
 /// this does and doesn't guarantee (no delivery ack/retry on this
 /// path, in particular). `peer_ticket` is who the message is *for*;
 /// `relay_ticket` is who it's handed to for pickup.
-fn send_text_anon_inner(peer_ticket: &str, relay_ticket: &str, text: &str) -> Result<String, String> {
+fn send_text_anon_inner(
+    peer_ticket: &str,
+    relay_ticket: &str,
+    text: &str,
+) -> Result<String, String> {
     let app = app_handle().ok_or("bootstrap must run before send_text_anon")?;
     let peer = PeerTicket::decode(peer_ticket).map_err(|e| e.to_string())?;
     let relay = PeerTicket::decode(relay_ticket).map_err(|e| e.to_string())?;
@@ -744,9 +770,15 @@ fn send_text_anon_inner(peer_ticket: &str, relay_ticket: &str, text: &str) -> Re
     // talks over, same reasoning `classify_endpoint_addr` applies
     // anywhere else in this workspace: classify what's actually
     // reached, not the final recipient the traffic is addressed to.
-    siar_android_connectivity::mark_link_up(siar_routing::path::classify_endpoint_addr(&relay.endpoint_addr));
+    siar_android_connectivity::mark_link_up(siar_routing::path::classify_endpoint_addr(
+        &relay.endpoint_addr,
+    ));
     runtime().block_on(async {
-        app.service.send_text_anon(&peer, &relay, text).await.map(|id| id.to_string()).map_err(|e| e.to_string())
+        app.service
+            .send_text_anon(&peer, &relay, text)
+            .await
+            .map(|id| id.to_string())
+            .map_err(|e| e.to_string())
     })
 }
 
@@ -762,10 +794,15 @@ fn check_mailbox_anon_inner(peer_ticket: &str, relay_ticket: &str) -> Result<(),
     let app = app_handle().ok_or("bootstrap must run before check_mailbox_anon")?;
     let peer = PeerTicket::decode(peer_ticket).map_err(|e| e.to_string())?;
     let relay = PeerTicket::decode(relay_ticket).map_err(|e| e.to_string())?;
-    let check_in = app.service.build_anonymous_check_in(&peer, siar_domain::now_millis());
+    let check_in = app
+        .service
+        .build_anonymous_check_in(&peer, siar_domain::now_millis());
     runtime().block_on(async {
         app.endpoint
-            .send(relay.endpoint_addr.clone(), &siar_protocol::WireMessage::AnonymousMailboxCheckIn(check_in))
+            .send(
+                relay.endpoint_addr.clone(),
+                &siar_protocol::WireMessage::AnonymousMailboxCheckIn(check_in),
+            )
             .await
             .map_err(|e| e.to_string())
     })
@@ -796,11 +833,19 @@ fn ticket_endpoint_debug_inner(ticket: &str) -> Result<String, String> {
 /// ticket / key package" bundle (`publish_key_package`'s CLI
 /// counterpart prints exactly these four things).
 fn device_id_inner() -> Result<String, String> {
-    Ok(app_handle().ok_or("bootstrap must run before device_id")?.device_id.as_uuid().to_string())
+    Ok(app_handle()
+        .ok_or("bootstrap must run before device_id")?
+        .device_id
+        .as_uuid()
+        .to_string())
 }
 
 fn account_id_inner() -> Result<String, String> {
-    Ok(app_handle().ok_or("bootstrap must run before account_id")?.local_account.as_uuid().to_string())
+    Ok(app_handle()
+        .ok_or("bootstrap must run before account_id")?
+        .local_account
+        .as_uuid()
+        .to_string())
 }
 
 /// This device's own base64-encoded MLS key package, published once at
@@ -809,7 +854,10 @@ fn account_id_inner() -> Result<String, String> {
 /// bootstrap time, matching that field's own "logged warning, not a
 /// hard failure" choice.
 fn group_key_package_inner() -> Result<String, String> {
-    Ok(app_handle().ok_or("bootstrap must run before group_key_package")?.key_package_b64.clone())
+    Ok(app_handle()
+        .ok_or("bootstrap must run before group_key_package")?
+        .key_package_b64
+        .clone())
 }
 
 /// Creates a new MLS group with this device's account as founder/admin
@@ -819,7 +867,9 @@ fn group_key_package_inner() -> Result<String, String> {
 fn group_create_inner() -> Result<String, String> {
     let app = app_handle().ok_or("bootstrap must run before group_create")?;
     let conversation = ConversationId::new();
-    app.group_service.create_group_mls(conversation, app.local_account).map_err(|e| e.to_string())?;
+    app.group_service
+        .create_group_mls(conversation, app.local_account)
+        .map_err(|e| e.to_string())?;
     Ok(conversation.to_string())
 }
 
@@ -847,10 +897,21 @@ fn group_add_member_inner(
     let ticket = PeerTicket::decode(peer_ticket).map_err(|e| e.to_string())?;
     let key_package_bytes = base64_decode(key_package_b64)?;
 
-    app.device_directory.register(peer_account, MemberDevice { device_id: peer_device, ticket });
+    app.device_directory.register(
+        peer_account,
+        MemberDevice {
+            device_id: peer_device,
+            ticket,
+        },
+    );
 
     runtime()
-        .block_on(app.group_service.add_member_mls(conversation, peer_account, peer_device, &key_package_bytes))
+        .block_on(app.group_service.add_member_mls(
+            conversation,
+            peer_account,
+            peer_device,
+            &key_package_bytes,
+        ))
         .map_err(|e| e.to_string())?;
 
     let state = app
@@ -890,8 +951,11 @@ fn group_join_inner(conversation: &str, group_state_b64: &str) -> Result<(), Str
         .remove(&conversation)
         .ok_or("no pending invite for this conversation — wait for a group_invite event, or ask the admin to add you again")?;
     let state_bytes = base64_decode(group_state_b64)?;
-    let state: siar_domain::GroupState = postcard::from_bytes(&state_bytes).map_err(|e| e.to_string())?;
-    app.group_service.join_group_mls(conversation, &welcome_bytes, state).map_err(|e| e.to_string())
+    let state: siar_domain::GroupState =
+        postcard::from_bytes(&state_bytes).map_err(|e| e.to_string())?;
+    app.group_service
+        .join_group_mls(conversation, &welcome_bytes, state)
+        .map_err(|e| e.to_string())
 }
 
 /// Discards a buffered welcome without joining — the "no" side of the
@@ -917,12 +981,19 @@ fn group_decline_invite_inner(conversation: &str) -> Result<bool, String> {
 /// (`ConversationId::new()`), same as [`send_text_inner`] — this crate
 /// has no multi-message-thread concept per peer yet (a real, existing
 /// limitation this function inherits, not one it introduces).
-fn send_attachment_inner(peer_ticket: &str, file_bytes: Vec<u8>, media_type_str: &str) -> Result<String, String> {
+fn send_attachment_inner(
+    peer_ticket: &str,
+    file_bytes: Vec<u8>,
+    media_type_str: &str,
+) -> Result<String, String> {
     let app = app_handle().ok_or("bootstrap must run before send_attachment")?;
     let peer = PeerTicket::decode(peer_ticket).map_err(|e| e.to_string())?;
     let media_type = media_type_from_str(media_type_str);
     let message_id = runtime()
-        .block_on(app.service.send_attachment(ConversationId::new(), &peer, file_bytes, media_type))
+        .block_on(
+            app.service
+                .send_attachment(ConversationId::new(), &peer, file_bytes, media_type),
+        )
         .map_err(|e| e.to_string())?;
     Ok(message_id.to_string())
 }
@@ -941,22 +1012,32 @@ fn fetch_attachment_inner(
     let app = app_handle().ok_or("bootstrap must run before fetch_attachment")?;
     let peer = PeerTicket::decode(peer_ticket).map_err(|e| e.to_string())?;
     let blob_hash_vec = base64_decode(blob_hash_b64)?;
-    let blob_hash: [u8; 32] = blob_hash_vec.try_into().map_err(|_| "blob hash must be 32 bytes".to_string())?;
+    let blob_hash: [u8; 32] = blob_hash_vec
+        .try_into()
+        .map_err(|_| "blob hash must be 32 bytes".to_string())?;
     let attachment_key_vec = base64_decode(attachment_key_b64)?;
-    let attachment_key: [u8; 32] =
-        attachment_key_vec.try_into().map_err(|_| "attachment key must be 32 bytes".to_string())?;
+    let attachment_key: [u8; 32] = attachment_key_vec
+        .try_into()
+        .map_err(|_| "attachment key must be 32 bytes".to_string())?;
     let reference = siar_domain::AttachmentReference {
         blob_hash,
-        encrypted_size: siar_domain::BlobSize::parse(encrypted_size_bytes).map_err(|e| e.to_string())?,
+        encrypted_size: siar_domain::BlobSize::parse(encrypted_size_bytes)
+            .map_err(|e| e.to_string())?,
         media_type: media_type_from_str(media_type_str),
         attachment_key,
         thumbnail: None,
     };
-    runtime().block_on(app.service.fetch_attachment(&peer, &reference)).map_err(|e| e.to_string())
+    runtime()
+        .block_on(app.service.fetch_attachment(&peer, &reference))
+        .map_err(|e| e.to_string())
 }
 
 fn poll_next_event_inner() -> Option<String> {
-    app_handle()?.events.lock().expect("events lock poisoned").pop_front()
+    app_handle()?
+        .events
+        .lock()
+        .expect("events lock poisoned")
+        .pop_front()
 }
 
 /// The `mark_link_up` counterpart this crate's own doc comment named
@@ -985,8 +1066,15 @@ fn poll_next_event_inner() -> Option<String> {
 /// release (the endpoint's own `Drop`, whatever that does) follows
 /// shortly after on the runtime's own schedule.
 fn shutdown_inner() {
-    let Some(app) = APP.lock().expect("APP lock poisoned").take() else { return };
-    if let Some(handle) = app.pump_handle.lock().expect("pump_handle lock poisoned").take() {
+    let Some(app) = APP.lock().expect("APP lock poisoned").take() else {
+        return;
+    };
+    if let Some(handle) = app
+        .pump_handle
+        .lock()
+        .expect("pump_handle lock poisoned")
+        .take()
+    {
         handle.abort();
     }
     siar_android_connectivity::mark_link_down(siar_domain::TransportLink::InternetDirect);
@@ -1015,7 +1103,9 @@ mod jni_bridge {
             Ok(s) => s,
             Err(e) => format!("error:{e}"),
         };
-        env.new_string(text).expect("failed to allocate a JNI string").into_raw()
+        env.new_string(text)
+            .expect("failed to allocate a JNI string")
+            .into_raw()
     }
 
     fn jstring_to_string<'local>(env: &mut JNIEnv<'local>, s: &JString<'local>) -> String {
@@ -1064,7 +1154,10 @@ mod jni_bridge {
     /// silently never worked, always falling back. [`initAndroidContext`]
     /// is what makes it actually work.)
     #[no_mangle]
-    pub extern "C" fn JNI_OnLoad(_vm: jni::JavaVM, _reserved: *mut std::ffi::c_void) -> jni::sys::jint {
+    pub extern "C" fn JNI_OnLoad(
+        _vm: jni::JavaVM,
+        _reserved: *mut std::ffi::c_void,
+    ) -> jni::sys::jint {
         jni::JNIVersion::V6.into()
     }
 
@@ -1099,7 +1192,9 @@ mod jni_bridge {
     /// "0.21"` version this crate uses for this exact
     /// Context-to-native-code problem, not this pass's own invention.
     #[no_mangle]
-    pub extern "system" fn Java_com_siar_messaging_NativeMessagingBridge_initAndroidContext<'local>(
+    pub extern "system" fn Java_com_siar_messaging_NativeMessagingBridge_initAndroidContext<
+        'local,
+    >(
         env: JNIEnv<'local>,
         _class: JClass<'local>,
         context: JObject<'local>,
@@ -1139,7 +1234,9 @@ mod jni_bridge {
     }
 
     #[no_mangle]
-    pub extern "system" fn Java_com_siar_messaging_NativeMessagingBridge_ticketEndpointDebug<'local>(
+    pub extern "system" fn Java_com_siar_messaging_NativeMessagingBridge_ticketEndpointDebug<
+        'local,
+    >(
         mut env: JNIEnv<'local>,
         _class: JClass<'local>,
         ticket: JString<'local>,
@@ -1200,7 +1297,9 @@ mod jni_bridge {
     }
 
     #[no_mangle]
-    pub extern "system" fn Java_com_siar_messaging_NativeMessagingBridge_checkMailboxAnon<'local>(
+    pub extern "system" fn Java_com_siar_messaging_NativeMessagingBridge_checkMailboxAnon<
+        'local,
+    >(
         mut env: JNIEnv<'local>,
         _class: JClass<'local>,
         peer_ticket: JString<'local>,
@@ -1208,7 +1307,8 @@ mod jni_bridge {
     ) -> jstring {
         let peer_ticket = jstring_to_string(&mut env, &peer_ticket);
         let relay_ticket = jstring_to_string(&mut env, &relay_ticket);
-        let result = check_mailbox_anon_inner(&peer_ticket, &relay_ticket).map(|()| "ok".to_string());
+        let result =
+            check_mailbox_anon_inner(&peer_ticket, &relay_ticket).map(|()| "ok".to_string());
         to_jstring(&mut env, result)
     }
 
@@ -1223,7 +1323,10 @@ mod jni_bridge {
         _class: JClass<'local>,
     ) -> jstring {
         match poll_next_event_inner() {
-            Some(line) => env.new_string(line).expect("failed to allocate a JNI string").into_raw(),
+            Some(line) => env
+                .new_string(line)
+                .expect("failed to allocate a JNI string")
+                .into_raw(),
             None => std::ptr::null_mut(),
         }
     }
@@ -1287,7 +1390,13 @@ mod jni_bridge {
         let peer_device_id = jstring_to_string(&mut env, &peer_device_id);
         let peer_account_id = jstring_to_string(&mut env, &peer_account_id);
         let key_package_b64 = jstring_to_string(&mut env, &key_package_b64);
-        let result = group_add_member_inner(&conversation, &peer_ticket, &peer_device_id, &peer_account_id, &key_package_b64);
+        let result = group_add_member_inner(
+            &conversation,
+            &peer_ticket,
+            &peer_device_id,
+            &peer_account_id,
+            &key_package_b64,
+        );
         to_jstring(&mut env, result)
     }
 
@@ -1318,7 +1427,9 @@ mod jni_bridge {
     }
 
     #[no_mangle]
-    pub extern "system" fn Java_com_siar_messaging_NativeMessagingBridge_groupDeclineInvite<'local>(
+    pub extern "system" fn Java_com_siar_messaging_NativeMessagingBridge_groupDeclineInvite<
+        'local,
+    >(
         mut env: JNIEnv<'local>,
         _class: JClass<'local>,
         conversation: JString<'local>,
@@ -1380,8 +1491,14 @@ mod jni_bridge {
         // real attachment size is never negative and `MAX_ATTACHMENT_BYTES`
         // (200 MiB) is far below `i64::MAX` regardless.
         let encrypted_size_bytes = encrypted_size_bytes as u64;
-        let result = fetch_attachment_inner(&peer_ticket, &blob_hash_b64, encrypted_size_bytes, &media_type, &attachment_key_b64)
-            .map(|bytes| base64_encode(&bytes));
+        let result = fetch_attachment_inner(
+            &peer_ticket,
+            &blob_hash_b64,
+            encrypted_size_bytes,
+            &media_type,
+            &attachment_key_b64,
+        )
+        .map(|bytes| base64_encode(&bytes));
         to_jstring(&mut env, result)
     }
 }
