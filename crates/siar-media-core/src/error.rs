@@ -23,7 +23,9 @@ pub enum EncodeError {
 impl fmt::Display for EncodeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            EncodeError::MalformedFrame => write!(f, "frame plane sizes did not match its resolution"),
+            EncodeError::MalformedFrame => {
+                write!(f, "frame plane sizes did not match its resolution")
+            }
             EncodeError::Backend(msg) => write!(f, "encoder error: {msg}"),
             EncodeError::Unsupported(msg) => write!(f, "unsupported: {msg}"),
         }
