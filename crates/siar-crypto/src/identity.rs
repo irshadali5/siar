@@ -118,7 +118,10 @@ impl DeviceIdentity {
         let x25519_secret = StaticSecret::from(x25519_bytes);
         x25519_bytes.zeroize();
 
-        Ok(Self { signing_key, x25519_secret })
+        Ok(Self {
+            signing_key,
+            x25519_secret,
+        })
     }
 
     /// Explicit, deliberate key-material duplication — not a derived
@@ -163,7 +166,10 @@ impl DeviceIdentity {
         let x25519_secret = StaticSecret::from(x25519_bytes);
         x25519_bytes.zeroize();
 
-        Ok(Self { signing_key, x25519_secret })
+        Ok(Self {
+            signing_key,
+            x25519_secret,
+        })
     }
 }
 
@@ -206,7 +212,10 @@ mod tests {
 
     #[test]
     fn save_then_load_round_trips_to_the_same_keys() {
-        let path = std::env::temp_dir().join(format!("siar-crypto-test-identity-{}.bin", std::process::id()));
+        let path = std::env::temp_dir().join(format!(
+            "siar-crypto-test-identity-{}.bin",
+            std::process::id()
+        ));
         let original = DeviceIdentity::generate();
         original.save_to_file(&path).expect("save should succeed");
 
@@ -214,7 +223,10 @@ mod tests {
         std::fs::remove_file(&path).ok();
 
         assert_eq!(original.verifying_key(), loaded.verifying_key());
-        assert_eq!(original.x25519_public().as_bytes(), loaded.x25519_public().as_bytes());
+        assert_eq!(
+            original.x25519_public().as_bytes(),
+            loaded.x25519_public().as_bytes()
+        );
 
         // The loaded key actually works, not just carries matching
         // public halves — sign with one, verify with the other's public
@@ -225,7 +237,10 @@ mod tests {
 
     #[test]
     fn load_rejects_a_file_of_the_wrong_length() {
-        let path = std::env::temp_dir().join(format!("siar-crypto-test-bad-identity-{}.bin", std::process::id()));
+        let path = std::env::temp_dir().join(format!(
+            "siar-crypto-test-bad-identity-{}.bin",
+            std::process::id()
+        ));
         std::fs::write(&path, [0u8; 10]).expect("write should succeed");
         let err = DeviceIdentity::load_from_file(&path);
         std::fs::remove_file(&path).ok();
@@ -238,12 +253,18 @@ mod tests {
         let cloned = original.try_clone().expect("try_clone should succeed");
 
         assert_eq!(original.verifying_key(), cloned.verifying_key());
-        assert_eq!(original.x25519_public().as_bytes(), cloned.x25519_public().as_bytes());
+        assert_eq!(
+            original.x25519_public().as_bytes(),
+            cloned.x25519_public().as_bytes()
+        );
 
         // Actually usable independently, not just matching public
         // halves — same "sign with one, verify with the other" check
         // save_then_load_round_trips_to_the_same_keys uses above.
         let sig = cloned.sign(b"try_clone round trip");
-        assert!(DeviceIdentity::verify(&original.verifying_key(), b"try_clone round trip", &sig).is_ok());
+        assert!(
+            DeviceIdentity::verify(&original.verifying_key(), b"try_clone round trip", &sig)
+                .is_ok()
+        );
     }
 }
