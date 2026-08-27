@@ -75,7 +75,8 @@ impl<T> RouteDispatchQueue<T> {
         plan: RoutePlan,
         payload: T,
     ) -> Result<(), ((RoutePlan, T), QueueFull)> {
-        self.scheduler.enqueue(traffic_priority_for(priority), (plan, payload))
+        self.scheduler
+            .enqueue(traffic_priority_for(priority), (plan, payload))
     }
 
     /// Pops the next `(plan, payload)` pair to actually dial/send, per
@@ -145,8 +146,12 @@ mod tests {
     #[test]
     fn critical_dispatches_before_background_regardless_of_enqueue_order() {
         let mut queue: RouteDispatchQueue<&str> = RouteDispatchQueue::new(16);
-        queue.enqueue(Priority::Background, plan_for("bg"), "bulk-sync").unwrap();
-        queue.enqueue(Priority::Critical, plan_for("sos"), "emergency-alert").unwrap();
+        queue
+            .enqueue(Priority::Background, plan_for("bg"), "bulk-sync")
+            .unwrap();
+        queue
+            .enqueue(Priority::Critical, plan_for("sos"), "emergency-alert")
+            .unwrap();
 
         let (_, payload) = queue.dispatch_next().unwrap();
         assert_eq!(payload, "emergency-alert");
@@ -157,7 +162,9 @@ mod tests {
         let mut queue: RouteDispatchQueue<u32> = RouteDispatchQueue::new(1);
         queue.enqueue(Priority::Normal, plan_for("a"), 1).unwrap();
 
-        let err = queue.enqueue(Priority::Normal, plan_for("b"), 2).unwrap_err();
+        let err = queue
+            .enqueue(Priority::Normal, plan_for("b"), 2)
+            .unwrap_err();
         let ((_, rejected_payload), _) = err;
         assert_eq!(rejected_payload, 2);
     }
