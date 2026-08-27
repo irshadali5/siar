@@ -41,11 +41,21 @@ pub struct MeshSimulation {
 
 impl MeshSimulation {
     pub fn new() -> Self {
-        Self { nodes: HashMap::new(), links: HashSet::new(), now: 0 }
+        Self {
+            nodes: HashMap::new(),
+            links: HashSet::new(),
+            now: 0,
+        }
     }
 
     pub fn add_node(&mut self, id: DeviceId, quota_bytes: u64, seen_capacity: usize) {
-        self.nodes.insert(id, SimNode { store: BundleStore::new(quota_bytes), seen: SeenBundles::new(seen_capacity) });
+        self.nodes.insert(
+            id,
+            SimNode {
+                store: BundleStore::new(quota_bytes),
+                seen: SeenBundles::new(seen_capacity),
+            },
+        );
     }
 
     /// Symmetric — both directions can exchange once connected. Safe to
@@ -87,7 +97,8 @@ impl MeshSimulation {
         // borrow checker over it.
         let mut deliveries: Vec<(DeviceId, MeshBundle)> = Vec::new();
         for &(from, to) in &self.links {
-            let (Some(from_node), Some(to_node)) = (self.nodes.get(&from), self.nodes.get(&to)) else {
+            let (Some(from_node), Some(to_node)) = (self.nodes.get(&from), self.nodes.get(&to))
+            else {
                 continue;
             };
             for bundle in from_node.store.iter() {
@@ -123,7 +134,10 @@ impl MeshSimulation {
     }
 
     pub fn has_bundle(&self, node: DeviceId, id: MessageId) -> bool {
-        self.nodes.get(&node).map(|n| n.store.contains(id)).unwrap_or(false)
+        self.nodes
+            .get(&node)
+            .map(|n| n.store.contains(id))
+            .unwrap_or(false)
     }
 
     pub fn now(&self) -> u64 {
@@ -161,7 +175,12 @@ mod tests {
     #[test]
     fn message_crosses_a_multi_hop_chain() {
         let mut sim = MeshSimulation::new();
-        let (a, b, c, d) = (DeviceId::new(), DeviceId::new(), DeviceId::new(), DeviceId::new());
+        let (a, b, c, d) = (
+            DeviceId::new(),
+            DeviceId::new(),
+            DeviceId::new(),
+            DeviceId::new(),
+        );
         for node in [a, b, c, d] {
             sim.add_node(node, 1_000_000, 100);
         }
@@ -176,7 +195,10 @@ mod tests {
         // One tick per hop needed, plus a little slack.
         sim.run(4);
 
-        assert!(sim.has_bundle(d, id), "message should have crossed A -> B -> C -> D");
+        assert!(
+            sim.has_bundle(d, id),
+            "message should have crossed A -> B -> C -> D"
+        );
     }
 
     /// next.md §30: hop_limit exhausting before reaching the destination
@@ -184,7 +206,12 @@ mod tests {
     #[test]
     fn hop_limit_too_low_for_the_chain_means_no_delivery() {
         let mut sim = MeshSimulation::new();
-        let (a, b, c, d) = (DeviceId::new(), DeviceId::new(), DeviceId::new(), DeviceId::new());
+        let (a, b, c, d) = (
+            DeviceId::new(),
+            DeviceId::new(),
+            DeviceId::new(),
+            DeviceId::new(),
+        );
         for node in [a, b, c, d] {
             sim.add_node(node, 1_000_000, 100);
         }
@@ -197,8 +224,14 @@ mod tests {
         sim.originate(a, msg);
         sim.run(5);
 
-        assert!(!sim.has_bundle(d, id), "hop_limit=2 should not have been enough to reach a 3-hop-away destination");
-        assert!(sim.has_bundle(c, id), "it should have gotten as far as C, though");
+        assert!(
+            !sim.has_bundle(d, id),
+            "hop_limit=2 should not have been enough to reach a 3-hop-away destination"
+        );
+        assert!(
+            sim.has_bundle(c, id),
+            "it should have gotten as far as C, though"
+        );
     }
 
     /// next.md §114: a partitioned network, later reconciled once a
@@ -229,13 +262,19 @@ mod tests {
         sim.run(3);
 
         assert!(sim.has_bundle(c, id));
-        assert!(!sim.has_bundle(f, id), "no bridge exists yet — the two networks must not have reconciled");
+        assert!(
+            !sim.has_bundle(f, id),
+            "no bridge exists yet — the two networks must not have reconciled"
+        );
 
         // C meets D — the bridge next.md §114 describes.
         sim.connect(c, d);
         sim.run(3);
 
-        assert!(sim.has_bundle(f, id), "once C-D bridges the two networks, the pending bundle should reach network 2");
+        assert!(
+            sim.has_bundle(f, id),
+            "once C-D bridges the two networks, the pending bundle should reach network 2"
+        );
     }
 
     /// next.md §31: a bundle arriving at the same node via two different
@@ -243,7 +282,12 @@ mod tests {
     #[test]
     fn a_node_reachable_by_two_paths_does_not_receive_duplicates() {
         let mut sim = MeshSimulation::new();
-        let (a, b, c, d) = (DeviceId::new(), DeviceId::new(), DeviceId::new(), DeviceId::new());
+        let (a, b, c, d) = (
+            DeviceId::new(),
+            DeviceId::new(),
+            DeviceId::new(),
+            DeviceId::new(),
+        );
         for node in [a, b, c, d] {
             sim.add_node(node, 1_000_000, 100);
         }
