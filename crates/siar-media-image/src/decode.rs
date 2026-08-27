@@ -52,7 +52,11 @@ pub fn decode_image(bytes: &[u8]) -> Result<DecodedImage, ImageError> {
     }
 
     let rgba = dynamic.to_rgba8().into_raw();
-    Ok(DecodedImage { width, height, rgba })
+    Ok(DecodedImage {
+        width,
+        height,
+        rgba,
+    })
 }
 
 #[cfg(test)]
@@ -61,8 +65,9 @@ mod tests {
     use image::{ImageBuffer, Rgba};
 
     fn encode_png_fixture(width: u32, height: u32) -> Vec<u8> {
-        let img: ImageBuffer<Rgba<u8>, Vec<u8>> =
-            ImageBuffer::from_fn(width, height, |x, y| Rgba([(x % 256) as u8, (y % 256) as u8, 128, 255]));
+        let img: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::from_fn(width, height, |x, y| {
+            Rgba([(x % 256) as u8, (y % 256) as u8, 128, 255])
+        });
         let mut buf = Vec::new();
         img.write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
             .unwrap();
@@ -91,6 +96,9 @@ mod tests {
         bytes.extend_from_slice(b"avif");
         bytes.extend_from_slice(&[0; 8]);
         let err = decode_image(&bytes).unwrap_err();
-        assert!(matches!(err, ImageError::UnsupportedFormat(ImageFormat::Avif)));
+        assert!(matches!(
+            err,
+            ImageError::UnsupportedFormat(ImageFormat::Avif)
+        ));
     }
 }
