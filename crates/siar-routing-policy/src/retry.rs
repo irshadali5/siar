@@ -26,7 +26,13 @@ impl RetryPolicy {
 
     /// §38: "Typing indicators should not retry."
     pub fn no_retry() -> Self {
-        Self { max_attempts: Some(0), initial_backoff_millis: 0, max_backoff_millis: 0, jitter: Ratio::new(0.0), retry_on_network_change: false }
+        Self {
+            max_attempts: Some(0),
+            initial_backoff_millis: 0,
+            max_backoff_millis: 0,
+            jitter: Ratio::new(0.0),
+            retry_on_network_change: false,
+        }
     }
 
     /// Whether attempt number `attempt` (1-based: the value passed for
@@ -48,7 +54,9 @@ impl RetryPolicy {
     pub fn base_backoff_millis(&self, attempt: u32) -> u64 {
         let attempt = attempt.max(1);
         let shift = attempt.saturating_sub(1).min(32);
-        let scaled = self.initial_backoff_millis.saturating_mul(1u64.checked_shl(shift).unwrap_or(u64::MAX));
+        let scaled = self
+            .initial_backoff_millis
+            .saturating_mul(1u64.checked_shl(shift).unwrap_or(u64::MAX));
         scaled.min(self.max_backoff_millis)
     }
 
