@@ -60,7 +60,10 @@ mod tests {
 
     #[test]
     fn rejects_empty_text() {
-        assert_eq!(MessageText::parse(String::new()), Err(TextParseError::Empty));
+        assert_eq!(
+            MessageText::parse(String::new()),
+            Err(TextParseError::Empty)
+        );
     }
 
     #[test]
