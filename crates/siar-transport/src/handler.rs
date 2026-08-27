@@ -52,7 +52,15 @@ impl ProtocolHandler for MessagingProtocolHandler {
         // A full channel means the messaging core is backed up (plan.md
         // §56 backpressure) — drop the connection rather than buffer
         // unboundedly; the sender's outbox will retry.
-        if self.incoming.send(IncomingFrame { from: remote, message }).await.is_err() {
+        if self
+            .incoming
+            .send(IncomingFrame {
+                from: remote,
+                message,
+            })
+            .await
+            .is_err()
+        {
             tracing::warn!("inbound frame channel closed; dropping connection");
         }
 
