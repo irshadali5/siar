@@ -10,8 +10,8 @@
 
 use dioxus::prelude::*;
 use siar_ui_state::{
-    AppCommand, AttachmentPreviewState, ComposerState, ContactListState, ConversationListState, GroupListState,
-    NetworkStatus, PendingInviteState, TimelineState,
+    AppCommand, AttachmentPreviewState, ComposerState, ContactListState, ConversationListState,
+    GroupListState, NetworkStatus, PendingInviteState, TimelineState,
 };
 use tokio::sync::mpsc;
 
