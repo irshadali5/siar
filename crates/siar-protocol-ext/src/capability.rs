@@ -15,7 +15,9 @@ use std::collections::HashMap;
 /// compact identifier — "Avoid hot-path capability checks based on
 /// arbitrary strings" (§9) — with human-readable names kept out of
 /// this type entirely and looked up via [`CapabilityRegistry`] instead.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub struct CapabilityId(pub u32);
 
 /// spec §9's `CapabilitySet` struct, exactly as given there
@@ -47,7 +49,12 @@ impl CapabilitySet {
     /// intersection is the effective feature set for the session, not
     /// a preference or a suggestion.
     pub fn intersect(&self, other: &CapabilitySet) -> CapabilitySet {
-        let values: Vec<CapabilityId> = self.values.iter().filter(|id| other.contains(**id)).copied().collect();
+        let values: Vec<CapabilityId> = self
+            .values
+            .iter()
+            .filter(|id| other.contains(**id))
+            .copied()
+            .collect();
         CapabilitySet { values }
     }
 
