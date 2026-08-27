@@ -78,6 +78,10 @@ pub enum EnvelopeKind {
     /// forcing a payload round-trip — see `CallControlEvent`'s own docs
     /// for why this is the signaling channel only, not media.
     CallSignal(CallControlEvent),
-    DeliveryAck { acked_message: MessageId },
-    ReadReceipt { through_sequence: u64 },
+    DeliveryAck {
+        acked_message: MessageId,
+    },
+    ReadReceipt {
+        through_sequence: u64,
+    },
 }
