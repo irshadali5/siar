@@ -63,8 +63,16 @@ struct QueuedBytes {
 }
 
 pub enum SessionOutput {
-    Encoded { codec: VideoCodec, data: Vec<u8>, is_keyframe: bool, timestamp_micros: i64 },
-    Decoded { frame: RawVideoFrame, timestamp_micros: i64 },
+    Encoded {
+        codec: VideoCodec,
+        data: Vec<u8>,
+        is_keyframe: bool,
+        timestamp_micros: i64,
+    },
+    Decoded {
+        frame: RawVideoFrame,
+        timestamp_micros: i64,
+    },
 }
 
 /// Everything one `handle` refers to. A single `Mutex` covering the
@@ -75,7 +83,8 @@ pub enum SessionOutput {
 /// this session never sees (one Kotlin worker thread per session, one
 /// Rust producer/consumer side).
 pub struct MediaSession {
-    #[allow(dead_code)] // read by future orchestration code that branches encode vs decode handling
+    #[allow(dead_code)]
+    // read by future orchestration code that branches encode vs decode handling
     kind: SessionKind,
     #[allow(dead_code)] // read by future orchestration code, not by this file
     codec: VideoCodec,
@@ -146,11 +155,17 @@ pub extern "system" fn Java_com_siar_media_NativeMediaBridge_createSession<'loca
     width: jint,
     height: jint,
 ) -> jlong {
-    let Some(codec) = codec_from_wire(codec) else { return 0 };
+    let Some(codec) = codec_from_wire(codec) else {
+        return 0;
+    };
     if width <= 0 || height <= 0 {
         return 0;
     }
-    let kind = if kind == 0 { SessionKind::Encode } else { SessionKind::Decode };
+    let kind = if kind == 0 {
+        SessionKind::Encode
+    } else {
+        SessionKind::Decode
+    };
 
     let session = MediaSession {
         kind,
@@ -198,7 +213,10 @@ pub extern "system" fn Java_com_siar_media_NativeMediaBridge_destroySession<'loc
 /// caller, not part of the JNI surface itself.
 pub fn push_input(session: &Mutex<MediaSession>, data: Vec<u8>, timestamp_micros: i64) {
     let mut session = session.lock().expect("MediaSession lock poisoned");
-    session.input_queue.push_back(QueuedBytes { data, timestamp_micros });
+    session.input_queue.push_back(QueuedBytes {
+        data,
+        timestamp_micros,
+    });
 }
 
 /// A clone of this session's ready-notifier, for an async consumer (see
@@ -207,7 +225,12 @@ pub fn push_input(session: &Mutex<MediaSession>, data: Vec<u8>, timestamp_micros
 /// JNI surface — `pub` for that future in-process Rust caller only,
 /// same visibility rationale as `push_input` above.
 pub fn output_ready_notifier(session: &Mutex<MediaSession>) -> Arc<Notify> {
-    Arc::clone(&session.lock().expect("MediaSession lock poisoned").output_ready)
+    Arc::clone(
+        &session
+            .lock()
+            .expect("MediaSession lock poisoned")
+            .output_ready,
+    )
 }
 
 /// Drains everything currently queued in `output_queue`, in arrival
@@ -216,7 +239,12 @@ pub fn output_ready_notifier(session: &Mutex<MediaSession>) -> Arc<Notify> {
 /// one item per notification, since `notify_one` only guarantees "check
 /// again," not "exactly one new item since last time."
 pub fn drain_output(session: &Mutex<MediaSession>) -> Vec<SessionOutput> {
-    session.lock().expect("MediaSession lock poisoned").output_queue.drain(..).collect()
+    session
+        .lock()
+        .expect("MediaSession lock poisoned")
+        .output_queue
+        .drain(..)
+        .collect()
 }
 
 fn pop_input(handle: jlong) -> Option<Vec<u8>> {
@@ -230,8 +258,13 @@ fn pop_input(handle: jlong) -> Option<Vec<u8>> {
 
 fn last_input_timestamp(handle: jlong) -> jlong {
     // SAFETY: see `session_from_handle`.
-    let Some(session) = (unsafe { session_from_handle(handle) }) else { return 0 };
-    session.lock().expect("MediaSession lock poisoned").last_input_timestamp_micros
+    let Some(session) = (unsafe { session_from_handle(handle) }) else {
+        return 0;
+    };
+    session
+        .lock()
+        .expect("MediaSession lock poisoned")
+        .last_input_timestamp_micros
 }
 
 fn bytes_to_jbyte_array(env: &mut JNIEnv, data: &[u8]) -> jbyteArray {
@@ -294,9 +327,15 @@ pub extern "system" fn Java_com_siar_media_NativeMediaBridge_onEncodedFrame<'loc
     presentation_time_us: jlong,
 ) {
     // SAFETY: see `session_from_handle`.
-    let Some(session) = (unsafe { session_from_handle(handle) }) else { return };
-    let Some(codec) = codec_from_wire(codec) else { return };
-    let Ok(bytes) = env.convert_byte_array(&data) else { return };
+    let Some(session) = (unsafe { session_from_handle(handle) }) else {
+        return;
+    };
+    let Some(codec) = codec_from_wire(codec) else {
+        return;
+    };
+    let Ok(bytes) = env.convert_byte_array(&data) else {
+        return;
+    };
 
     let mut guard = session.lock().expect("MediaSession lock poisoned");
     guard.output_queue.push_back(SessionOutput::Encoded {
@@ -321,18 +360,28 @@ pub extern "system" fn Java_com_siar_media_NativeMediaBridge_onDecodedFrame<'loc
     presentation_time_us: jlong,
 ) {
     // SAFETY: see `session_from_handle`.
-    let Some(session) = (unsafe { session_from_handle(handle) }) else { return };
+    let Some(session) = (unsafe { session_from_handle(handle) }) else {
+        return;
+    };
     if width <= 0 || height <= 0 {
         return;
     }
-    let (Ok(y_plane), Ok(u_plane), Ok(v_plane)) =
-        (env.convert_byte_array(&y), env.convert_byte_array(&u), env.convert_byte_array(&v))
-    else {
+    let (Ok(y_plane), Ok(u_plane), Ok(v_plane)) = (
+        env.convert_byte_array(&y),
+        env.convert_byte_array(&u),
+        env.convert_byte_array(&v),
+    ) else {
         return;
     };
 
     let resolution = Resolution::new(width as u32, height as u32);
-    let frame = RawVideoFrame { resolution, y_plane, u_plane, v_plane, timestamp_micros: presentation_time_us as u64 };
+    let frame = RawVideoFrame {
+        resolution,
+        y_plane,
+        u_plane,
+        v_plane,
+        timestamp_micros: presentation_time_us as u64,
+    };
     // `is_well_formed` re-checks the same plane-size arithmetic
     // `HardwareVideoDecoder.extractYuv420` (Kotlin side) used to build
     // these arrays — plan.md §68's "treat all remote input as hostile"
@@ -341,13 +390,20 @@ pub extern "system" fn Java_com_siar_media_NativeMediaBridge_onDecodedFrame<'loc
     // unexpected buffer size should not silently corrupt whatever
     // consumes this frame downstream.
     if !frame.is_well_formed() {
-        session.lock().expect("MediaSession lock poisoned").last_error =
-            Some(format!("onDecodedFrame: plane sizes did not match {width}x{height}"));
+        session
+            .lock()
+            .expect("MediaSession lock poisoned")
+            .last_error = Some(format!(
+            "onDecodedFrame: plane sizes did not match {width}x{height}"
+        ));
         return;
     }
 
     let mut guard = session.lock().expect("MediaSession lock poisoned");
-    guard.output_queue.push_back(SessionOutput::Decoded { frame, timestamp_micros: presentation_time_us });
+    guard.output_queue.push_back(SessionOutput::Decoded {
+        frame,
+        timestamp_micros: presentation_time_us,
+    });
     guard.output_ready.notify_one();
 }
 
@@ -359,9 +415,17 @@ pub extern "system" fn Java_com_siar_media_NativeMediaBridge_onCodecError<'local
     message: JString<'local>,
 ) {
     // SAFETY: see `session_from_handle`.
-    let Some(session) = (unsafe { session_from_handle(handle) }) else { return };
-    let message: String = env.get_string(&message).map(String::from).unwrap_or_else(|_| "<unreadable error message>".to_string());
-    session.lock().expect("MediaSession lock poisoned").last_error = Some(message);
+    let Some(session) = (unsafe { session_from_handle(handle) }) else {
+        return;
+    };
+    let message: String = env
+        .get_string(&message)
+        .map(String::from)
+        .unwrap_or_else(|_| "<unreadable error message>".to_string());
+    session
+        .lock()
+        .expect("MediaSession lock poisoned")
+        .last_error = Some(message);
 }
 
 #[no_mangle]
@@ -372,8 +436,12 @@ pub extern "system" fn Java_com_siar_media_NativeMediaBridge_reportCapabilities<
     payload: JByteArray<'local>,
 ) {
     // SAFETY: see `session_from_handle`.
-    let Some(session) = (unsafe { session_from_handle(handle) }) else { return };
-    let Ok(bytes) = env.convert_byte_array(&payload) else { return };
+    let Some(session) = (unsafe { session_from_handle(handle) }) else {
+        return;
+    };
+    let Ok(bytes) = env.convert_byte_array(&payload) else {
+        return;
+    };
 
     match decode_capabilities(&bytes) {
         Ok(_capabilities) => {
@@ -386,7 +454,10 @@ pub extern "system" fn Java_com_siar_media_NativeMediaBridge_reportCapabilities<
             // way.
         }
         Err(e) => {
-            session.lock().expect("MediaSession lock poisoned").last_error = Some(format!("reportCapabilities: {e}"));
+            session
+                .lock()
+                .expect("MediaSession lock poisoned")
+                .last_error = Some(format!("reportCapabilities: {e}"));
         }
     }
 }
@@ -401,7 +472,10 @@ fn decode_capabilities(bytes: &[u8]) -> Result<Vec<siar_media_core::VideoCodecCa
     let mut cursor = bytes;
     let take = |cursor: &mut &[u8], n: usize| -> Result<Vec<u8>, String> {
         if cursor.len() < n {
-            return Err(format!("payload truncated: needed {n} more bytes, had {}", cursor.len()));
+            return Err(format!(
+                "payload truncated: needed {n} more bytes, had {}",
+                cursor.len()
+            ));
         }
         let (head, tail) = cursor.split_at(n);
         *cursor = tail;
@@ -417,7 +491,8 @@ fn decode_capabilities(bytes: &[u8]) -> Result<Vec<siar_media_core::VideoCodecCa
 
     for _ in 0..entry_count {
         let codec_byte = take(&mut cursor, 1)?[0];
-        let codec = codec_from_wire(codec_byte as jint).ok_or_else(|| format!("unknown codec id {codec_byte}"))?;
+        let codec = codec_from_wire(codec_byte as jint)
+            .ok_or_else(|| format!("unknown codec id {codec_byte}"))?;
         let hardware = take(&mut cursor, 1)?[0] != 0;
         let can_encode = take(&mut cursor, 1)?[0] != 0;
         let can_decode = take(&mut cursor, 1)?[0] != 0;
@@ -427,7 +502,11 @@ fn decode_capabilities(bytes: &[u8]) -> Result<Vec<siar_media_core::VideoCodecCa
 
         entries.push(siar_media_core::VideoCodecCapability {
             codec,
-            implementation: if hardware { CodecImplementation::Hardware } else { CodecImplementation::Software },
+            implementation: if hardware {
+                CodecImplementation::Hardware
+            } else {
+                CodecImplementation::Software
+            },
             can_encode,
             can_decode,
             max_resolution: Resolution::new(max_width, max_height),
@@ -441,8 +520,14 @@ fn decode_capabilities(bytes: &[u8]) -> Result<Vec<siar_media_core::VideoCodecCa
             // both `CapabilityWireFormat.kt` and this function together
             // — flagged here rather than inventing plausible-looking
             // range bounds that were never actually reported.
-            bitrate_range: BitrateRange { min_bps: 0, max_bps: 0 },
-            frame_rate_range: FrameRateRange { min_fps: 0, max_fps: max_fps as u16 },
+            bitrate_range: BitrateRange {
+                min_bps: 0,
+                max_bps: 0,
+            },
+            frame_rate_range: FrameRateRange {
+                min_fps: 0,
+                max_fps: max_fps as u16,
+            },
         });
     }
 
