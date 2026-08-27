@@ -94,7 +94,10 @@ pub struct Timestamp(pub u64);
 
 impl Timestamp {
     pub fn now() -> Self {
-        let millis = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0);
+        let millis = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
         Self(millis)
     }
 }
