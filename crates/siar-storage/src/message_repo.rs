@@ -1,10 +1,13 @@
 //! Message repository (plan.md §87: a domain trait + a concrete
 //! implementation, so nothing above this crate needs to know SQL exists).
 
-use crate::{blob_codec::{decode_blob, encode_blob}, StorageError};
+use crate::{
+    blob_codec::{decode_blob, encode_blob},
+    StorageError,
+};
 use siar_domain::{ConversationId, DeliveryState, DeviceId, MessageId};
-use stoolap::Database;
 use std::sync::Arc;
+use stoolap::Database;
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
@@ -90,7 +93,9 @@ impl MessageRepository for StoolapMessageRepository {
         // transaction form) — the existence check and the insert must
         // commit together so two concurrent deliveries of the same
         // envelope can't both see "absent" and both insert.
-        self.db.execute("BEGIN", ()).map_err(StorageError::from_stoolap)?;
+        self.db
+            .execute("BEGIN", ())
+            .map_err(StorageError::from_stoolap)?;
 
         let already_exists = {
             let mut rows = self
@@ -104,7 +109,9 @@ impl MessageRepository for StoolapMessageRepository {
         };
 
         if already_exists {
-            self.db.execute("COMMIT", ()).map_err(StorageError::from_stoolap)?;
+            self.db
+                .execute("COMMIT", ())
+                .map_err(StorageError::from_stoolap)?;
             return Ok(false);
         }
 
@@ -128,7 +135,9 @@ impl MessageRepository for StoolapMessageRepository {
             return Err(StorageError::from_stoolap(e));
         }
 
-        self.db.execute("COMMIT", ()).map_err(StorageError::from_stoolap)?;
+        self.db
+            .execute("COMMIT", ())
+            .map_err(StorageError::from_stoolap)?;
         Ok(true)
     }
 
@@ -268,7 +277,11 @@ fn str_to_delivery_state(s: &str) -> Result<DeliveryState, StorageError> {
         "read" => DeliveryState::Read,
         "failed" => DeliveryState::Failed,
         "expired" => DeliveryState::Expired,
-        other => return Err(StorageError::MalformedId(format!("unknown delivery_state '{other}'"))),
+        other => {
+            return Err(StorageError::MalformedId(format!(
+                "unknown delivery_state '{other}'"
+            )))
+        }
     })
 }
 
