@@ -98,10 +98,29 @@ mod tests {
         let direct_id = ConversationId::new();
         let group_id = ConversationId::new();
         state.upsert(summary(direct_id, "Bob"));
-        state.upsert(ConversationSummary { kind: ConversationKind::Group, ..summary(group_id, "Team") });
+        state.upsert(ConversationSummary {
+            kind: ConversationKind::Group,
+            ..summary(group_id, "Team")
+        });
 
-        assert_eq!(state.ordered().iter().find(|c| c.id == direct_id).unwrap().kind, ConversationKind::Direct);
-        assert_eq!(state.ordered().iter().find(|c| c.id == group_id).unwrap().kind, ConversationKind::Group);
+        assert_eq!(
+            state
+                .ordered()
+                .iter()
+                .find(|c| c.id == direct_id)
+                .unwrap()
+                .kind,
+            ConversationKind::Direct
+        );
+        assert_eq!(
+            state
+                .ordered()
+                .iter()
+                .find(|c| c.id == group_id)
+                .unwrap()
+                .kind,
+            ConversationKind::Group
+        );
     }
 
     #[test]
@@ -116,7 +135,10 @@ mod tests {
             ..summary(id, "Bob")
         });
         assert_eq!(state.ordered().len(), 1);
-        assert_eq!(state.ordered()[0].last_message_preview.as_deref(), Some("hey"));
+        assert_eq!(
+            state.ordered()[0].last_message_preview.as_deref(),
+            Some("hey")
+        );
     }
 
     #[test]
@@ -151,8 +173,24 @@ mod tests {
         state.upsert(summary(b, "B"));
 
         state.set_preview(a, "hello".to_string());
-        assert_eq!(state.ordered().iter().find(|c| c.id == a).unwrap().last_message_preview, Some("hello".to_string()));
-        assert_eq!(state.ordered().iter().find(|c| c.id == b).unwrap().last_message_preview, None);
+        assert_eq!(
+            state
+                .ordered()
+                .iter()
+                .find(|c| c.id == a)
+                .unwrap()
+                .last_message_preview,
+            Some("hello".to_string())
+        );
+        assert_eq!(
+            state
+                .ordered()
+                .iter()
+                .find(|c| c.id == b)
+                .unwrap()
+                .last_message_preview,
+            None
+        );
     }
 
     #[test]
