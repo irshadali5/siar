@@ -103,7 +103,10 @@ pub mod transfer_state;
 pub mod verify;
 
 pub use chunking::{chunk_fixed_size, ChunkSizeClass};
-pub use descriptor::{BlobDescriptor, ChunkingDescriptor, EncryptionAlgorithm, EncryptionDescriptor, FileMetadata, FileName, FileNameTooLong};
+pub use descriptor::{
+    BlobDescriptor, ChunkingDescriptor, EncryptionAlgorithm, EncryptionDescriptor, FileMetadata,
+    FileName, FileNameTooLong,
+};
 pub use encryption::{decrypt_blob, encrypt_blob, generate_blob_key, EncryptionError};
 pub use ids::{BlobEncryptionKey, BlobId, ChunkHash, LogicalAttachmentId, ManifestId};
 pub use limits::ManifestLimits;
