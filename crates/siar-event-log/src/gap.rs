@@ -22,7 +22,10 @@ pub struct StreamGap {
 /// scope).
 pub fn detect_gap(expected_next_version: u64, received_version: u64) -> Option<StreamGap> {
     if received_version > expected_next_version {
-        Some(StreamGap { expected_version: expected_next_version, received_version })
+        Some(StreamGap {
+            expected_version: expected_next_version,
+            received_version,
+        })
     } else {
         None
     }
@@ -34,7 +37,13 @@ mod tests {
 
     #[test]
     fn the_spec_own_worked_example_is_detected_as_a_gap() {
-        assert_eq!(detect_gap(44, 46), Some(StreamGap { expected_version: 44, received_version: 46 }));
+        assert_eq!(
+            detect_gap(44, 46),
+            Some(StreamGap {
+                expected_version: 44,
+                received_version: 46
+            })
+        );
     }
 
     #[test]
