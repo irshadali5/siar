@@ -62,8 +62,8 @@ use crate::PeerTicket;
 use siar_crypto::{DeviceIdentity, Session};
 use siar_crypto_mls::{generate_identity, IncomingMlsMessage, MlsGroupSession, OpenMlsRustCrypto};
 use siar_domain::{
-    now_millis, AccountId, ConversationId, DeliveryState, DeviceId, DurableGroupEvent,
-    GroupState, MessageContent, MessageId, MessageText,
+    now_millis, AccountId, ConversationId, DeliveryState, DeviceId, DurableGroupEvent, GroupState,
+    MessageContent, MessageId, MessageText,
 };
 use siar_protocol::v1::{Envelope, EnvelopeKind, CURRENT_VERSION};
 use siar_protocol::WireMessage;
@@ -159,7 +159,10 @@ impl InMemoryDeviceDirectory {
     /// `fanout_targets` would otherwise send every group event twice to
     /// a device whose ticket got re-registered.
     pub fn register(&self, account: AccountId, device: MemberDevice) {
-        let mut devices = self.devices.lock().expect("InMemoryDeviceDirectory lock poisoned");
+        let mut devices = self
+            .devices
+            .lock()
+            .expect("InMemoryDeviceDirectory lock poisoned");
         let entry = devices.entry(account).or_default();
         entry.retain(|existing| existing.device_id != device.device_id);
         entry.push(device);
@@ -212,7 +215,12 @@ pub struct GroupService {
     /// after a successful join (single-use, matching the key package
     /// itself being single-use). Same in-memory-only caveat as
     /// `mls_sessions`.
-    pending_identity: Mutex<Option<(siar_crypto_mls::OpenMlsRustCrypto, siar_crypto_mls::MlsIdentity)>>,
+    pending_identity: Mutex<
+        Option<(
+            siar_crypto_mls::OpenMlsRustCrypto,
+            siar_crypto_mls::MlsIdentity,
+        )>,
+    >,
 }
 
 impl GroupService {
@@ -243,7 +251,10 @@ impl GroupService {
         }
     }
 
-    pub fn group_state(&self, conversation: ConversationId) -> Result<Option<GroupState>, GroupServiceError> {
+    pub fn group_state(
+        &self,
+        conversation: ConversationId,
+    ) -> Result<Option<GroupState>, GroupServiceError> {
         Ok(self.groups.get(conversation)?)
     }
 
@@ -251,7 +262,11 @@ impl GroupService {
     /// (plan.md §27's `GroupState::new`). Nothing is sent yet — members
     /// are added via `add_member`, each of which fans out its own
     /// durable event.
-    pub fn create_group(&self, conversation: ConversationId, founder: AccountId) -> Result<GroupState, GroupServiceError> {
+    pub fn create_group(
+        &self,
+        conversation: ConversationId,
+        founder: AccountId,
+    ) -> Result<GroupState, GroupServiceError> {
         let state = GroupState::new(conversation, founder);
         self.groups.upsert(&state)?;
         Ok(state)
@@ -270,15 +285,25 @@ impl GroupService {
         conversation: ConversationId,
         new_member: AccountId,
     ) -> Result<(), GroupServiceError> {
-        let mut state = self.groups.get(conversation)?.ok_or(GroupServiceError::UnknownGroup)?;
+        let mut state = self
+            .groups
+            .get(conversation)?
+            .ok_or(GroupServiceError::UnknownGroup)?;
         if !state.is_admin(self.local_account) {
-            return Err(GroupServiceError::NotAnAdmin { caller: self.local_account });
+            return Err(GroupServiceError::NotAnAdmin {
+                caller: self.local_account,
+            });
         }
         let next_epoch = state.epoch.next();
-        let event = DurableGroupEvent::MemberAdded { account: new_member, epoch: next_epoch };
+        let event = DurableGroupEvent::MemberAdded {
+            account: new_member,
+            epoch: next_epoch,
+        };
 
         state.apply(&event);
-        state.apply(&DurableGroupEvent::EpochAdvanced { new_epoch: next_epoch });
+        state.apply(&DurableGroupEvent::EpochAdvanced {
+            new_epoch: next_epoch,
+        });
         self.groups.upsert(&state)?;
 
         self.fanout_event(&state, &event).await
@@ -295,15 +320,25 @@ impl GroupService {
         conversation: ConversationId,
         member: AccountId,
     ) -> Result<(), GroupServiceError> {
-        let mut state = self.groups.get(conversation)?.ok_or(GroupServiceError::UnknownGroup)?;
+        let mut state = self
+            .groups
+            .get(conversation)?
+            .ok_or(GroupServiceError::UnknownGroup)?;
         if !state.is_admin(self.local_account) {
-            return Err(GroupServiceError::NotAnAdmin { caller: self.local_account });
+            return Err(GroupServiceError::NotAnAdmin {
+                caller: self.local_account,
+            });
         }
         let next_epoch = state.epoch.next();
-        let event = DurableGroupEvent::MemberRemoved { account: member, epoch: next_epoch };
+        let event = DurableGroupEvent::MemberRemoved {
+            account: member,
+            epoch: next_epoch,
+        };
 
         state.apply(&event);
-        state.apply(&DurableGroupEvent::EpochAdvanced { new_epoch: next_epoch });
+        state.apply(&DurableGroupEvent::EpochAdvanced {
+            new_epoch: next_epoch,
+        });
         self.groups.upsert(&state)?;
 
         self.fanout_event(&state, &event).await
@@ -319,7 +354,10 @@ impl GroupService {
         conversation: ConversationId,
         text: MessageText,
     ) -> Result<MessageId, GroupServiceError> {
-        let state = self.groups.get(conversation)?.ok_or(GroupServiceError::UnknownGroup)?;
+        let state = self
+            .groups
+            .get(conversation)?
+            .ok_or(GroupServiceError::UnknownGroup)?;
 
         let message_id = MessageId::new();
         let now = now_millis();
@@ -343,7 +381,10 @@ impl GroupService {
         self.messages.insert_if_new(&stored)?;
 
         for device in self.fanout_targets(&state) {
-            let session = Session::establish(&self.identity, &x25519_dalek::PublicKey::from(device.ticket.x25519_public));
+            let session = Session::establish(
+                &self.identity,
+                &x25519_dalek::PublicKey::from(device.ticket.x25519_public),
+            );
             let ciphertext = session.encrypt(&plaintext)?;
 
             let envelope = Envelope {
@@ -359,7 +400,10 @@ impl GroupService {
 
             if let Err(e) = self
                 .endpoint
-                .send(device.ticket.endpoint_addr.clone(), &WireMessage::V1(envelope))
+                .send(
+                    device.ticket.endpoint_addr.clone(),
+                    &WireMessage::V1(envelope),
+                )
                 .await
             {
                 // plan.md §33: a single offline member's device doesn't
@@ -394,7 +438,10 @@ impl GroupService {
             // `GroupState` from a single event — a real implementation
             // would fetch full state from a member instead (plan.md
             // §82's incremental sync), which isn't wired up yet.
-            tracing::warn!(?conversation, "group event for unknown local group; dropping");
+            tracing::warn!(
+                ?conversation,
+                "group event for unknown local group; dropping"
+            );
             return Ok(());
         };
         state.apply(&event);
@@ -420,7 +467,10 @@ impl GroupService {
         let now = now_millis();
 
         for device in self.fanout_targets(state) {
-            let session = Session::establish(&self.identity, &x25519_dalek::PublicKey::from(device.ticket.x25519_public));
+            let session = Session::establish(
+                &self.identity,
+                &x25519_dalek::PublicKey::from(device.ticket.x25519_public),
+            );
             let ciphertext = session.encrypt(&plaintext)?;
 
             let envelope = Envelope {
@@ -436,7 +486,10 @@ impl GroupService {
 
             if let Err(e) = self
                 .endpoint
-                .send(device.ticket.endpoint_addr.clone(), &WireMessage::V1(envelope))
+                .send(
+                    device.ticket.endpoint_addr.clone(),
+                    &WireMessage::V1(envelope),
+                )
                 .await
             {
                 tracing::warn!(error = %e, device = ?device.device_id, "group event fanout failed for one member device");
@@ -453,7 +506,11 @@ impl GroupService {
     /// Also creates the local `GroupState` bookkeeping row (same as
     /// `create_group`) so `group_state`/`fanout_targets` keep working
     /// identically for both paths.
-    pub fn create_group_mls(&self, conversation: ConversationId, founder: AccountId) -> Result<GroupState, GroupServiceError> {
+    pub fn create_group_mls(
+        &self,
+        conversation: ConversationId,
+        founder: AccountId,
+    ) -> Result<GroupState, GroupServiceError> {
         let provider = OpenMlsRustCrypto::default();
         let identity = generate_identity(self.device_id, &provider)?;
         let session = MlsGroupSession::create(provider, &identity)?;
@@ -491,21 +548,36 @@ impl GroupService {
     ) -> Result<(), GroupServiceError> {
         let key_package = siar_crypto_mls::decode_key_package(new_member_key_package_bytes)?;
 
-        let mut state = self.groups.get(conversation)?.ok_or(GroupServiceError::UnknownGroup)?;
+        let mut state = self
+            .groups
+            .get(conversation)?
+            .ok_or(GroupServiceError::UnknownGroup)?;
         if !state.is_admin(self.local_account) {
-            return Err(GroupServiceError::NotAnAdmin { caller: self.local_account });
+            return Err(GroupServiceError::NotAnAdmin {
+                caller: self.local_account,
+            });
         }
         let fanout_before = self.fanout_targets(&state);
 
         let (commit_bytes, welcome_bytes) = {
-            let mut sessions = self.mls_sessions.lock().expect("mls_sessions lock poisoned");
-            let session = sessions.get_mut(&conversation).ok_or(GroupServiceError::UnknownMlsSession)?;
+            let mut sessions = self
+                .mls_sessions
+                .lock()
+                .expect("mls_sessions lock poisoned");
+            let session = sessions
+                .get_mut(&conversation)
+                .ok_or(GroupServiceError::UnknownMlsSession)?;
             session.add_member(&key_package)?
         };
 
         let next_epoch = state.epoch.next();
-        state.apply(&DurableGroupEvent::MemberAdded { account: new_member, epoch: next_epoch });
-        state.apply(&DurableGroupEvent::EpochAdvanced { new_epoch: next_epoch });
+        state.apply(&DurableGroupEvent::MemberAdded {
+            account: new_member,
+            epoch: next_epoch,
+        });
+        state.apply(&DurableGroupEvent::EpochAdvanced {
+            new_epoch: next_epoch,
+        });
         self.groups.upsert(&state)?;
 
         let now = now_millis();
@@ -522,7 +594,10 @@ impl GroupService {
             };
             if let Err(e) = self
                 .endpoint
-                .send(device.ticket.endpoint_addr.clone(), &WireMessage::V1(envelope))
+                .send(
+                    device.ticket.endpoint_addr.clone(),
+                    &WireMessage::V1(envelope),
+                )
                 .await
             {
                 tracing::warn!(error = %e, device = ?device.device_id, "MLS commit fanout failed for one member device");
@@ -545,7 +620,10 @@ impl GroupService {
             };
             if let Err(e) = self
                 .endpoint
-                .send(device.ticket.endpoint_addr.clone(), &WireMessage::V1(envelope))
+                .send(
+                    device.ticket.endpoint_addr.clone(),
+                    &WireMessage::V1(envelope),
+                )
                 .await
             {
                 tracing::warn!(error = %e, device = ?device.device_id, "MLS welcome send failed");
@@ -569,9 +647,14 @@ impl GroupService {
         member: AccountId,
         member_device: DeviceId,
     ) -> Result<(), GroupServiceError> {
-        let mut state = self.groups.get(conversation)?.ok_or(GroupServiceError::UnknownGroup)?;
+        let mut state = self
+            .groups
+            .get(conversation)?
+            .ok_or(GroupServiceError::UnknownGroup)?;
         if !state.is_admin(self.local_account) {
-            return Err(GroupServiceError::NotAnAdmin { caller: self.local_account });
+            return Err(GroupServiceError::NotAnAdmin {
+                caller: self.local_account,
+            });
         }
         // fanout_targets is computed *after* the state removal below so
         // the departing member's own devices don't receive a commit
@@ -579,14 +662,24 @@ impl GroupService {
         // matches `remove_member`'s existing "tell every remaining
         // device" framing.
         let commit_bytes = {
-            let mut sessions = self.mls_sessions.lock().expect("mls_sessions lock poisoned");
-            let session = sessions.get_mut(&conversation).ok_or(GroupServiceError::UnknownMlsSession)?;
+            let mut sessions = self
+                .mls_sessions
+                .lock()
+                .expect("mls_sessions lock poisoned");
+            let session = sessions
+                .get_mut(&conversation)
+                .ok_or(GroupServiceError::UnknownMlsSession)?;
             session.remove_member(member_device)?
         };
 
         let next_epoch = state.epoch.next();
-        state.apply(&DurableGroupEvent::MemberRemoved { account: member, epoch: next_epoch });
-        state.apply(&DurableGroupEvent::EpochAdvanced { new_epoch: next_epoch });
+        state.apply(&DurableGroupEvent::MemberRemoved {
+            account: member,
+            epoch: next_epoch,
+        });
+        state.apply(&DurableGroupEvent::EpochAdvanced {
+            new_epoch: next_epoch,
+        });
         self.groups.upsert(&state)?;
 
         let now = now_millis();
@@ -603,7 +696,10 @@ impl GroupService {
             };
             if let Err(e) = self
                 .endpoint
-                .send(device.ticket.endpoint_addr.clone(), &WireMessage::V1(envelope))
+                .send(
+                    device.ticket.endpoint_addr.clone(),
+                    &WireMessage::V1(envelope),
+                )
                 .await
             {
                 tracing::warn!(error = %e, device = ?device.device_id, "MLS commit fanout failed for one member device");
@@ -625,7 +721,10 @@ impl GroupService {
         conversation: ConversationId,
         text: MessageText,
     ) -> Result<MessageId, GroupServiceError> {
-        let state = self.groups.get(conversation)?.ok_or(GroupServiceError::UnknownGroup)?;
+        let state = self
+            .groups
+            .get(conversation)?
+            .ok_or(GroupServiceError::UnknownGroup)?;
 
         let message_id = MessageId::new();
         let now = now_millis();
@@ -633,8 +732,13 @@ impl GroupService {
         let plaintext = postcard::to_allocvec(&content).expect("MessageContent always serializes");
 
         let ciphertext = {
-            let mut sessions = self.mls_sessions.lock().expect("mls_sessions lock poisoned");
-            let session = sessions.get_mut(&conversation).ok_or(GroupServiceError::UnknownMlsSession)?;
+            let mut sessions = self
+                .mls_sessions
+                .lock()
+                .expect("mls_sessions lock poisoned");
+            let session = sessions
+                .get_mut(&conversation)
+                .ok_or(GroupServiceError::UnknownMlsSession)?;
             session.encrypt(&plaintext)?
         };
 
@@ -662,7 +766,10 @@ impl GroupService {
             };
             if let Err(e) = self
                 .endpoint
-                .send(device.ticket.endpoint_addr.clone(), &WireMessage::V1(envelope))
+                .send(
+                    device.ticket.endpoint_addr.clone(),
+                    &WireMessage::V1(envelope),
+                )
                 .await
             {
                 tracing::warn!(error = %e, device = ?device.device_id, "MLS application message send failed for one member device");
@@ -725,7 +832,8 @@ impl GroupService {
             .expect("pending_identity lock poisoned")
             .take()
             .ok_or(GroupServiceError::NoPendingKeyPackageIdentity)?;
-        let session = MlsGroupSession::join_from_welcome(provider, identity.signature_keys, welcome_bytes)?;
+        let session =
+            MlsGroupSession::join_from_welcome(provider, identity.signature_keys, welcome_bytes)?;
 
         self.mls_sessions
             .lock()
@@ -759,12 +867,19 @@ impl GroupService {
     /// deployments publishing more than one key package at a time need
     /// a keyed pool here instead — flagged as a real, not yet needed,
     /// limitation of this pass's scope rather than solved speculatively.
-    pub fn publish_key_package(&self, directory: &dyn KeyPackageDirectory) -> Result<(), GroupServiceError> {
+    pub fn publish_key_package(
+        &self,
+        directory: &dyn KeyPackageDirectory,
+    ) -> Result<(), GroupServiceError> {
         let provider = OpenMlsRustCrypto::default();
         let identity = generate_identity(self.device_id, &provider)?;
-        let key_package_bytes = siar_crypto_mls::encode_key_package(identity.key_package.key_package())?;
+        let key_package_bytes =
+            siar_crypto_mls::encode_key_package(identity.key_package.key_package())?;
 
-        *self.pending_identity.lock().expect("pending_identity lock poisoned") = Some((provider, identity));
+        *self
+            .pending_identity
+            .lock()
+            .expect("pending_identity lock poisoned") = Some((provider, identity));
         directory.publish(self.device_id, key_package_bytes);
         Ok(())
     }
@@ -783,10 +898,19 @@ impl GroupService {
         new_member_device: DeviceId,
         directory: &dyn KeyPackageDirectory,
     ) -> Result<(), GroupServiceError> {
-        let key_package_bytes = directory
-            .take(new_member_device)
-            .ok_or(GroupServiceError::NoKeyPackageAvailable { device: new_member_device })?;
-        self.add_member_mls(conversation, new_member, new_member_device, &key_package_bytes).await
+        let key_package_bytes =
+            directory
+                .take(new_member_device)
+                .ok_or(GroupServiceError::NoKeyPackageAvailable {
+                    device: new_member_device,
+                })?;
+        self.add_member_mls(
+            conversation,
+            new_member,
+            new_member_device,
+            &key_package_bytes,
+        )
+        .await
     }
 
     /// Receive-side dispatch for all three `GroupMls*` envelope kinds —
@@ -811,9 +935,15 @@ impl GroupService {
     ) -> Result<Option<MessageContent>, GroupServiceError> {
         match envelope.kind {
             EnvelopeKind::GroupMlsWelcome => {
-                let sessions = self.mls_sessions.lock().expect("mls_sessions lock poisoned");
+                let sessions = self
+                    .mls_sessions
+                    .lock()
+                    .expect("mls_sessions lock poisoned");
                 if sessions.contains_key(&conversation) {
-                    tracing::warn!(?conversation, "MLS welcome for a conversation we already have a session for; ignoring");
+                    tracing::warn!(
+                        ?conversation,
+                        "MLS welcome for a conversation we already have a session for; ignoring"
+                    );
                     return Ok(None);
                 }
                 drop(sessions);
@@ -821,9 +951,15 @@ impl GroupService {
                 Ok(None)
             }
             EnvelopeKind::GroupMlsCommit | EnvelopeKind::GroupMlsApplication => {
-                let mut sessions = self.mls_sessions.lock().expect("mls_sessions lock poisoned");
+                let mut sessions = self
+                    .mls_sessions
+                    .lock()
+                    .expect("mls_sessions lock poisoned");
                 let Some(session) = sessions.get_mut(&conversation) else {
-                    tracing::warn!(?conversation, "MLS frame for unknown local session; dropping");
+                    tracing::warn!(
+                        ?conversation,
+                        "MLS frame for unknown local session; dropping"
+                    );
                     return Ok(None);
                 };
                 match session.process_incoming(&envelope.payload)? {
@@ -837,8 +973,8 @@ impl GroupService {
                     // above.
                     IncomingMlsMessage::Ignored => Ok(None),
                     IncomingMlsMessage::Application(plaintext) => {
-                        let content: MessageContent =
-                            postcard::from_bytes(&plaintext).map_err(|_| GroupServiceError::Malformed)?;
+                        let content: MessageContent = postcard::from_bytes(&plaintext)
+                            .map_err(|_| GroupServiceError::Malformed)?;
                         Ok(Some(content))
                     }
                 }
@@ -847,7 +983,6 @@ impl GroupService {
         }
     }
 }
-
 
 // Moved here from right after `InMemoryDeviceDirectory`'s own `impl`
 // block — clippy's `items_after_test_module` flags a `#[cfg(test)]`
