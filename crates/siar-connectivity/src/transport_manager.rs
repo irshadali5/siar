@@ -55,7 +55,11 @@ pub struct TransportManager {
 
 impl TransportManager {
     pub fn new(endpoint: Arc<SiarEndpoint>) -> Self {
-        Self { endpoint, path_table: Mutex::new(PathTable::new()), link_health: Mutex::new(HashMap::new()) }
+        Self {
+            endpoint,
+            path_table: Mutex::new(PathTable::new()),
+            link_health: Mutex::new(HashMap::new()),
+        }
     }
 
     /// Refreshes `LocalLan` candidates in the path table from
@@ -115,14 +119,28 @@ impl TransportManager {
         outcome: SendOutcome,
     ) {
         let (reliability, rtt_millis) = {
-            let mut health = self.link_health.lock().expect("LinkHealth map lock poisoned");
-            let entry = health.entry((destination, link)).or_insert_with(|| LinkHealth::new(LINK_HEALTH_WINDOW));
+            let mut health = self
+                .link_health
+                .lock()
+                .expect("LinkHealth map lock poisoned");
+            let entry = health
+                .entry((destination, link))
+                .or_insert_with(|| LinkHealth::new(LINK_HEALTH_WINDOW));
             entry.record_outcome(outcome);
             (entry.reliability(), entry.average_rtt_millis())
         };
-        self.path_table.lock().expect("PathTable lock poisoned").upsert_route(
-            destination,
-            PathEntry { link, next_hop, last_seen: now, rtt_millis, reliability },
-        );
+        self.path_table
+            .lock()
+            .expect("PathTable lock poisoned")
+            .upsert_route(
+                destination,
+                PathEntry {
+                    link,
+                    next_hop,
+                    last_seen: now,
+                    rtt_millis,
+                    reliability,
+                },
+            );
     }
 }
