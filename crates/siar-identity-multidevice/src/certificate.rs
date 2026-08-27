@@ -104,10 +104,26 @@ impl DeviceCertificate {
         capabilities: DeviceCapabilitySet,
         generation: u64,
     ) -> Self {
-        let payload =
-            Self::signing_payload(account_id, device_id, &device_public_key, issued_at_millis, expires_at_millis, capabilities, generation);
+        let payload = Self::signing_payload(
+            account_id,
+            device_id,
+            &device_public_key,
+            issued_at_millis,
+            expires_at_millis,
+            capabilities,
+            generation,
+        );
         let signature = root_key.sign(&payload).to_vec();
-        Self { account_id, device_id, device_public_key, issued_at_millis, expires_at_millis, capabilities, generation, signature }
+        Self {
+            account_id,
+            device_id,
+            device_public_key,
+            issued_at_millis,
+            expires_at_millis,
+            capabilities,
+            generation,
+            signature,
+        }
     }
 
     /// §9: proves only "this device key belongs to this logical
@@ -132,12 +148,18 @@ impl DeviceCertificate {
             self.capabilities,
             self.generation,
         );
-        let signature: [u8; 64] = self.signature.as_slice().try_into().map_err(|_| IdentityError::MalformedKey)?;
+        let signature: [u8; 64] = self
+            .signature
+            .as_slice()
+            .try_into()
+            .map_err(|_| IdentityError::MalformedKey)?;
         root_public_key.verify(&payload, &signature)
     }
 
     pub fn is_expired(&self, now_millis: u64) -> bool {
-        self.expires_at_millis.map(|exp| now_millis >= exp).unwrap_or(false)
+        self.expires_at_millis
+            .map(|exp| now_millis >= exp)
+            .unwrap_or(false)
     }
 }
 
@@ -145,8 +167,22 @@ impl DeviceCertificate {
 mod tests {
     use super::*;
 
-    fn cert(root: &RootIdentityKey, account: AccountId, device: DeviceId, generation: u64) -> DeviceCertificate {
-        DeviceCertificate::issue(root, account, device, [7u8; 32], 1_000, None, DeviceCapabilitySet::SEND_MESSAGE, generation)
+    fn cert(
+        root: &RootIdentityKey,
+        account: AccountId,
+        device: DeviceId,
+        generation: u64,
+    ) -> DeviceCertificate {
+        DeviceCertificate::issue(
+            root,
+            account,
+            device,
+            [7u8; 32],
+            1_000,
+            None,
+            DeviceCapabilitySet::SEND_MESSAGE,
+            generation,
+        )
     }
 
     #[test]
@@ -165,7 +201,9 @@ mod tests {
         let account = AccountId::new();
         let device = DeviceId::new();
         let c = cert(&root, account, device, 1);
-        assert!(c.verify_signature(&impostor_root.root_public_key()).is_err());
+        assert!(c
+            .verify_signature(&impostor_root.root_public_key())
+            .is_err());
     }
 
     #[test]
@@ -183,7 +221,16 @@ mod tests {
         let root = RootIdentityKey::generate();
         let account = AccountId::new();
         let device = DeviceId::new();
-        let c = DeviceCertificate::issue(&root, account, device, [7u8; 32], 1_000, Some(2_000), DeviceCapabilitySet::SEND_MESSAGE, 1);
+        let c = DeviceCertificate::issue(
+            &root,
+            account,
+            device,
+            [7u8; 32],
+            1_000,
+            Some(2_000),
+            DeviceCapabilitySet::SEND_MESSAGE,
+            1,
+        );
         assert!(c.verify_signature(&root.root_public_key()).is_ok());
         assert!(!c.is_expired(1_999));
         assert!(c.is_expired(2_000));
