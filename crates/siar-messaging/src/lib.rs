@@ -9,14 +9,14 @@
 //! stand-in — copy-paste a printed ticket to add a peer — explicitly not
 //! meant to survive past Phase 1.
 
-mod service;
 mod blob_bridge;
-mod ticket;
 mod group_service;
 mod key_package_directory;
+mod service;
+mod ticket;
 
-pub use service::{IncomingEvent, MessageService};
 pub use blob_bridge::StorageBlobStore;
+pub use service::{IncomingEvent, MessageService};
 pub use ticket::PeerTicket;
 // `InMemoryDeviceDirectory` added to this re-export list — a real,
 // pre-existing gap found while wiring the desktop group UI: the type
@@ -27,5 +27,7 @@ pub use ticket::PeerTicket;
 // something else in the crate re-exported it under a glob — nothing
 // does. This was latent until something (this desktop UI work) forced
 // an actual compile of the import path.
-pub use group_service::{DeviceDirectory, GroupService, GroupServiceError, InMemoryDeviceDirectory, MemberDevice};
+pub use group_service::{
+    DeviceDirectory, GroupService, GroupServiceError, InMemoryDeviceDirectory, MemberDevice,
+};
 pub use key_package_directory::{InMemoryKeyPackageDirectory, KeyPackageDirectory};
