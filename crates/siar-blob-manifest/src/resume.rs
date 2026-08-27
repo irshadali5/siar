@@ -12,7 +12,9 @@ pub struct ResumeBitmap {
 
 impl ResumeBitmap {
     pub fn new(chunk_count: usize) -> Self {
-        Self { received: vec![false; chunk_count] }
+        Self {
+            received: vec![false; chunk_count],
+        }
     }
 
     pub fn mark_received(&mut self, chunk_index: u32) {
@@ -22,7 +24,10 @@ impl ResumeBitmap {
     }
 
     pub fn is_received(&self, chunk_index: u32) -> bool {
-        self.received.get(chunk_index as usize).copied().unwrap_or(false)
+        self.received
+            .get(chunk_index as usize)
+            .copied()
+            .unwrap_or(false)
     }
 
     pub fn is_complete(&self) -> bool {
