@@ -18,8 +18,8 @@
 //! pass, not attempted here.
 
 use crate::descriptor::{ExtensionDescriptor, NegotiatedExtension};
-use crate::lifecycle::ExtensionError;
 use crate::identifier::ProtocolId;
+use crate::lifecycle::ExtensionError;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -64,7 +64,11 @@ pub struct ExtensionContext {
 pub trait ProtocolExtension: Send + Sync {
     fn descriptor(&self) -> ExtensionDescriptor;
 
-    fn create_handler(&self, negotiated: NegotiatedExtension, ctx: ExtensionContext) -> Result<Box<dyn ExtensionHandler>, ExtensionError>;
+    fn create_handler(
+        &self,
+        negotiated: NegotiatedExtension,
+        ctx: ExtensionContext,
+    ) -> Result<Box<dyn ExtensionHandler>, ExtensionError>;
 }
 
 /// Not given a concrete method set anywhere in this document — spec
@@ -107,7 +111,9 @@ pub struct ExtensionRegistry {
 
 impl ExtensionRegistry {
     pub fn builder() -> ExtensionRegistryBuilder {
-        ExtensionRegistryBuilder { extensions: HashMap::new() }
+        ExtensionRegistryBuilder {
+            extensions: HashMap::new(),
+        }
     }
 
     pub fn descriptors(&self) -> impl Iterator<Item = ExtensionDescriptor> + '_ {
@@ -143,7 +149,10 @@ impl ExtensionRegistryBuilder {
         }
     }
 
-    pub fn try_register_extension(mut self, extension: impl ProtocolExtension + 'static) -> Result<Self, RegistryError> {
+    pub fn try_register_extension(
+        mut self,
+        extension: impl ProtocolExtension + 'static,
+    ) -> Result<Self, RegistryError> {
         let id = extension.descriptor().id;
         if self.extensions.contains_key(&id) {
             return Err(RegistryError::AlreadyRegistered(id.canonical_name()));
@@ -153,7 +162,9 @@ impl ExtensionRegistryBuilder {
     }
 
     pub fn build(self) -> ExtensionRegistry {
-        ExtensionRegistry { extensions: self.extensions }
+        ExtensionRegistry {
+            extensions: self.extensions,
+        }
     }
 }
 
@@ -170,14 +181,26 @@ mod tests {
         fn descriptor(&self) -> ExtensionDescriptor {
             ExtensionDescriptor {
                 id: self.0.clone(),
-                version: ExtensionVersion { major: ProtocolMajor(1), minor: ProtocolMinor(0) },
+                version: ExtensionVersion {
+                    major: ProtocolMajor(1),
+                    minor: ProtocolMinor(0),
+                },
                 capabilities: CapabilitySet::default(),
                 requirement: ExtensionRequirement::Optional,
-                limits: ExtensionLimits { max_frame_size: 1024, max_in_flight_frames: 1, max_concurrent_streams: 1, max_buffered_bytes: 1024 },
+                limits: ExtensionLimits {
+                    max_frame_size: 1024,
+                    max_in_flight_frames: 1,
+                    max_concurrent_streams: 1,
+                    max_buffered_bytes: 1024,
+                },
             }
         }
 
-        fn create_handler(&self, _negotiated: NegotiatedExtension, _ctx: ExtensionContext) -> Result<Box<dyn ExtensionHandler>, ExtensionError> {
+        fn create_handler(
+            &self,
+            _negotiated: NegotiatedExtension,
+            _ctx: ExtensionContext,
+        ) -> Result<Box<dyn ExtensionHandler>, ExtensionError> {
             struct Dummy;
             impl ExtensionHandler for Dummy {}
             Ok(Box::new(Dummy))
@@ -185,7 +208,11 @@ mod tests {
     }
 
     fn protocol_id(name: &str) -> ProtocolId {
-        ProtocolId::new(NamespaceId::new("org.example.comm").unwrap(), ProtocolName::new(name).unwrap(), ProtocolMajor(1))
+        ProtocolId::new(
+            NamespaceId::new("org.example.comm").unwrap(),
+            ProtocolName::new(name).unwrap(),
+            ProtocolMajor(1),
+        )
     }
 
     #[test]
