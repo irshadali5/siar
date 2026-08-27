@@ -123,19 +123,34 @@ mod tests {
 
     #[test]
     fn battery_percent_coarsens_into_four_tiers() {
-        assert_eq!(relay_capacity_for_battery_percent(2), RelayCapacity::Unavailable);
+        assert_eq!(
+            relay_capacity_for_battery_percent(2),
+            RelayCapacity::Unavailable
+        );
         assert_eq!(relay_capacity_for_battery_percent(10), RelayCapacity::Low);
-        assert_eq!(relay_capacity_for_battery_percent(45), RelayCapacity::Normal);
+        assert_eq!(
+            relay_capacity_for_battery_percent(45),
+            RelayCapacity::Normal
+        );
         assert_eq!(relay_capacity_for_battery_percent(90), RelayCapacity::High);
     }
 
     #[test]
     fn battery_tier_boundaries_are_exact() {
-        assert_eq!(relay_capacity_for_battery_percent(4), RelayCapacity::Unavailable);
+        assert_eq!(
+            relay_capacity_for_battery_percent(4),
+            RelayCapacity::Unavailable
+        );
         assert_eq!(relay_capacity_for_battery_percent(5), RelayCapacity::Low);
         assert_eq!(relay_capacity_for_battery_percent(19), RelayCapacity::Low);
-        assert_eq!(relay_capacity_for_battery_percent(20), RelayCapacity::Normal);
-        assert_eq!(relay_capacity_for_battery_percent(59), RelayCapacity::Normal);
+        assert_eq!(
+            relay_capacity_for_battery_percent(20),
+            RelayCapacity::Normal
+        );
+        assert_eq!(
+            relay_capacity_for_battery_percent(59),
+            RelayCapacity::Normal
+        );
         assert_eq!(relay_capacity_for_battery_percent(60), RelayCapacity::High);
     }
 }
