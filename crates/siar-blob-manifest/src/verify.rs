@@ -7,7 +7,8 @@ use crate::manifest::{BlobManifest, ChunkDescriptor};
 /// Real, byte-level verification — recomputes the hash and compares,
 /// not a trust-the-caller check.
 pub fn verify_chunk(chunk_bytes: &[u8], descriptor: &ChunkDescriptor) -> bool {
-    chunk_bytes.len() as u32 == descriptor.size && ChunkHash::from_ciphertext_chunk(chunk_bytes) == descriptor.hash
+    chunk_bytes.len() as u32 == descriptor.size
+        && ChunkHash::from_ciphertext_chunk(chunk_bytes) == descriptor.hash
 }
 
 /// Verifies a fully-assembled ciphertext buffer against a manifest:
@@ -27,7 +28,9 @@ pub fn verify_complete_blob(ciphertext: &[u8], manifest: &BlobManifest) -> bool 
     for chunk_descriptor in &manifest.chunks {
         let start = chunk_descriptor.offset as usize;
         let end = start + chunk_descriptor.size as usize;
-        let Some(chunk_bytes) = ciphertext.get(start..end) else { return false };
+        let Some(chunk_bytes) = ciphertext.get(start..end) else {
+            return false;
+        };
         if !verify_chunk(chunk_bytes, chunk_descriptor) {
             return false;
         }
