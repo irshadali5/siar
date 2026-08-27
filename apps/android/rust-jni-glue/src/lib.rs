@@ -55,7 +55,10 @@ fn state() -> &'static Mutex<ConnectivityState> {
 /// crate's own top doc comment names for the four transport crates'
 /// accessors.
 pub fn snapshot() -> ConnectivityState {
-    state().lock().expect("ConnectivityState lock poisoned").clone()
+    state()
+        .lock()
+        .expect("ConnectivityState lock poisoned")
+        .clone()
 }
 
 /// Marks `link` up in the shared `ConnectivityState` — the plain-Rust
@@ -63,13 +66,19 @@ pub fn snapshot() -> ConnectivityState {
 /// `siar-android-messaging` (as a direct crate dependency) call. See
 /// this module's top doc comment for why both are real callers now.
 pub fn mark_link_up(link: TransportLink) {
-    state().lock().expect("ConnectivityState lock poisoned").mark_up(link);
+    state()
+        .lock()
+        .expect("ConnectivityState lock poisoned")
+        .mark_up(link);
 }
 
 /// The `mark_link_up` counterpart — see that function's own doc
 /// comment.
 pub fn mark_link_down(link: TransportLink) {
-    state().lock().expect("ConnectivityState lock poisoned").mark_down(link);
+    state()
+        .lock()
+        .expect("ConnectivityState lock poisoned")
+        .mark_down(link);
 }
 
 /// Not part of the JNI surface itself — shared by the two `markLink*`
@@ -106,22 +115,30 @@ mod jni_bridge {
     use jni::JNIEnv;
 
     #[no_mangle]
-    pub extern "system" fn Java_com_siar_connectivity_NativeConnectivityBridge_markLinkUp<'local>(
+    pub extern "system" fn Java_com_siar_connectivity_NativeConnectivityBridge_markLinkUp<
+        'local,
+    >(
         _env: JNIEnv<'local>,
         _class: JClass<'local>,
         link_ordinal: jint,
     ) {
-        let Some(link) = link_from_ordinal(link_ordinal) else { return };
+        let Some(link) = link_from_ordinal(link_ordinal) else {
+            return;
+        };
         mark_link_up(link);
     }
 
     #[no_mangle]
-    pub extern "system" fn Java_com_siar_connectivity_NativeConnectivityBridge_markLinkDown<'local>(
+    pub extern "system" fn Java_com_siar_connectivity_NativeConnectivityBridge_markLinkDown<
+        'local,
+    >(
         _env: JNIEnv<'local>,
         _class: JClass<'local>,
         link_ordinal: jint,
     ) {
-        let Some(link) = link_from_ordinal(link_ordinal) else { return };
+        let Some(link) = link_from_ordinal(link_ordinal) else {
+            return;
+        };
         mark_link_down(link);
     }
 
@@ -131,12 +148,18 @@ mod jni_bridge {
     /// contract as the two `markLink*` functions above, mirrored in
     /// `NativeConnectivityBridge.kt`'s `EffectiveConnectivityKind`.
     #[no_mangle]
-    pub extern "system" fn Java_com_siar_connectivity_NativeConnectivityBridge_effectiveModeOrdinal<'local>(
+    pub extern "system" fn Java_com_siar_connectivity_NativeConnectivityBridge_effectiveModeOrdinal<
+        'local,
+    >(
         _env: JNIEnv<'local>,
         _class: JClass<'local>,
     ) -> jint {
         use siar_domain::EffectiveConnectivity::*;
-        match state().lock().expect("ConnectivityState lock poisoned").effective_mode() {
+        match state()
+            .lock()
+            .expect("ConnectivityState lock poisoned")
+            .effective_mode()
+        {
             InternetDirect => 0,
             InternetRelay => 1,
             LocalLan => 2,
@@ -160,7 +183,10 @@ mod tests {
     #[test]
     fn link_from_ordinal_round_trips_every_defined_transport_link() {
         for ordinal in 0..=6 {
-            assert!(link_from_ordinal(ordinal).is_some(), "ordinal {ordinal} should map to a TransportLink");
+            assert!(
+                link_from_ordinal(ordinal).is_some(),
+                "ordinal {ordinal} should map to a TransportLink"
+            );
         }
         assert_eq!(link_from_ordinal(7), None);
         assert_eq!(link_from_ordinal(-1), None);
