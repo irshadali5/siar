@@ -59,7 +59,11 @@ pub struct AppendResult {
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum EventStoreError {
     #[error("stream {stream_id:?} expected version {expected_version}, found {actual_version} — concurrent writer")]
-    ConcurrencyConflict { stream_id: StreamId, expected_version: u64, actual_version: u64 },
+    ConcurrencyConflict {
+        stream_id: StreamId,
+        expected_version: u64,
+        actual_version: u64,
+    },
     #[error("stream {0:?} not found")]
     StreamNotFound(StreamId),
 }
@@ -73,7 +77,16 @@ pub enum EventStoreError {
 pub trait EventStore: Send + Sync {
     async fn append(&self, request: AppendRequest) -> Result<AppendResult, EventStoreError>;
 
-    async fn read_stream(&self, stream: StreamId, from_version: u64, limit: usize) -> Result<Vec<StoredEvent>, EventStoreError>;
+    async fn read_stream(
+        &self,
+        stream: StreamId,
+        from_version: u64,
+        limit: usize,
+    ) -> Result<Vec<StoredEvent>, EventStoreError>;
 
-    async fn read_log(&self, from_offset: LocalLogOffset, limit: usize) -> Result<Vec<StoredEvent>, EventStoreError>;
+    async fn read_log(
+        &self,
+        from_offset: LocalLogOffset,
+        limit: usize,
+    ) -> Result<Vec<StoredEvent>, EventStoreError>;
 }
