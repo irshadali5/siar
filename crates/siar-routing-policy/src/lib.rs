@@ -117,11 +117,16 @@ pub use cache::RouteCache;
 pub use candidate::{PathCandidate, TransportEndpoint};
 pub use error::RoutingError;
 pub use failure::RouteFailureClass;
-pub use metrics::{Bitrate, Confidence, EnergyCost, MeasuredValue, NetworkCost, PathMetrics, Ratio, SignalQuality, StabilityScore};
+pub use metrics::{
+    Bitrate, Confidence, EnergyCost, MeasuredValue, NetworkCost, PathMetrics, Ratio, SignalQuality,
+    StabilityScore,
+};
 pub use plan::{plan_route, RoutePlan, RouteStrategy};
 pub use policy::{HysteresisPolicy, PolicyWeights, RoutingPolicy, RoutingPolicyProfile};
 pub use requirements::DeliveryRequirements;
 pub use resolve::resolve_destination_devices;
 pub use retry::RetryPolicy;
 pub use scoring::{DefaultScorer, PathScorer, RouteScore, RouteScoreDelta, RoutingContext};
-pub use types::{DeliveryClass, Destination, PathCapabilities, PathId, Priority, RouteHealth, TransportKind};
+pub use types::{
+    DeliveryClass, Destination, PathCapabilities, PathId, Priority, RouteHealth, TransportKind,
+};
