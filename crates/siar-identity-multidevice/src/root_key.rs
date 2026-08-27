@@ -21,7 +21,9 @@ pub struct RootIdentityKey {
 
 impl RootIdentityKey {
     pub fn generate() -> Self {
-        Self { signing_key: SigningKey::generate(&mut OsRng) }
+        Self {
+            signing_key: SigningKey::generate(&mut OsRng),
+        }
     }
 
     pub fn root_public_key(&self) -> RootPublicKey {
@@ -54,8 +56,11 @@ pub struct RootPublicKey(pub [u8; 32]);
 
 impl RootPublicKey {
     pub fn verify(&self, message: &[u8], signature: &[u8; 64]) -> Result<(), IdentityError> {
-        let verifying_key = VerifyingKey::from_bytes(&self.0).map_err(|_| IdentityError::MalformedKey)?;
+        let verifying_key =
+            VerifyingKey::from_bytes(&self.0).map_err(|_| IdentityError::MalformedKey)?;
         let signature = Signature::from_bytes(signature);
-        verifying_key.verify(message, &signature).map_err(|_| IdentityError::InvalidSignature)
+        verifying_key
+            .verify(message, &signature)
+            .map_err(|_| IdentityError::InvalidSignature)
     }
 }
