@@ -48,7 +48,10 @@ pub const DEFAULT_BUNDLE_TTL_MILLIS: u64 = 24 * 60 * 60 * 1000;
 /// realtime frame that arrives after a DTN hop is arriving too late to
 /// be useful at all"). A caller should treat `None` as "don't create a
 /// DTN bundle for this operation," not as an error to retry.
-pub fn select_dtn_bundle_policy(req: &DeliveryRequirements, now_millis: u64) -> Option<DtnBundlePolicy> {
+pub fn select_dtn_bundle_policy(
+    req: &DeliveryRequirements,
+    now_millis: u64,
+) -> Option<DtnBundlePolicy> {
     if !req.allow_dtn {
         return None;
     }
