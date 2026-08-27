@@ -23,7 +23,9 @@
 
 use std::sync::{Arc, Mutex};
 
-use siar_media_android::{drain_output, output_ready_notifier, push_input, MediaSession, SessionOutput};
+use siar_media_android::{
+    drain_output, output_ready_notifier, push_input, MediaSession, SessionOutput,
+};
 use siar_media_core::{DecodedVideoFrame, EncodedVideoFrame, RawVideoFrame};
 use tokio::sync::{mpsc, watch};
 
@@ -53,16 +55,18 @@ pub fn spawn_android_hardware_encode_pipeline(
     let mut feeder_shutdown = shutdown.clone();
     tokio::spawn(async move {
         loop {
-            let frame: RawVideoFrame = match select_shutdown(&mut feeder_shutdown, feeder_input.take()).await {
-                Some(frame) => frame,
-                None => return, // shutdown signaled — call ended, stop feeding capture
-            };
+            let frame: RawVideoFrame =
+                match select_shutdown(&mut feeder_shutdown, feeder_input.take()).await {
+                    Some(frame) => frame,
+                    None => return, // shutdown signaled — call ended, stop feeding capture
+                };
             // One packed buffer, not three separate `push_input` calls —
             // `jni_bridge.rs`'s `pop_input`/`nextRawFrame` contract pulls
             // one `ByteArray` per frame; Kotlin's `HardwareVideoEncoder`
             // is the side that knows this frame's resolution and
             // therefore how to re-split Y/U/V back out of it.
-            let mut packed = Vec::with_capacity(frame.y_plane.len() + frame.u_plane.len() + frame.v_plane.len());
+            let mut packed =
+                Vec::with_capacity(frame.y_plane.len() + frame.u_plane.len() + frame.v_plane.len());
             packed.extend_from_slice(&frame.y_plane);
             packed.extend_from_slice(&frame.u_plane);
             packed.extend_from_slice(&frame.v_plane);
@@ -80,8 +84,18 @@ pub fn spawn_android_hardware_encode_pipeline(
             let notified = notify.notified();
             for item in drain_output(&session) {
                 match item {
-                    SessionOutput::Encoded { codec, data, is_keyframe, timestamp_micros } => {
-                        let frame = EncodedVideoFrame { codec, data, is_keyframe, timestamp_micros: timestamp_micros as u64 };
+                    SessionOutput::Encoded {
+                        codec,
+                        data,
+                        is_keyframe,
+                        timestamp_micros,
+                    } => {
+                        let frame = EncodedVideoFrame {
+                            codec,
+                            data,
+                            is_keyframe,
+                            timestamp_micros: timestamp_micros as u64,
+                        };
                         if tx.send(frame).await.is_err() {
                             return; // receiver dropped — pipeline shutting down
                         }
@@ -93,11 +107,16 @@ pub fn spawn_android_hardware_encode_pipeline(
                         // a real bug, but one that needs a real session to
                         // ever actually trigger and observe. Flagged rather
                         // than silently matched away.
-                        tracing::error!("encode pipeline received a Decoded output — session kind mismatch");
+                        tracing::error!(
+                            "encode pipeline received a Decoded output — session kind mismatch"
+                        );
                     }
                 }
             }
-            if select_shutdown(&mut drainer_shutdown, notified).await.is_none() {
+            if select_shutdown(&mut drainer_shutdown, notified)
+                .await
+                .is_none()
+            {
                 return; // shutdown signaled — call ended, stop draining
             }
         }
@@ -145,15 +164,23 @@ pub fn spawn_android_hardware_decode_pipeline(
                         }
                     }
                     SessionOutput::Encoded { .. } => {
-                        tracing::error!("decode pipeline received an Encoded output — session kind mismatch");
+                        tracing::error!(
+                            "decode pipeline received an Encoded output — session kind mismatch"
+                        );
                     }
                 }
             }
-            if select_shutdown(&mut drainer_shutdown, notified).await.is_none() {
+            if select_shutdown(&mut drainer_shutdown, notified)
+                .await
+                .is_none()
+            {
                 return;
             }
         }
     });
 
-    VideoDecodePipeline { input: in_tx, output: out_rx }
+    VideoDecodePipeline {
+        input: in_tx,
+        output: out_rx,
+    }
 }
