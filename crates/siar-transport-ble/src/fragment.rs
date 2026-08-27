@@ -56,24 +56,43 @@ impl BleFragment {
     /// payload doesn't match its own checksum.
     pub fn decode(bytes: &[u8]) -> Result<Self, BleFragmentError> {
         if bytes.len() < HEADER_LEN {
-            return Err(BleFragmentError::TooShort { got: bytes.len(), need: HEADER_LEN });
+            return Err(BleFragmentError::TooShort {
+                got: bytes.len(),
+                need: HEADER_LEN,
+            });
         }
         let protocol = bytes[0];
-        let transfer_id = u32::from_be_bytes(bytes[1..5].try_into().expect("slice is exactly 4 bytes"));
-        let fragment_index = u16::from_be_bytes(bytes[5..7].try_into().expect("slice is exactly 2 bytes"));
-        let fragment_count = u16::from_be_bytes(bytes[7..9].try_into().expect("slice is exactly 2 bytes"));
-        let claimed_checksum = u16::from_be_bytes(bytes[9..11].try_into().expect("slice is exactly 2 bytes"));
+        let transfer_id =
+            u32::from_be_bytes(bytes[1..5].try_into().expect("slice is exactly 4 bytes"));
+        let fragment_index =
+            u16::from_be_bytes(bytes[5..7].try_into().expect("slice is exactly 2 bytes"));
+        let fragment_count =
+            u16::from_be_bytes(bytes[7..9].try_into().expect("slice is exactly 2 bytes"));
+        let claimed_checksum =
+            u16::from_be_bytes(bytes[9..11].try_into().expect("slice is exactly 2 bytes"));
         let payload = bytes[HEADER_LEN..].to_vec();
 
         let actual_checksum = checksum16(&payload);
         if actual_checksum != claimed_checksum {
-            return Err(BleFragmentError::ChecksumMismatch { claimed: claimed_checksum, actual: actual_checksum });
+            return Err(BleFragmentError::ChecksumMismatch {
+                claimed: claimed_checksum,
+                actual: actual_checksum,
+            });
         }
         if fragment_index >= fragment_count {
-            return Err(BleFragmentError::IndexOutOfRange { fragment_index, fragment_count });
+            return Err(BleFragmentError::IndexOutOfRange {
+                fragment_index,
+                fragment_count,
+            });
         }
 
-        Ok(Self { protocol, transfer_id, fragment_index, fragment_count, payload })
+        Ok(Self {
+            protocol,
+            transfer_id,
+            fragment_index,
+            fragment_count,
+            payload,
+        })
     }
 }
 
@@ -84,7 +103,10 @@ pub enum BleFragmentError {
     #[error("fragment checksum mismatch: header claimed {claimed:#06x}, payload actually checksums to {actual:#06x}")]
     ChecksumMismatch { claimed: u16, actual: u16 },
     #[error("fragment_index {fragment_index} is out of range for fragment_count {fragment_count}")]
-    IndexOutOfRange { fragment_index: u16, fragment_count: u16 },
+    IndexOutOfRange {
+        fragment_index: u16,
+        fragment_count: u16,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
@@ -163,7 +185,13 @@ mod tests {
 
     #[test]
     fn encode_then_decode_round_trips() {
-        let fragment = BleFragment { protocol: 7, transfer_id: 42, fragment_index: 1, fragment_count: 3, payload: vec![1, 2, 3, 4, 5] };
+        let fragment = BleFragment {
+            protocol: 7,
+            transfer_id: 42,
+            fragment_index: 1,
+            fragment_count: 3,
+            payload: vec![1, 2, 3, 4, 5],
+        };
         let encoded = fragment.encode();
         let decoded = BleFragment::decode(&encoded).expect("valid fragment should decode");
         assert_eq!(decoded, fragment);
@@ -172,12 +200,24 @@ mod tests {
     #[test]
     fn decode_rejects_a_buffer_shorter_than_the_header() {
         let err = BleFragment::decode(&[1, 2, 3]).unwrap_err();
-        assert_eq!(err, BleFragmentError::TooShort { got: 3, need: HEADER_LEN });
+        assert_eq!(
+            err,
+            BleFragmentError::TooShort {
+                got: 3,
+                need: HEADER_LEN
+            }
+        );
     }
 
     #[test]
     fn decode_rejects_a_corrupted_payload() {
-        let fragment = BleFragment { protocol: 1, transfer_id: 1, fragment_index: 0, fragment_count: 1, payload: vec![10, 20, 30] };
+        let fragment = BleFragment {
+            protocol: 1,
+            transfer_id: 1,
+            fragment_index: 0,
+            fragment_count: 1,
+            payload: vec![10, 20, 30],
+        };
         let mut encoded = fragment.encode();
         let last = encoded.len() - 1;
         encoded[last] ^= 0xFF; // flip the last payload byte
@@ -187,9 +227,21 @@ mod tests {
 
     #[test]
     fn decode_rejects_fragment_index_at_or_past_fragment_count() {
-        let fragment = BleFragment { protocol: 1, transfer_id: 1, fragment_index: 2, fragment_count: 2, payload: vec![] };
+        let fragment = BleFragment {
+            protocol: 1,
+            transfer_id: 1,
+            fragment_index: 2,
+            fragment_count: 2,
+            payload: vec![],
+        };
         let err = BleFragment::decode(&fragment.encode()).unwrap_err();
-        assert_eq!(err, BleFragmentError::IndexOutOfRange { fragment_index: 2, fragment_count: 2 });
+        assert_eq!(
+            err,
+            BleFragmentError::IndexOutOfRange {
+                fragment_index: 2,
+                fragment_count: 2
+            }
+        );
     }
 
     #[test]
@@ -197,7 +249,9 @@ mod tests {
         let envelope = vec![0u8; 25];
         let fragments = fragment_envelope(1, 99, &envelope, 10).expect("should fragment");
         assert_eq!(fragments.len(), 3); // 10 + 10 + 5
-        assert!(fragments.iter().all(|f| f.fragment_count == 3 && f.transfer_id == 99 && f.protocol == 1));
+        assert!(fragments
+            .iter()
+            .all(|f| f.fragment_count == 3 && f.transfer_id == 99 && f.protocol == 1));
         assert_eq!(fragments[0].fragment_index, 0);
         assert_eq!(fragments[2].fragment_index, 2);
         assert_eq!(fragments[2].payload.len(), 5);
@@ -205,12 +259,18 @@ mod tests {
 
     #[test]
     fn fragment_envelope_rejects_empty_envelope() {
-        assert_eq!(fragment_envelope(1, 1, &[], 10).unwrap_err(), FragmentEnvelopeError::EmptyEnvelope);
+        assert_eq!(
+            fragment_envelope(1, 1, &[], 10).unwrap_err(),
+            FragmentEnvelopeError::EmptyEnvelope
+        );
     }
 
     #[test]
     fn fragment_envelope_rejects_zero_max_payload() {
-        assert_eq!(fragment_envelope(1, 1, &[1], 0).unwrap_err(), FragmentEnvelopeError::ZeroMaxPayload);
+        assert_eq!(
+            fragment_envelope(1, 1, &[1], 0).unwrap_err(),
+            FragmentEnvelopeError::ZeroMaxPayload
+        );
     }
 
     #[test]
