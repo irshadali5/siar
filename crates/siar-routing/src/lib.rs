@@ -88,8 +88,8 @@
 //! decisions, is transport- and platform-touching work each gap above
 //! still needs.
 
-pub mod path;
-pub mod score;
-pub mod scheduler;
-pub mod link_health;
 pub mod device_routes;
+pub mod link_health;
+pub mod path;
+pub mod scheduler;
+pub mod score;
