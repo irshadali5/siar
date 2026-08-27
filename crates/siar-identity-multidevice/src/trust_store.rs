@@ -37,12 +37,21 @@ impl TrustedAccountStore {
     /// re-accepting the same one — treating a resend of the current
     /// generation as a no-op rather than an error is a reasonable
     /// reading, so it's allowed here explicitly, see the test below).
-    pub fn accept(&mut self, directory: DeviceDirectory, root_public_key: &RootPublicKey) -> Result<(), IdentityError> {
-        directory.verify_signature(root_public_key).map_err(|_| IdentityError::DirectorySignatureInvalid)?;
+    pub fn accept(
+        &mut self,
+        directory: DeviceDirectory,
+        root_public_key: &RootPublicKey,
+    ) -> Result<(), IdentityError> {
+        directory
+            .verify_signature(root_public_key)
+            .map_err(|_| IdentityError::DirectorySignatureInvalid)?;
 
         if let Some(existing) = self.trusted.get(&directory.account_id) {
             if directory.generation < existing.generation {
-                return Err(IdentityError::RollbackRejected { given: directory.generation, highest: existing.generation });
+                return Err(IdentityError::RollbackRejected {
+                    given: directory.generation,
+                    highest: existing.generation,
+                });
             }
             if directory.generation == existing.generation {
                 return Ok(());
@@ -71,10 +80,28 @@ mod tests {
     use crate::root_key::RootIdentityKey;
     use siar_domain::DeviceId;
 
-    fn entry(root: &RootIdentityKey, account: AccountId, generation: u64, status: DeviceStatus) -> DeviceDirectoryEntry {
+    fn entry(
+        root: &RootIdentityKey,
+        account: AccountId,
+        generation: u64,
+        status: DeviceStatus,
+    ) -> DeviceDirectoryEntry {
         let device = DeviceId::new();
-        let cert = DeviceCertificate::issue(root, account, device, [3u8; 32], 0, None, DeviceCapabilitySet::SEND_MESSAGE, generation);
-        DeviceDirectoryEntry { device_id: device, certificate: cert, status }
+        let cert = DeviceCertificate::issue(
+            root,
+            account,
+            device,
+            [3u8; 32],
+            0,
+            None,
+            DeviceCapabilitySet::SEND_MESSAGE,
+            generation,
+        );
+        DeviceDirectoryEntry {
+            device_id: device,
+            certificate: cert,
+            status,
+        }
     }
 
     #[test]
@@ -83,11 +110,21 @@ mod tests {
         let account = AccountId::new();
         let mut store = TrustedAccountStore::new();
 
-        let gen1 = DeviceDirectory::sign(&root, account, 1, vec![entry(&root, account, 1, DeviceStatus::Active)]);
+        let gen1 = DeviceDirectory::sign(
+            &root,
+            account,
+            1,
+            vec![entry(&root, account, 1, DeviceStatus::Active)],
+        );
         store.accept(gen1, &root.root_public_key()).unwrap();
         assert_eq!(store.highest_generation_for(account), Some(1));
 
-        let gen2 = DeviceDirectory::sign(&root, account, 2, vec![entry(&root, account, 2, DeviceStatus::Active)]);
+        let gen2 = DeviceDirectory::sign(
+            &root,
+            account,
+            2,
+            vec![entry(&root, account, 2, DeviceStatus::Active)],
+        );
         store.accept(gen2, &root.root_public_key()).unwrap();
         assert_eq!(store.highest_generation_for(account), Some(2));
     }
@@ -98,12 +135,28 @@ mod tests {
         let account = AccountId::new();
         let mut store = TrustedAccountStore::new();
 
-        let gen1 = DeviceDirectory::sign(&root, account, 1, vec![entry(&root, account, 1, DeviceStatus::Active)]);
-        let gen2 = DeviceDirectory::sign(&root, account, 2, vec![entry(&root, account, 2, DeviceStatus::Active)]);
+        let gen1 = DeviceDirectory::sign(
+            &root,
+            account,
+            1,
+            vec![entry(&root, account, 1, DeviceStatus::Active)],
+        );
+        let gen2 = DeviceDirectory::sign(
+            &root,
+            account,
+            2,
+            vec![entry(&root, account, 2, DeviceStatus::Active)],
+        );
         store.accept(gen2, &root.root_public_key()).unwrap();
 
         let result = store.accept(gen1, &root.root_public_key());
-        assert_eq!(result, Err(IdentityError::RollbackRejected { given: 1, highest: 2 }));
+        assert_eq!(
+            result,
+            Err(IdentityError::RollbackRejected {
+                given: 1,
+                highest: 2
+            })
+        );
         // still at generation 2 — the rejected rollback attempt had no effect
         assert_eq!(store.highest_generation_for(account), Some(2));
     }
@@ -121,18 +174,35 @@ mod tests {
         let device = DeviceId::new();
         let mut store = TrustedAccountStore::new();
 
-        let cert1 = DeviceCertificate::issue(&root, account, device, [9u8; 32], 0, None, DeviceCapabilitySet::SEND_MESSAGE, 1);
+        let cert1 = DeviceCertificate::issue(
+            &root,
+            account,
+            device,
+            [9u8; 32],
+            0,
+            None,
+            DeviceCapabilitySet::SEND_MESSAGE,
+            1,
+        );
         let stale_active = DeviceDirectory::sign(
             &root,
             account,
             1,
-            vec![DeviceDirectoryEntry { device_id: device, certificate: cert1.clone(), status: DeviceStatus::Active }],
+            vec![DeviceDirectoryEntry {
+                device_id: device,
+                certificate: cert1.clone(),
+                status: DeviceStatus::Active,
+            }],
         );
         let revoking = DeviceDirectory::sign(
             &root,
             account,
             2,
-            vec![DeviceDirectoryEntry { device_id: device, certificate: cert1, status: DeviceStatus::Revoked }],
+            vec![DeviceDirectoryEntry {
+                device_id: device,
+                certificate: cert1,
+                status: DeviceStatus::Revoked,
+            }],
         );
 
         store.accept(revoking, &root.root_public_key()).unwrap();
@@ -148,7 +218,12 @@ mod tests {
         let account = AccountId::new();
         let mut store = TrustedAccountStore::new();
 
-        let gen1 = DeviceDirectory::sign(&root, account, 1, vec![entry(&root, account, 1, DeviceStatus::Active)]);
+        let gen1 = DeviceDirectory::sign(
+            &root,
+            account,
+            1,
+            vec![entry(&root, account, 1, DeviceStatus::Active)],
+        );
         store.accept(gen1.clone(), &root.root_public_key()).unwrap();
         assert!(store.accept(gen1, &root.root_public_key()).is_ok());
         assert_eq!(store.highest_generation_for(account), Some(1));
@@ -161,7 +236,15 @@ mod tests {
         let account = AccountId::new();
         let mut store = TrustedAccountStore::new();
 
-        let forged = DeviceDirectory::sign(&impostor, account, 1, vec![entry(&impostor, account, 1, DeviceStatus::Active)]);
-        assert_eq!(store.accept(forged, &root.root_public_key()), Err(IdentityError::DirectorySignatureInvalid));
+        let forged = DeviceDirectory::sign(
+            &impostor,
+            account,
+            1,
+            vec![entry(&impostor, account, 1, DeviceStatus::Active)],
+        );
+        assert_eq!(
+            store.accept(forged, &root.root_public_key()),
+            Err(IdentityError::DirectorySignatureInvalid)
+        );
     }
 }
