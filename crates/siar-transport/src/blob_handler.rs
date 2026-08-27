@@ -12,7 +12,9 @@ use iroh::{
     endpoint::Connection,
     protocol::{AcceptError, ProtocolHandler},
 };
-use siar_protocol::{decode_frame_generic, encode_frame_generic, BlobRequest, BlobResponse, MAX_BLOB_FRAME_BYTES};
+use siar_protocol::{
+    decode_frame_generic, encode_frame_generic, BlobRequest, BlobResponse, MAX_BLOB_FRAME_BYTES,
+};
 use std::sync::Arc;
 
 pub const BLOB_ALPN: &[u8] = b"messenger/blob/1";
@@ -35,7 +37,8 @@ impl std::fmt::Debug for BlobProtocolHandler {
     // Hand-writing this instead of deriving keeps that bound local to
     // here.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("BlobProtocolHandler").finish_non_exhaustive()
+        f.debug_struct("BlobProtocolHandler")
+            .finish_non_exhaustive()
     }
 }
 
@@ -47,7 +50,10 @@ impl BlobProtocolHandler {
 
 impl ProtocolHandler for BlobProtocolHandler {
     async fn accept(&self, connection: Connection) -> Result<(), AcceptError> {
-        let (mut send, mut recv) = connection.accept_bi().await.map_err(AcceptError::from_err)?;
+        let (mut send, mut recv) = connection
+            .accept_bi()
+            .await
+            .map_err(AcceptError::from_err)?;
 
         let bytes = recv
             .read_to_end(MAX_BLOB_FRAME_BYTES)
@@ -64,7 +70,9 @@ impl ProtocolHandler for BlobProtocolHandler {
         let mut framed = Vec::new();
         encode_frame_generic(&response, MAX_BLOB_FRAME_BYTES, &mut framed)
             .map_err(AcceptError::from_err)?;
-        send.write_all(&framed).await.map_err(AcceptError::from_err)?;
+        send.write_all(&framed)
+            .await
+            .map_err(AcceptError::from_err)?;
         send.finish().map_err(AcceptError::from_err)?;
 
         connection.closed().await;
