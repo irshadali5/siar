@@ -43,15 +43,33 @@ impl LinkingApprovalPrompt {
     /// constructor only accepts `NumericCodeConfirmed`, so a caller
     /// can't build a normal-looking approval prompt for an unverified
     /// link by accident.
-    pub fn new(device_platform: String, approximate_time_millis: u64, link_method: LinkMethod) -> Self {
-        Self { device_platform, approximate_time_millis, link_method, verification_status: VerificationStatus::NumericCodeConfirmed }
+    pub fn new(
+        device_platform: String,
+        approximate_time_millis: u64,
+        link_method: LinkMethod,
+    ) -> Self {
+        Self {
+            device_platform,
+            approximate_time_millis,
+            link_method,
+            verification_status: VerificationStatus::NumericCodeConfirmed,
+        }
     }
 
     /// The explicit, harder-to-reach-by-accident path for an
     /// unverified link — see [`LinkingApprovalPrompt::new`]'s own doc
     /// comment.
-    pub fn allow_unverified(device_platform: String, approximate_time_millis: u64, link_method: LinkMethod) -> Self {
-        Self { device_platform, approximate_time_millis, link_method, verification_status: VerificationStatus::NotVerified }
+    pub fn allow_unverified(
+        device_platform: String,
+        approximate_time_millis: u64,
+        link_method: LinkMethod,
+    ) -> Self {
+        Self {
+            device_platform,
+            approximate_time_millis,
+            link_method,
+            verification_status: VerificationStatus::NotVerified,
+        }
     }
 }
 
@@ -62,12 +80,16 @@ mod tests {
     #[test]
     fn the_ordinary_constructor_always_marks_the_code_confirmed() {
         let prompt = LinkingApprovalPrompt::new("Pixel 9".to_string(), 1_000, LinkMethod::Qr);
-        assert_eq!(prompt.verification_status, VerificationStatus::NumericCodeConfirmed);
+        assert_eq!(
+            prompt.verification_status,
+            VerificationStatus::NumericCodeConfirmed
+        );
     }
 
     #[test]
     fn an_unverified_prompt_requires_the_explicit_constructor() {
-        let prompt = LinkingApprovalPrompt::allow_unverified("Pixel 9".to_string(), 1_000, LinkMethod::Nfc);
+        let prompt =
+            LinkingApprovalPrompt::allow_unverified("Pixel 9".to_string(), 1_000, LinkMethod::Nfc);
         assert_eq!(prompt.verification_status, VerificationStatus::NotVerified);
     }
 }
