@@ -32,12 +32,12 @@
 //! rest of this workspace is built on. Swap it back in once `iroh-blobs`
 //! ships a 0.95.x-compatible release.
 
+mod blob_handler;
 mod endpoint;
 mod error;
 mod handler;
 mod local_discovery;
 mod pool;
-mod blob_handler;
 
 pub use blob_handler::{BlobStore, BLOB_ALPN};
 pub use endpoint::{SiarEndpoint, MESSENGER_ALPN};
