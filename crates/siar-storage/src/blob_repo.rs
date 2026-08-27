@@ -3,9 +3,12 @@
 //! precisely because the hash *is* the identity of the content
 //! (plan.md §22).
 
-use crate::{blob_codec::{decode_blob, encode_blob}, StorageError};
-use stoolap::Database;
+use crate::{
+    blob_codec::{decode_blob, encode_blob},
+    StorageError,
+};
 use std::sync::Arc;
+use stoolap::Database;
 
 pub trait BlobRepository {
     /// Idempotent under the same hash — re-publishing an already-stored
@@ -31,12 +34,17 @@ impl BlobRepository for StoolapBlobRepository {
     fn put(&self, blob_hash: &[u8; 32], ciphertext: &[u8]) -> Result<(), StorageError> {
         let hash_hex = hex_encode(blob_hash);
 
-        self.db.execute("BEGIN", ()).map_err(StorageError::from_stoolap)?;
+        self.db
+            .execute("BEGIN", ())
+            .map_err(StorageError::from_stoolap)?;
 
         let already_exists = {
             let mut rows = self
                 .db
-                .query("SELECT 1 FROM blobs WHERE blob_hash = $1", (hash_hex.clone(),))
+                .query(
+                    "SELECT 1 FROM blobs WHERE blob_hash = $1",
+                    (hash_hex.clone(),),
+                )
                 .map_err(StorageError::from_stoolap)?;
             rows.next().is_some()
         };
@@ -57,7 +65,9 @@ impl BlobRepository for StoolapBlobRepository {
             let _ = self.db.execute("ROLLBACK", ());
             return Err(StorageError::from_stoolap(e));
         }
-        self.db.execute("COMMIT", ()).map_err(StorageError::from_stoolap)?;
+        self.db
+            .execute("COMMIT", ())
+            .map_err(StorageError::from_stoolap)?;
         Ok(())
     }
 
