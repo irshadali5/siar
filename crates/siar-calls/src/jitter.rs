@@ -27,15 +27,23 @@ impl<T> JitterBuffer<T> {
     /// (i.e., already in order), and `capacity` only matters when
     /// reordering actually happens.
     pub fn new(capacity: usize) -> Self {
-        assert!(capacity >= 1, "a zero-capacity jitter buffer can never hold anything to reorder");
-        Self { capacity, pending: Vec::with_capacity(capacity) }
+        assert!(
+            capacity >= 1,
+            "a zero-capacity jitter buffer can never hold anything to reorder"
+        );
+        Self {
+            capacity,
+            pending: Vec::with_capacity(capacity),
+        }
     }
 
     /// Inserts one arrival in timestamp order. Returns frames now ready
     /// to release, oldest first: empty while still buffering under
     /// capacity, or exactly one (the oldest) once capacity is exceeded.
     pub fn push(&mut self, timestamp_micros: u64, item: T) -> Vec<(u64, T)> {
-        let insert_at = self.pending.partition_point(|(ts, _)| *ts <= timestamp_micros);
+        let insert_at = self
+            .pending
+            .partition_point(|(ts, _)| *ts <= timestamp_micros);
         self.pending.insert(insert_at, (timestamp_micros, item));
         if self.pending.len() > self.capacity {
             vec![self.pending.remove(0)]
