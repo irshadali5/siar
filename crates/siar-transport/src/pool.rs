@@ -26,7 +26,10 @@ pub(crate) struct ConnectionPool {
 impl ConnectionPool {
     pub(crate) fn get_live(&self, peer: &EndpointId, alpn: &[u8]) -> Option<Connection> {
         let key = (*peer, alpn.to_vec());
-        let connections = self.connections.lock().expect("connection pool mutex poisoned");
+        let connections = self
+            .connections
+            .lock()
+            .expect("connection pool mutex poisoned");
         let conn = connections.get(&key)?;
         if conn.close_reason().is_some() {
             // Dead — caller will dial fresh and `insert` will replace it.
