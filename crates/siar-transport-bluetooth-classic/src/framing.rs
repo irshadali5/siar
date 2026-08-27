@@ -89,21 +89,34 @@ impl FrameDecoder {
             if self.buffer.len() < 4 {
                 break; // not even a length prefix yet
             }
-            let claimed_len = u32::from_be_bytes(self.buffer[0..4].try_into().expect("slice is exactly 4 bytes"));
+            let claimed_len = u32::from_be_bytes(
+                self.buffer[0..4]
+                    .try_into()
+                    .expect("slice is exactly 4 bytes"),
+            );
             if claimed_len > MAX_FRAME_LEN {
-                return Err(FramingError::FrameTooLarge { claimed: claimed_len, max: MAX_FRAME_LEN });
+                return Err(FramingError::FrameTooLarge {
+                    claimed: claimed_len,
+                    max: MAX_FRAME_LEN,
+                });
             }
             let total_len = HEADER_LEN + claimed_len as usize;
             if self.buffer.len() < total_len {
                 break; // header known, payload not fully arrived yet
             }
 
-            let claimed_checksum =
-                u16::from_be_bytes(self.buffer[4..6].try_into().expect("slice is exactly 2 bytes"));
+            let claimed_checksum = u16::from_be_bytes(
+                self.buffer[4..6]
+                    .try_into()
+                    .expect("slice is exactly 2 bytes"),
+            );
             let payload = self.buffer[HEADER_LEN..total_len].to_vec();
             let actual_checksum = checksum16(&payload);
             if actual_checksum != claimed_checksum {
-                return Err(FramingError::ChecksumMismatch { claimed: claimed_checksum, actual: actual_checksum });
+                return Err(FramingError::ChecksumMismatch {
+                    claimed: claimed_checksum,
+                    actual: actual_checksum,
+                });
             }
 
             complete.push(payload);
@@ -118,7 +131,9 @@ impl FrameDecoder {
 /// deliberately not a security mechanism, see this module's top doc
 /// comment.
 fn checksum16(payload: &[u8]) -> u16 {
-    payload.iter().fold(0u16, |acc, &b| acc.wrapping_add(b as u16))
+    payload
+        .iter()
+        .fold(0u16, |acc, &b| acc.wrapping_add(b as u16))
 }
 
 #[cfg(test)]
@@ -177,7 +192,13 @@ mod tests {
         wire.extend_from_slice(&[0u8; 2]); // checksum, irrelevant — rejected first
         let mut decoder = FrameDecoder::new();
         let err = decoder.push(&wire).unwrap_err();
-        assert_eq!(err, FramingError::FrameTooLarge { claimed: MAX_FRAME_LEN + 1, max: MAX_FRAME_LEN });
+        assert_eq!(
+            err,
+            FramingError::FrameTooLarge {
+                claimed: MAX_FRAME_LEN + 1,
+                max: MAX_FRAME_LEN
+            }
+        );
     }
 
     #[test]
@@ -187,7 +208,10 @@ mod tests {
         let last = wire.len() - 1;
         wire[last] ^= 0xFF; // flip a payload bit without updating the checksum
         let mut decoder = FrameDecoder::new();
-        assert!(matches!(decoder.push(&wire), Err(FramingError::ChecksumMismatch { .. })));
+        assert!(matches!(
+            decoder.push(&wire),
+            Err(FramingError::ChecksumMismatch { .. })
+        ));
     }
 
     #[test]
