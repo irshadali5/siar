@@ -33,7 +33,8 @@ pub fn ConversationList() -> Element {
     // lifetime ends with this function, not with the closures it'd be
     // captured into. `ConversationSummary` already derives `Clone` for
     // exactly this kind of read-then-release-the-borrow use.
-    let summaries: Vec<siar_ui_state::ConversationSummary> = state.conversations.read().ordered().to_vec();
+    let summaries: Vec<siar_ui_state::ConversationSummary> =
+        state.conversations.read().ordered().to_vec();
 
     rsx! {
         ul { class: "conversation-list",
@@ -100,10 +101,15 @@ pub fn MessageTimeline() -> Element {
 /// decode audio/video and never claims to (codecs2.md's hard line
 /// between still images and realtime media).
 #[component]
-fn AttachmentBubble(message_id: siar_domain::MessageId, reference: siar_domain::AttachmentReference) -> Element {
+fn AttachmentBubble(
+    message_id: siar_domain::MessageId,
+    reference: siar_domain::AttachmentReference,
+) -> Element {
     let state = use_context::<AppState>();
-    let is_previewable_image =
-        matches!(reference.media_type, MediaType::ImagePng | MediaType::ImageJpeg | MediaType::ImageWebp);
+    let is_previewable_image = matches!(
+        reference.media_type,
+        MediaType::ImagePng | MediaType::ImageJpeg | MediaType::ImageWebp
+    );
 
     if !is_previewable_image {
         return rsx! {
@@ -129,7 +135,10 @@ fn AttachmentBubble(message_id: siar_domain::MessageId, reference: siar_domain::
             // preventing it. A real fix would need a synchronous
             // "already requested" flag set at dispatch time, not
             // attempted here.
-            state.dispatch(AppCommand::LoadAttachmentPreview { message_id, reference: reference.clone() });
+            state.dispatch(AppCommand::LoadAttachmentPreview {
+                message_id,
+                reference: reference.clone(),
+            });
             rsx! {
                 p { class: "attachment-placeholder",
                     "[loading image, {reference.encrypted_size.bytes()} bytes]"
@@ -139,7 +148,11 @@ fn AttachmentBubble(message_id: siar_domain::MessageId, reference: siar_domain::
         AttachmentPreview::Loading => rsx! {
             p { class: "attachment-placeholder", "[loading image…]" }
         },
-        AttachmentPreview::Ready { jpeg_bytes, width, height } => rsx! {
+        AttachmentPreview::Ready {
+            jpeg_bytes,
+            width,
+            height,
+        } => rsx! {
             img {
                 class: "attachment-image",
                 src: "{jpeg_data_uri(&jpeg_bytes)}",
@@ -498,7 +511,11 @@ fn GroupDetail(conversation: siar_domain::ConversationId) -> Element {
 /// conflicting inferred parameter types on a shared closure — same
 /// reason this file's original `Composer`/`submit` pair (above) is
 /// already split this way.
-fn submit_group_message(state: AppState, conversation: siar_domain::ConversationId, mut draft: Signal<String>) {
+fn submit_group_message(
+    state: AppState,
+    conversation: siar_domain::ConversationId,
+    mut draft: Signal<String>,
+) {
     let text = draft.read().clone();
     match MessageText::parse(text) {
         Ok(text) => {
@@ -538,6 +555,8 @@ fn submit_add_member(
             peer_ticket_text.set(String::new());
             key_package_text.set(String::new());
         }
-        _ => tracing::warn!("add-member form dropped — check account id, device id, and key package fields"),
+        _ => tracing::warn!(
+            "add-member form dropped — check account id, device id, and key package fields"
+        ),
     }
 }
