@@ -16,10 +16,26 @@ pub struct QualityRung {
 /// picking an arbitrary resolution, so "one step down" always means the
 /// same thing.
 pub const AV1_SOFTWARE_LADDER: &[QualityRung] = &[
-    QualityRung { resolution: Resolution::new(640, 360), fps: 30, target_bitrate_bps: 300_000 },
-    QualityRung { resolution: Resolution::new(854, 480), fps: 30, target_bitrate_bps: 700_000 },
-    QualityRung { resolution: Resolution::new(1280, 720), fps: 30, target_bitrate_bps: 1_500_000 },
-    QualityRung { resolution: Resolution::new(1920, 1080), fps: 30, target_bitrate_bps: 3_000_000 },
+    QualityRung {
+        resolution: Resolution::new(640, 360),
+        fps: 30,
+        target_bitrate_bps: 300_000,
+    },
+    QualityRung {
+        resolution: Resolution::new(854, 480),
+        fps: 30,
+        target_bitrate_bps: 700_000,
+    },
+    QualityRung {
+        resolution: Resolution::new(1280, 720),
+        fps: 30,
+        target_bitrate_bps: 1_500_000,
+    },
+    QualityRung {
+        resolution: Resolution::new(1920, 1080),
+        fps: 30,
+        target_bitrate_bps: 3_000_000,
+    },
 ];
 
 /// Architecture doc §46's thermal/CPU degradation ladder for Android
@@ -27,10 +43,26 @@ pub const AV1_SOFTWARE_LADDER: &[QualityRung] = &[
 /// because hardware AV1/HEVC/AVC encode is far cheaper than rav1e
 /// software encode, until thermal throttling kicks in.
 pub const ANDROID_HARDWARE_LADDER: &[QualityRung] = &[
-    QualityRung { resolution: Resolution::new(640, 360), fps: 20, target_bitrate_bps: 250_000 },
-    QualityRung { resolution: Resolution::new(960, 540), fps: 24, target_bitrate_bps: 600_000 },
-    QualityRung { resolution: Resolution::new(1280, 720), fps: 30, target_bitrate_bps: 1_200_000 },
-    QualityRung { resolution: Resolution::new(1920, 1080), fps: 30, target_bitrate_bps: 2_500_000 },
+    QualityRung {
+        resolution: Resolution::new(640, 360),
+        fps: 20,
+        target_bitrate_bps: 250_000,
+    },
+    QualityRung {
+        resolution: Resolution::new(960, 540),
+        fps: 24,
+        target_bitrate_bps: 600_000,
+    },
+    QualityRung {
+        resolution: Resolution::new(1280, 720),
+        fps: 30,
+        target_bitrate_bps: 1_200_000,
+    },
+    QualityRung {
+        resolution: Resolution::new(1920, 1080),
+        fps: 30,
+        target_bitrate_bps: 2_500_000,
+    },
 ];
 
 /// `rung_below`/`rung_above` are what `adaptive.rs`'s controller calls
@@ -78,7 +110,13 @@ mod tests {
     #[test]
     fn steps_move_exactly_one_rung() {
         let mid = AV1_SOFTWARE_LADDER[1];
-        assert_eq!(rung_below(AV1_SOFTWARE_LADDER, mid), Some(AV1_SOFTWARE_LADDER[0]));
-        assert_eq!(rung_above(AV1_SOFTWARE_LADDER, mid), Some(AV1_SOFTWARE_LADDER[2]));
+        assert_eq!(
+            rung_below(AV1_SOFTWARE_LADDER, mid),
+            Some(AV1_SOFTWARE_LADDER[0])
+        );
+        assert_eq!(
+            rung_above(AV1_SOFTWARE_LADDER, mid),
+            Some(AV1_SOFTWARE_LADDER[2])
+        );
     }
 }
