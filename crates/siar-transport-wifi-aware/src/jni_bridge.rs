@@ -106,16 +106,28 @@ pub extern "system" fn Java_com_siar_wifiaware_NativeWifiAwareBridge_onDataPathO
     port: jint,
 ) {
     // SAFETY: see `bridge_from_handle`.
-    let Some(bridge) = (unsafe { bridge_from_handle(handle) }) else { return };
+    let Some(bridge) = (unsafe { bridge_from_handle(handle) }) else {
+        return;
+    };
     let address: String = env
         .get_string(&peer_ipv6_address)
         .map(String::from)
         .unwrap_or_else(|_| "<unreadable peer ipv6 address>".to_string());
-    let role = if is_publisher != 0 { WifiAwareRole::Publisher } else { WifiAwareRole::Subscriber };
+    let role = if is_publisher != 0 {
+        WifiAwareRole::Publisher
+    } else {
+        WifiAwareRole::Subscriber
+    };
     let port = if port >= 0 { Some(port as u16) } else { None };
 
-    bridge.lock().expect("WifiAwareBridge lock poisoned").session =
-        Some(WifiAwareSessionInfo { role, peer_ipv6_address: address, port });
+    bridge
+        .lock()
+        .expect("WifiAwareBridge lock poisoned")
+        .session = Some(WifiAwareSessionInfo {
+        role,
+        peer_ipv6_address: address,
+        port,
+    });
 }
 
 /// Kotlin calls this from `NetworkCallback.onLost` for the Aware
@@ -128,8 +140,13 @@ pub extern "system" fn Java_com_siar_wifiaware_NativeWifiAwareBridge_onDataPathL
     handle: jlong,
 ) {
     // SAFETY: see `bridge_from_handle`.
-    let Some(bridge) = (unsafe { bridge_from_handle(handle) }) else { return };
-    bridge.lock().expect("WifiAwareBridge lock poisoned").session = None;
+    let Some(bridge) = (unsafe { bridge_from_handle(handle) }) else {
+        return;
+    };
+    bridge
+        .lock()
+        .expect("WifiAwareBridge lock poisoned")
+        .session = None;
 }
 
 /// Not part of the JNI surface — see `lib.rs`'s doc comment on why
@@ -137,5 +154,9 @@ pub extern "system" fn Java_com_siar_wifiaware_NativeWifiAwareBridge_onDataPathL
 /// for that future caller, same as `siar-transport-wifi-direct`'s
 /// `group_info`.
 pub fn session_info(bridge: &Mutex<WifiAwareBridge>) -> Option<WifiAwareSessionInfo> {
-    bridge.lock().expect("WifiAwareBridge lock poisoned").session.clone()
+    bridge
+        .lock()
+        .expect("WifiAwareBridge lock poisoned")
+        .session
+        .clone()
 }
