@@ -38,7 +38,10 @@ pub enum LocationSharing {
     /// caller's own monotonic units (same pattern as
     /// `siar_dtn::bundle::MeshBundle`, next.md §96), not a wall-clock
     /// deadline this type checks itself.
-    Live { point: GeoPoint, expires_at: u64 },
+    Live {
+        point: GeoPoint,
+        expires_at: u64,
+    },
 }
 
 /// next.md §46's `ShortText` — bounded so a report stays "hundreds of
