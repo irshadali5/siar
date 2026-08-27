@@ -10,7 +10,9 @@
 //! that nothing can act on yet is just dead weight in the match arms.
 
 use crate::group_list::AddMemberInput;
-use siar_domain::{AccountId, AttachmentReference, ConversationId, MessageContent, MessageId, MessageText};
+use siar_domain::{
+    AccountId, AttachmentReference, ConversationId, MessageContent, MessageId, MessageText,
+};
 
 #[derive(Debug, Clone)]
 pub enum AppCommand {
