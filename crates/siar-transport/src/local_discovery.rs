@@ -50,11 +50,19 @@ impl LocalPeerDirectory {
     /// reach one of these peers without going through DNS discovery at
     /// all.
     pub fn snapshot(&self) -> Vec<EndpointAddr> {
-        self.peers.lock().expect("LocalPeerDirectory poisoned").values().cloned().collect()
+        self.peers
+            .lock()
+            .expect("LocalPeerDirectory poisoned")
+            .values()
+            .cloned()
+            .collect()
     }
 
     pub fn len(&self) -> usize {
-        self.peers.lock().expect("LocalPeerDirectory poisoned").len()
+        self.peers
+            .lock()
+            .expect("LocalPeerDirectory poisoned")
+            .len()
     }
 
     pub fn is_empty(&self) -> bool {
@@ -87,7 +95,10 @@ impl LocalPeerDirectory {
 /// implicitly by whatever `endpoint.address_lookup()...add()` retains
 /// internally), not to a handle a caller needs to manage. It exits on
 /// its own once the event stream ends.
-pub(crate) fn spawn_local_discovery_task(mdns: MdnsAddressLookup, directory: Arc<LocalPeerDirectory>) {
+pub(crate) fn spawn_local_discovery_task(
+    mdns: MdnsAddressLookup,
+    directory: Arc<LocalPeerDirectory>,
+) {
     tokio::spawn(async move {
         let mut events = mdns.subscribe().await;
         while let Some(event) = n0_future::StreamExt::next(&mut events).await {
