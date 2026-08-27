@@ -90,15 +90,23 @@ pub extern "system" fn Java_com_siar_wifidirect_NativeWifiDirectBridge_onGroupFo
     group_owner_address: JString<'local>,
 ) {
     // SAFETY: see `bridge_from_handle`.
-    let Some(bridge) = (unsafe { bridge_from_handle(handle) }) else { return };
+    let Some(bridge) = (unsafe { bridge_from_handle(handle) }) else {
+        return;
+    };
     let address: String = env
         .get_string(&group_owner_address)
         .map(String::from)
         .unwrap_or_else(|_| "<unreadable group owner address>".to_string());
-    let role = if is_group_owner != 0 { WifiDirectRole::GroupOwner } else { WifiDirectRole::Client };
+    let role = if is_group_owner != 0 {
+        WifiDirectRole::GroupOwner
+    } else {
+        WifiDirectRole::Client
+    };
 
-    bridge.lock().expect("WifiDirectBridge lock poisoned").group =
-        Some(WifiDirectGroupInfo { role, group_owner_address: address });
+    bridge.lock().expect("WifiDirectBridge lock poisoned").group = Some(WifiDirectGroupInfo {
+        role,
+        group_owner_address: address,
+    });
 }
 
 /// Kotlin calls this from the `WIFI_P2P_CONNECTION_CHANGED_ACTION`
@@ -111,7 +119,9 @@ pub extern "system" fn Java_com_siar_wifidirect_NativeWifiDirectBridge_onGroupLo
     handle: jlong,
 ) {
     // SAFETY: see `bridge_from_handle`.
-    let Some(bridge) = (unsafe { bridge_from_handle(handle) }) else { return };
+    let Some(bridge) = (unsafe { bridge_from_handle(handle) }) else {
+        return;
+    };
     bridge.lock().expect("WifiDirectBridge lock poisoned").group = None;
 }
 
@@ -122,5 +132,9 @@ pub extern "system" fn Java_com_siar_wifidirect_NativeWifiDirectBridge_onGroupLo
 /// `output_ready_notifier` if polling turns out to be the wrong
 /// choice once there's a real caller to write against).
 pub fn group_info(bridge: &Mutex<WifiDirectBridge>) -> Option<WifiDirectGroupInfo> {
-    bridge.lock().expect("WifiDirectBridge lock poisoned").group.clone()
+    bridge
+        .lock()
+        .expect("WifiDirectBridge lock poisoned")
+        .group
+        .clone()
 }
