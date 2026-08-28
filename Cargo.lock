@@ -7140,6 +7140,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "siar-crash-recovery"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "siar-domain",
+ "siar-event-log",
+ "thiserror 2.0.19",
+]
+
+[[package]]
 name = "siar-crypto"
 version = "0.1.0"
 dependencies = [
