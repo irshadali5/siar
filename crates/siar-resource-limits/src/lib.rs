@@ -5,7 +5,28 @@
 //! scoped, tested slice per pass, tracked honestly against the spec's
 //! own section numbers.
 //!
-//! ## This pass — storage watermarks, critical reserve, reservations (§46-50)
+//! ## This pass — weighted max-min bandwidth fairness (§54-56)
+//!
+//! - [`bandwidth_fairness`] — §54 "Bandwidth Fairness", §55 "Weighted
+//!   Fair Queueing", §56 "Strict Priority Risks":
+//!   [`bandwidth_fairness::WfqWeights`] (§55's own literal worked
+//!   weight table), [`bandwidth_fairness::CriticalPreemption`] (§57's
+//!   bound, sized as a fraction of link capacity, this module's own
+//!   reasoned choice since the spec requires *a* bound without stating
+//!   one), and [`bandwidth_fairness::allocate_bandwidth`] — a real
+//!   weighted max-min fair-share allocator, not a naive single-pass
+//!   proportional split, specifically because §56 warns that a naive
+//!   split can still leave a low-weight tier starved when a
+//!   higher-weight tier under-claims its share; tested directly
+//!   against that exact starvation scenario, plus an
+//!   allocation-never-exceeds-capacity invariant checked across
+//!   several demand shapes. Explicitly distinct from
+//!   `siar-protocol-ext`'s `FairScheduler` — dequeue *order* for
+//!   discrete items vs. dividing a continuous *byte-rate budget* —
+//!   see that module's own doc comment for why neither is built on
+//!   the other.
+//!
+//! ## Earlier this pass — storage watermarks, critical reserve, reservations (§46-50)
 //!
 //! - [`storage`] — §46 "Storage Watermarks", §47 "Storage Pressure
 //!   Actions" (partial), §48 "Critical Storage Reserve", §49 "Storage
@@ -151,26 +172,22 @@
 //!
 //! ## Deliberately not attempted this pass
 //!
-//! Everything past these nine modules: resource policy layering
+//! Everything past these ten modules: resource policy layering
 //! (§5-7), the global/sub-budget hierarchy and borrowing (§9-11),
 //! device resource profiles (§12-16), §18's other queue categories
 //! beyond priority tiering (DTN/notification/projection/IPC as
 //! *separate named queues*), §28's full hierarchical ledger, the full
 //! §80 `ResourceSnapshot`/`AdmissionController` trait, connection
 //! limits and file descriptor limits (§42-43), §44-45's storage class
-//! hierarchy (per-class hard quota/soft watermark/eviction policy —
-//! `storage.rs` builds one flat watermark+reserve+reservation system,
-//! not a multi-class one), the rest of §47's pressure *actions*
-//! (prefetch reduction, cache eviction, relay rejection — policy for
-//! subsystems this crate doesn't own), bandwidth fairness and weighted
-//! fair queueing (§54-56), emergency preemption and drop policies
-//! beyond §58-60's grounding for `DropReason` (§57, §61),
-//! per-subsystem backpressure (messaging/files/DTN/routing/discovery/
-//! capability/event-log/outbox/IPC/FFI/plugins, §62-77), and
-//! cost-estimate admission (§78 onward). None of these are guessed
-//! at here.
+//! hierarchy, the rest of §47's pressure *actions*, §57/§61's fuller
+//! emergency preemption/drop policy beyond `CriticalPreemption`'s
+//! bandwidth-specific bound, per-subsystem backpressure (messaging/
+//! files/DTN/routing/discovery/capability/event-log/outbox/IPC/FFI/
+//! plugins, §62-77), and cost-estimate admission (§78 onward). None
+//! of these are guessed at here.
 
 pub mod admission;
+pub mod bandwidth_fairness;
 pub mod cpu_pool;
 pub mod extension_quota;
 pub mod peer_quota;
@@ -184,6 +201,7 @@ pub use admission::{
     admit, AdmissionResult, BandwidthClass, DeferredReason, DropReason, RejectReason,
     ResourceOwner, ResourceRequest, WorkPriority,
 };
+pub use bandwidth_fairness::{allocate_bandwidth, CriticalPreemption, WfqWeights};
 pub use cpu_pool::{CpuJobPermit, CpuWorkCapacities, CpuWorkClass, CpuWorkPool, CpuWorkPools};
 pub use extension_quota::{ExtensionResourceLimits, ExtensionUsageCounters, ExtensionUsageDelta};
 pub use peer_quota::{PeerQuota, PeerUsageCounters, PeerUsageDelta, TrustClass};
