@@ -169,7 +169,7 @@ Below is the exhaustive, itemized status of all 33 architecture specifications i
 
 ### Part 09 — Crash Recovery Architecture
 - **Spec Document:** [`sys-arch/09-crash-recovery-architecture.md`](file:///home/irshad/Projects/siar/sys-arch/09-crash-recovery-architecture.md)
-- **Primary Modules:** [`crates/siar-storage`](file:///home/irshad/Projects/siar/crates/siar-storage), [`crates/siar-domain`](file:///home/irshad/Projects/siar/crates/siar-domain), [`crates/siar-messaging`](file:///home/irshad/Projects/siar/crates/siar-messaging)
+- **Primary Modules:** [`crates/siar-crash-recovery`](file:///home/irshad/Projects/siar/crates/siar-crash-recovery), [`crates/siar-storage`](file:///home/irshad/Projects/siar/crates/siar-storage), [`crates/siar-domain`](file:///home/irshad/Projects/siar/crates/siar-domain), [`crates/siar-messaging`](file:///home/irshad/Projects/siar/crates/siar-messaging)
 - **Completion Status:** **75% Implemented**
 - **Implemented Code:**
   - ACID transaction persistence via Stoolap SQL.
