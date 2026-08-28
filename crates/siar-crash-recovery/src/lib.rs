@@ -8,7 +8,30 @@
 //! SQLite backend, the same constraint every other crate in this
 //! series already documents).
 //!
-//! ## This pass — messaging recovery (§14-17)
+//! ## This pass — file transfer recovery (§18-21)
+//!
+//! - [`chunk_recovery`] — §18 "File Transfer Recovery", §19 "Chunk
+//!   Commit Ordering", §20 "Chunk State Ambiguity":
+//!   [`chunk_recovery::ChunkRecoveryState`] (the durable subset of
+//!   §19's commit pipeline) with real transition validation, and
+//!   [`chunk_recovery::reconcile_chunk_on_restart`]/
+//!   [`chunk_recovery::ChunkRecoveryMap`] implementing §20's exact
+//!   rule ("treat chunk as unverified, reverify on restart. Do not
+//!   assume") as executable code — a genuine complement to
+//!   `siar_blob_manifest::resume::ResumeBitmap` (that type's binary
+//!   received/missing bitset has no way to represent §20's actual
+//!   hazard; see this module's own doc comment for the full
+//!   reasoning), not a competing replacement for it.
+//! - [`finalization_recovery`] — §21 "Finalization Recovery":
+//!   [`finalization_recovery::FinalizationState`] (§21's own
+//!   pipeline) with real transition validation, and
+//!   [`finalization_recovery::reconcile_finalization`] — §21 names
+//!   three crash scenarios in prose; this function is the exhaustive
+//!   5-case decision table those three scenarios are examples of,
+//!   tested against each named scenario individually rather than
+//!   only the cases the spec happened to call out.
+//!
+//! ## Earlier this pass — messaging recovery (§14-17)
 //!
 //! - [`messaging_recovery`] — §14 "Messaging Recovery", §15
 //!   "Ambiguous Send Result", §16 "Delivery Receipt Recovery", §17
@@ -93,11 +116,13 @@
 //! implement log semantics already provided by database engine unless
 //! needed"), not a design this crate could implement. There is nothing
 //! to build faithfully to that section beyond noting the decision,
-//! which this doc comment now does. Everything past §17 — file-
-//! transfer/chunk/finalization recovery (§18-21+), DTN/blob recovery,
-//! and the rest of this 100+ section spec — is not attempted this
-//! pass.
+//! which this doc comment now does. Everything past §21 — atomic
+//! rename/temp-file/orphan cleanup (§22-24), blob reference recovery
+//! (§25+), DTN/gateway recovery, and the rest of this 100+ section
+//! spec — is not attempted this pass.
 
+pub mod chunk_recovery;
+pub mod finalization_recovery;
 pub mod idempotent_steps;
 pub mod messaging_recovery;
 pub mod operation_state;
@@ -106,6 +131,13 @@ pub mod staged_intent;
 pub mod state_machine;
 pub mod transaction_group;
 
+pub use chunk_recovery::{
+    reconcile_chunk_on_restart, ChunkRecoveryAction, ChunkRecoveryMap, ChunkRecoveryState,
+    TransferId,
+};
+pub use finalization_recovery::{
+    reconcile_finalization, FinalizationRecoveryAction, FinalizationState,
+};
 pub use idempotent_steps::{
     run_recovery, RecoveryLedger, RecoveryStep, RecoveryStepError, RecoveryStepId,
 };
