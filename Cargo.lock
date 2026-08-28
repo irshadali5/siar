@@ -7144,9 +7144,11 @@ name = "siar-crash-recovery"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "siar-blob-manifest",
  "siar-domain",
  "siar-event-log",
  "thiserror 2.0.19",
+ "uuid",
 ]
 
 [[package]]

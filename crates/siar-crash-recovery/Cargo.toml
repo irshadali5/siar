@@ -10,5 +10,7 @@ serde.workspace = true
 thiserror.workspace = true
 siar-domain = { path = "../siar-domain" }
 siar-event-log = { path = "../siar-event-log" }
+siar-blob-manifest = { path = "../siar-blob-manifest" }
+uuid.workspace = true
 
 [dev-dependencies]
