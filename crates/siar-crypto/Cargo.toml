@@ -7,6 +7,7 @@ rust-version.workspace = true
 
 [dependencies]
 siar-domain.workspace = true
+siar-identity-multidevice.workspace = true
 ed25519-dalek.workspace = true
 x25519-dalek.workspace = true
 chacha20poly1305.workspace = true
@@ -16,3 +17,6 @@ zeroize.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 bytes.workspace = true
+
+[dev-dependencies]
+postcard.workspace = true
