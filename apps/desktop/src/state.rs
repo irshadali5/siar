@@ -36,6 +36,8 @@ pub struct AppState {
     /// image (see that type's doc comment) — its own slice for the same
     /// granular-re-render reason as `groups`/`pending_invites`/`contacts`.
     pub attachment_previews: Signal<AttachmentPreviewState>,
+    /// Part 28 §42: security events view model state.
+    pub security_events: Signal<siar_ui_state::SecurityEventState>,
     pub command_tx: Signal<Option<mpsc::Sender<AppCommand>>>,
 }
 
@@ -50,6 +52,7 @@ impl AppState {
             pending_invites: Signal::new(PendingInviteState::new()),
             contacts: Signal::new(ContactListState::new()),
             attachment_previews: Signal::new(AttachmentPreviewState::new()),
+            security_events: Signal::new(siar_ui_state::SecurityEventState::new()),
             command_tx: Signal::new(None),
         }
     }

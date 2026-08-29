@@ -21,6 +21,7 @@
 
 mod app;
 mod components;
+mod security_events;
 mod state;
 
 use anyhow::{Context, Result};
