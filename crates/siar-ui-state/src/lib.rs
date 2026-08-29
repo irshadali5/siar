@@ -22,6 +22,7 @@ mod contact_list;
 mod conversation_list;
 mod group_list;
 mod network;
+mod security_event;
 mod timeline;
 
 pub use attachment_preview::{AttachmentPreview, AttachmentPreviewState};
@@ -33,4 +34,7 @@ pub use group_list::{
     AddMemberInput, GroupListState, GroupSummary, PendingInvite, PendingInviteState,
 };
 pub use network::{NetworkState, NetworkStatus, PeerReachability};
+pub use security_event::{
+    SecurityEvent, SecurityEventKind, SecurityEventSeverity, SecurityEventState,
+};
 pub use timeline::{TimelineState, TimelineWindow};

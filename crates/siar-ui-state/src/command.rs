@@ -99,4 +99,12 @@ pub enum AppEvent {
         message_id: MessageId,
     },
     NetworkChanged(crate::NetworkState),
+    /// Part 28 §42: a background task translates a real security event
+    /// (a verified `DeviceRevocation`, a `SecurityEpoch` advance from a
+    /// root-key rotation, a new `DeviceCertificate`) into
+    /// `crate::SecurityEventKind` before ever constructing this
+    /// variant — see `security_event.rs`'s own top doc comment for why
+    /// that translation, not a `siar-crypto` dependency here, is what
+    /// keeps this crate's boundary rule intact.
+    SecurityEventRaised(crate::SecurityEventKind),
 }
