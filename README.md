@@ -63,7 +63,7 @@
 
 ### Core Architecture & Language Hierarchy
 
-- **Rust is the Primary & Core Engine**: 95%+ of the SIAR codebase is written in pure, modern Rust. All core cryptography, binary protocol framing, DTN store-carry-forward queues, path routing, storage engines, and multi-transport socket management are implemented entirely in Rust for maximum memory safety and bare-metal performance.
+- **Rust is the Primary & Core Engine**: the SIAR codebase is written in pure, modern Rust. All core cryptography, binary protocol framing, DTN store-carry-forward queues, path routing, storage engines, and multi-transport socket management are implemented entirely in Rust for maximum memory safety and bare-metal performance.
 - **Kotlin for Android UI Only**: Kotlin is strictly used in `apps/android` for the Jetpack Compose User Interface and native Android OS permissions/hardware bindings, interfacing directly with the Rust core engine via zero-copy C-ABI JNI bridges.
 
 ### Deployment Modes: Standalone App & Headless Off-Grid Repeater/Booster
