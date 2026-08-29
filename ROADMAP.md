@@ -102,7 +102,7 @@ now.
 | 12 | Nearby / QR / NFC Pairing / Device Linking | ⚪ (Part 15 has no crate either — joint gap) |
 | 13 | Notifications / Background / Incoming Call | ⚪ (Part 31 has no crate either — joint gap) |
 | 14 | Presence / Typing / Receipts / Status | ⚪ (Part 30 has no crate either — joint gap) |
-| **15** | **Security Center / Devices / Keys / Recovery** | 🟡 **§3-25 of 8 sections done this round** (Overview + Devices — `SecurityHealth`, `DeviceListState`, `DeviceSecurityView`, verified in `siar-ui-state`; desktop `DevicesScreen` component written, unverified — see Tier 3). Identity & Verification, Recovery, Backups, Privacy, Advanced not started. |
+| **15** | **Security Center / Devices / Keys / Recovery** | 🟡 **§3-39 of 8 sections done** (Overview + Devices, including reauthentication semantics, last-trusted-device guard, lost/stolen device guided flows, compromise-response checklist — all in `siar-ui-state`, verified; desktop `DevicesScreen` component written, unverified — see Tier 3). §40-47 (Security Events Screen) needs reconciliation — this workspace's Part 28 §42 work (`security_event.rs`) used a simpler 3-kind/2-severity model than this spec's own literal §40-42 (11 kinds, 3-tier severity, resolved/actions/related-device/related-contact fields) — not yet reconciled, flagged as real remaining work, not silently claimed done. Identity & Verification (§48+), Recovery, Backups, Privacy, Advanced not started. |
 | 16 | Backup / Restore / Export / Migration | ⚪ (Part 33 has no crate either — joint gap) |
 | 17 | Emergency SOS / Offline Mesh | ⚪ (siar-emergency crate pre-exists, unreconciled) |
 | 18 | Settings / Privacy / Notifications / Data Controls | ⚪ |
@@ -141,22 +141,34 @@ one-off caveat.
 
 ## Suggested next priorities, in order
 
-1. **Finish `ui-ux-15` Identity & Verification section** — directly
-   consumes `SafetyFingerprint` (Part 28 §43) and `PeerTrustState`
-   (§40-41), both already built; highest-leverage next slice in Tier 2.
-2. **`ui-ux-22` Design System** — tokens/typography/icons/motion that
+1. **Reconcile `ui-ux-15` §40-47 (Security Events Screen)** against the
+   simpler Part 28 §42 model already built — the spec's own literal
+   `SecurityEventKind` has 11 variants (this workspace only has real
+   backend signals for 3 today: device linked, device revoked, root
+   identity changed); decide whether to widen the enum now (adding
+   variants nothing can construct yet) or keep it honestly scoped to
+   what's real and revisit as backend coverage grows.
+2. Finish `ui-ux-15`'s remaining sections: Identity & Verification
+   (§48+, directly consumes `SafetyFingerprint`), Recovery, Backups,
+   Privacy, Advanced.
+3. **`ui-ux-22` Design System** — tokens/typography/icons/motion that
    every other visual spec in this tier implicitly depends on; doing it
    later means retrofitting styling into everything built before it.
-3. **Part 28 §46-92 in ordinary batches** — abuse resistance and
+4. **Part 28 §46-92 in ordinary batches** — abuse resistance and
    embedded/plugin/FFI security boundaries are the two sub-areas most
    likely to matter soon given `siar-protocol-ext`'s existing extension
    mechanism (Part 01) and the still-unstarted Parts 21/24
    (third-party extensions / plugin ecosystem).
-4. **Joint gaps** (spec pairs where both the core-arch and ui-ux spec
+5. **Joint gaps** (spec pairs where both the core-arch and ui-ux spec
    are ⚪): 11+32 (search), 12+15 (QR/NFC pairing), 13+31
    (notifications), 14+30 (presence/receipts), 16+33 (backup), 19+24
    (plugins), 20+18 (diagnostics). Each pair is naturally one unit of
    work (backend + its UI together), not two separate efforts.
-5. **The four Part 28 subsystems** (ratchet, groups/MLS, test harness,
-   crate split) — deliberately last; each needs its own dedicated,
-   scoped effort rather than sharing a round with anything else.
+6. **Deliberately last, by explicit priority call**: plugin/module
+   ecosystem (Part 24, ui-ux-19), WASM components (Part 22), third-party
+   protocol extensions (Part 21), external interoperability (Part 23).
+   Usability and reliability come first; extensibility/ecosystem work
+   is lower priority until the core product is solid.
+7. **The four Part 28 subsystems** (ratchet, groups/MLS, test harness,
+   crate split) — each needs its own dedicated, scoped effort rather
+   than sharing a round with anything else.
