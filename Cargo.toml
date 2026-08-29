@@ -84,7 +84,7 @@ siar-media-image = { path = "crates/siar-media-image" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "net", "io-std", "io-util"] }
 serde = { version = "1", features = ["derive"] }
 postcard = { version = "1", features = ["alloc"] }
-bytes = "1"
+bytes = { version = "1", features = ["serde"] }
 thiserror = "2"
 anyhow = "1"
 tracing = "0.1"

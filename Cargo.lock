@@ -7156,10 +7156,12 @@ name = "siar-crypto"
 version = "0.1.0"
 dependencies = [
  "blake3",
+ "bytes",
  "chacha20poly1305",
  "ed25519-dalek 2.2.0",
  "rand_core 0.6.4",
  "serde",
+ "siar-domain",
  "thiserror 2.0.19",
  "x25519-dalek 2.0.1",
  "zeroize",
