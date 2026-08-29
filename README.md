@@ -5,11 +5,21 @@
 <h1 align="center">SIAR: Survivable Identity & Autonomous Routing</h1>
 
 <p align="center">
-  <a href="#license--duality-model"><img src="https://img.shields.io/badge/license-MIT%20%2F%20Apache--2.0%20(Libs)%20%7C%20AGPLv3%20(Apps)-blue.svg" alt="License"/></a>
-  <a href="#build--compilation-tutorial"><img src="https://img.shields.io/badge/build-passing-brightgreen.svg" alt="Build Status"/></a>
-  <a href="https://irshadali5.github.io/siar/"><img src="https://img.shields.io/badge/docs-GitHub%20Pages-purple.svg" alt="Documentation"/></a>
-  <a href="https://github.com/irshadali5/siar/wiki"><img src="https://img.shields.io/badge/wiki-GitHub-orange.svg" alt="Wiki"/></a>
+  <a href="https://irshadali5.github.io/siar-site/"><img src="https://img.shields.io/badge/Official%20Site-siar--site-00f2fe?style=flat-square" alt="Official Website"/></a>
+  <a href="https://irshadali5.github.io/siar-site/guide.html"><img src="https://img.shields.io/badge/User%20Manual-Guide%20%26%20Ops-34d399?style=flat-square" alt="User Manual"/></a>
+  <a href="https://irshadali5.github.io/siar-site/sys-arch/"><img src="https://img.shields.io/badge/Architecture-mdBook%20Portal-a78bfa?style=flat-square" alt="Architecture Specs"/></a>
+  <a href="https://irshadali5.github.io/siar-site/docs.html"><img src="https://img.shields.io/badge/Developer-C--ABI%20%26%20APIs-38bdf8?style=flat-square" alt="Developer Hub"/></a>
+  <a href="https://irshadali5.github.io/siar-site/packages.html"><img src="https://img.shields.io/badge/Downloads-Packages-fbbf24?style=flat-square" alt="Package Center"/></a>
+  <a href="#license--duality-model"><img src="https://img.shields.io/badge/License-MIT%20%2F%20Apache--2.0%20%7C%20AGPLv3-blue.svg?style=flat-square" alt="License"/></a>
 </p>
+
+> **Official Showcase, Package Center & Live Architecture Documentation:**
+> - 🌐 **[Official Product Presentation](https://irshadali5.github.io/siar-site/)**
+> - 📘 **[End-to-End User & Operations Manual](https://irshadali5.github.io/siar-site/guide.html)** (Downloading, Zero-Knowledge Setup, QR/NFC Pairing, Vault Export/Import & Anti-Forensics)
+> - 📑 **[System Architecture & Protocol Specs (mdBook)](https://irshadali5.github.io/siar-site/sys-arch/)**
+> - 📦 **[Universal Package Center](https://irshadali5.github.io/siar-site/packages.html)** (.deb, .rpm, .apk, .dmg, brew, winget)
+> - 🔬 **[Interactive WASM Mesh Simulator Lab](https://irshadali5.github.io/siar-site/simulator.html)**
+> - 🛡️ **[SLSA Level 3+ Supply Chain Cryptographic Verifier](https://irshadali5.github.io/siar-site/verify.html)**
 
 **SIAR** (*Survivable Identity & Autonomous Routing*) is a zero-infrastructure, multi-transport, offline-first decentralized messaging and delay-tolerant networking (DTN) platform.
 
