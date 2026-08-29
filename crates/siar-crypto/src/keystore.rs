@@ -22,6 +22,7 @@
 //! of a derive so that adding a field later can never accidentally start
 //! printing key material through a forgotten derive.
 
+use crate::platform_keystore::KeyStorageBackend;
 use crate::CryptoError;
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use rand_core::OsRng;
@@ -58,6 +59,12 @@ pub trait SecureKeyStore {
     /// nothing outside this store could ever check a signature it
     /// produced.
     fn verifying_key(&self, key: &KeyHandle) -> Result<VerifyingKey, CryptoError>;
+
+    /// §8: which storage backend this implementation actually uses.
+    /// Lets a caller check `KeyStorageBackend::is_non_exportable`
+    /// before trusting a store with, say, an account root key — rather
+    /// than every implementation silently claiming to be equally safe.
+    fn backend(&self) -> KeyStorageBackend;
 }
 
 /// Software-only reference implementation. Keys live in process memory
@@ -114,6 +121,10 @@ impl SecureKeyStore for InMemorySecureKeyStore {
             .map(SigningKey::verifying_key)
             .ok_or(CryptoError::MalformedKey)
     }
+
+    fn backend(&self) -> KeyStorageBackend {
+        KeyStorageBackend::InMemorySoftware
+    }
 }
 
 #[cfg(test)]
@@ -163,5 +174,12 @@ mod tests {
         // by which key bytes could appear here — this assertion mainly
         // guards against someone later replacing the impl with a derive.
         assert!(!debug_str.contains("SigningKey"));
+    }
+
+    #[test]
+    fn in_memory_store_truthfully_reports_its_backend() {
+        let store = InMemorySecureKeyStore::new();
+        assert_eq!(store.backend(), KeyStorageBackend::InMemorySoftware);
+        assert!(!store.backend().is_non_exportable());
     }
 }
