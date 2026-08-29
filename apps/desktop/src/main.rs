@@ -21,6 +21,7 @@
 
 mod app;
 mod components;
+mod security_center;
 mod security_events;
 mod state;
 

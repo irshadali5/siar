@@ -36,8 +36,16 @@ pub struct AppState {
     /// image (see that type's doc comment) — its own slice for the same
     /// granular-re-render reason as `groups`/`pending_invites`/`contacts`.
     pub attachment_previews: Signal<AttachmentPreviewState>,
-    /// Part 28 §42: security events view model state.
+    /// Part 28 §42 — see `security_events.rs`'s own top doc comment for
+    /// the same unverified-in-sandbox caveat that applies to this field
+    /// too (it's a one-line, low-risk addition, but this whole file is
+    /// being delivered without a real `cargo build` behind it, so it's
+    /// flagged along with everything else in this round that touches
+    /// `apps/desktop`).
     pub security_events: Signal<siar_ui_state::SecurityEventState>,
+    /// ui-ux-15 §11-17. Same unverified-in-sandbox caveat as
+    /// `security_events` above.
+    pub device_list: Signal<siar_ui_state::DeviceListState>,
     pub command_tx: Signal<Option<mpsc::Sender<AppCommand>>>,
 }
 
@@ -53,6 +61,7 @@ impl AppState {
             contacts: Signal::new(ContactListState::new()),
             attachment_previews: Signal::new(AttachmentPreviewState::new()),
             security_events: Signal::new(siar_ui_state::SecurityEventState::new()),
+            device_list: Signal::new(siar_ui_state::DeviceListState::new()),
             command_tx: Signal::new(None),
         }
     }
