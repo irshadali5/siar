@@ -210,6 +210,7 @@ pub mod invite;
 pub mod link_key;
 pub mod revocation;
 pub mod root_key;
+pub mod safety_fingerprint;
 pub mod trust_store;
 pub mod verification_code;
 
@@ -228,5 +229,6 @@ pub use invite::DeviceLinkInvite;
 pub use link_key::{EphemeralLinkKeyPair, EphemeralLinkPublicKey};
 pub use revocation::{revoke_device, verify_revocation, RevocationError};
 pub use root_key::{RootIdentityKey, RootPublicKey};
+pub use safety_fingerprint::SafetyFingerprint;
 pub use trust_store::TrustedAccountStore;
 pub use verification_code::derive_verification_code;
