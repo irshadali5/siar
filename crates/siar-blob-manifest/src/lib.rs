@@ -98,6 +98,7 @@ pub mod encryption;
 pub mod ids;
 pub mod limits;
 pub mod manifest;
+pub mod metadata_encryption;
 pub mod resume;
 pub mod transfer_state;
 pub mod verify;
@@ -111,6 +112,7 @@ pub use encryption::{decrypt_blob, encrypt_blob, generate_blob_key, EncryptionEr
 pub use ids::{BlobEncryptionKey, BlobId, ChunkHash, LogicalAttachmentId, ManifestId};
 pub use limits::ManifestLimits;
 pub use manifest::{build_manifest, BlobManifest, ChunkDescriptor, ManifestError};
+pub use metadata_encryption::{decrypt_file_metadata, encrypt_file_metadata};
 pub use resume::ResumeBitmap;
 pub use transfer_state::{InvalidTransition, TransferEvent, TransferState};
 pub use verify::{verify_chunk, verify_complete_blob};
