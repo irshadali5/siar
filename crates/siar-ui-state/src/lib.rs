@@ -22,6 +22,7 @@ mod contact_list;
 mod conversation_list;
 mod group_list;
 mod network;
+mod security_center;
 mod security_event;
 mod timeline;
 
@@ -34,6 +35,10 @@ pub use group_list::{
     AddMemberInput, GroupListState, GroupSummary, PendingInvite, PendingInviteState,
 };
 pub use network::{NetworkState, NetworkStatus, PeerReachability};
+pub use security_center::{
+    DeviceKind, DeviceListState, DeviceSecurityFlag, DeviceSecurityView, DeviceTrustState,
+    SecurityHealth, SecurityOverview,
+};
 pub use security_event::{
     SecurityEvent, SecurityEventKind, SecurityEventSeverity, SecurityEventState,
 };
