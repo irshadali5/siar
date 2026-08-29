@@ -20,6 +20,7 @@ mod command;
 mod composer;
 mod contact_list;
 mod conversation_list;
+mod device_lifecycle;
 mod group_list;
 mod network;
 mod security_center;
@@ -31,6 +32,10 @@ pub use command::{AppCommand, AppEvent};
 pub use composer::ComposerState;
 pub use contact_list::{ContactListState, SavedContact};
 pub use conversation_list::{ConversationKind, ConversationListState, ConversationSummary};
+pub use device_lifecycle::{
+    is_last_trusted_device, CompromiseResponseChecklist, CompromiseResponseStep, DeviceLossFlowState,
+    DeviceLossFlowStep, DeviceLossKind, ReauthPurpose, ReauthResult,
+};
 pub use group_list::{
     AddMemberInput, GroupListState, GroupSummary, PendingInvite, PendingInviteState,
 };
