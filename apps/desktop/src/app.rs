@@ -93,9 +93,9 @@ pub fn App() -> Element {
 
     rsx! {
         div { class: "app",
-            crate::security_events::StrongSecurityWarningBanner {}
+            crate::security_events::CriticalSecurityWarningBanner {}
             components::NetworkBadge {}
-            crate::security_events::SecurityEventList {}
+            crate::security_events::SecurityEventsScreen { filter: siar_ui_state::SecurityEventFilter::All }
             div { class: "pairing",
                 p { "your ticket: {my_ticket_text}" }
                 components::PeerPairing { active_peer: active_peer.0 }

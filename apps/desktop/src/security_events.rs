@@ -1,52 +1,54 @@
-//! Security events UI (Part 28 §42, "Identity Change UX").
+//! Security Events Screen (ui-ux-15 §40-47).
 //!
-//! Follows `components.rs`'s own established shape: a leaf component
-//! subscribing to exactly the state slice it renders
-//! (`state.security_events`, a `Signal<SecurityEventState>`).
+//! ⚠️ NOT compiled or tested — same caveat as every other
+//! `apps/desktop` file in this series. `siar-ui-state`'s
+//! `SecurityEventState`/`SecurityEventKind`/`SecurityEventSeverity`
+//! *are* real and compile+test-verified; only this rendering code is
+//! unverified. Build locally (`cargo build -p siar-desktop`) and paste
+//! back errors.
+//!
+//! **Rewritten this round**: the previous version of this file matched
+//! an earlier, narrower `SecurityEventKind` (3 variants,
+//! `Notice`/`StrongWarning` severity) that has since been widened to
+//! match this spec's own §41/§42 literally (11 variants,
+//! `Info`/`Warning`/`Critical`). This version matches the current
+//! `siar-ui-state` API — the old variant names (`NewDeviceLinked`,
+//! `RootIdentityChanged`) no longer exist, so the previous version of
+//! this file would no longer compile even setting aside the
+//! iroh/rustc-version issue.
 
 use crate::state::AppState;
 use dioxus::prelude::*;
-use siar_ui_state::{SecurityEventKind, SecurityEventSeverity};
+use siar_ui_state::{SecurityEvent, SecurityEventFilter, SecurityEventKind, SecurityEventSeverity};
 
-/// Renders any unacknowledged `StrongWarning`-severity events (§42:
-/// "a root/account identity change should trigger a strong warning")
-/// as a blocking modal-style banner the user must acknowledge before
-/// it's dismissed — not a passive toast, since §42's own wording
-/// ("strong warning") implies something a user can't accidentally miss
-/// the way a corner toast can be missed.
-///
-/// This is deliberately separate from `SecurityEventList` below rather
-/// than one component handling both severities — a `StrongWarning`
-/// needs to interrupt; a `Notice` (new device linked, device revoked)
-/// doesn't, and folding both into one component risks the notice case
-/// accidentally inheriting the warning case's blocking behavior later.
+/// §47: interrupts on unresolved `Critical` events specifically —
+/// narrower than "every unresolved event," matching
+/// `SecurityEventState::unresolved_critical_events`'s own reasoning.
 #[component]
-pub fn StrongSecurityWarningBanner() -> Element {
+pub fn CriticalSecurityWarningBanner() -> Element {
     let mut state = use_context::<AppState>();
-    let warnings: Vec<(usize, siar_ui_state::SecurityEvent)> = state
+    let critical: Vec<SecurityEvent> = state
         .security_events
         .read()
-        .events()
-        .iter()
-        .enumerate()
-        .filter(|(_, e)| !e.acknowledged && e.kind.severity() == SecurityEventSeverity::StrongWarning)
-        .map(|(i, e)| (i, e.clone()))
+        .unresolved_critical_events()
+        .into_iter()
+        .cloned()
         .collect();
 
-    if warnings.is_empty() {
+    if critical.is_empty() {
         return rsx! {};
     }
 
     rsx! {
-        div { class: "strong-security-warning-overlay",
-            for (index, event) in warnings {
-                div { class: "strong-security-warning-banner",
-                    key: "{index}",
+        div { class: "critical-security-warning-overlay",
+            for event in critical {
+                div { class: "critical-security-warning-banner",
+                    key: "{event.id:?}",
                     span { class: "warning-icon", "⚠" }
-                    p { class: "warning-text", "{strong_warning_text(&event.kind)}" }
+                    p { class: "warning-text", "{event_headline(event.kind)}" }
                     button {
                         class: "acknowledge-button",
-                        onclick: move |_| state.security_events.write().acknowledge(index),
+                        onclick: move |_| state.security_events.write().resolve(event.id),
                         "I understand"
                     }
                 }
@@ -55,54 +57,40 @@ pub fn StrongSecurityWarningBanner() -> Element {
     }
 }
 
-fn strong_warning_text(kind: &SecurityEventKind) -> String {
-    match kind {
-        SecurityEventKind::RootIdentityChanged { .. } => {
-            "This contact's root identity has changed. Their safety fingerprint no longer \
-             matches what you previously verified. Before continuing, re-verify their identity \
-             — this can happen after a legitimate account recovery, but it can also mean your \
-             conversation is no longer as secure as you previously confirmed."
-                .to_string()
-        }
-        // `StrongSecurityWarningBanner` only ever receives
-        // `StrongWarning`-severity events (see its own filter above),
-        // and `RootIdentityChanged` is the only variant
-        // `SecurityEventKind::severity()` maps to that tier today — see
-        // `siar-ui-state`'s `security_event.rs`. This arm exists so a
-        // future new `StrongWarning`-severity variant fails to compile
-        // here (a non-exhaustive match) rather than silently falling
-        // through with no message.
-        other => format!("A security event requires your attention: {other:?}"),
-    }
-}
-
-/// Renders `Notice`-severity events (new device linked, device
-/// revoked) as a dismissible list — informational, not blocking,
-/// matching §42's own distinction from the strong-warning case above.
+/// §43's filterable list screen. `filter` is owned by whatever parent
+/// component tracks the active tab — kept as a plain prop rather than
+/// this component owning tab-selection state itself, matching
+/// `components.rs`'s established pattern of leaf components rendering
+/// exactly the slice they're given.
 #[component]
-pub fn SecurityEventList() -> Element {
+pub fn SecurityEventsScreen(filter: SecurityEventFilter) -> Element {
     let mut state = use_context::<AppState>();
-    let notices: Vec<(usize, siar_ui_state::SecurityEvent)> = state
+    let events: Vec<SecurityEvent> = state
         .security_events
         .read()
-        .events()
-        .iter()
-        .enumerate()
-        .filter(|(_, e)| !e.acknowledged && e.kind.severity() == SecurityEventSeverity::Notice)
-        .map(|(i, e)| (i, e.clone()))
+        .filtered(filter)
+        .into_iter()
+        .cloned()
         .collect();
 
     rsx! {
         ul { class: "security-event-list",
-            for (index, event) in notices {
+            for event in events {
+                // §44: title / time / severity / resolved-unresolved /
+                // related device or contact.
                 li {
-                    key: "{index}",
-                    class: "security-event-notice",
-                    span { class: "notice-text", "{notice_text(&event.kind)}" }
-                    button {
-                        class: "dismiss-button",
-                        onclick: move |_| state.security_events.write().acknowledge(index),
-                        "Dismiss"
+                    key: "{event.id:?}",
+                    class: "security-event-row severity-{severity_class(event.severity)}",
+                    span { class: "event-title", "{event_headline(event.kind)}" }
+                    span { class: "event-severity-badge", "{severity_label(event.severity)}" }
+                    if event.resolved {
+                        span { class: "event-resolved-badge", "Resolved" }
+                    } else {
+                        button {
+                            class: "resolve-button",
+                            onclick: move |_| state.security_events.write().resolve(event.id),
+                            "Mark resolved"
+                        }
                     }
                 }
             }
@@ -110,16 +98,40 @@ pub fn SecurityEventList() -> Element {
     }
 }
 
-fn notice_text(kind: &SecurityEventKind) -> String {
+/// §44's "title" field. §46: "avoid raw crypto errors" — every arm here
+/// is plain, non-technical language, never a propagated error message
+/// or a raw type/field name.
+fn event_headline(kind: SecurityEventKind) -> &'static str {
     match kind {
-        SecurityEventKind::NewDeviceLinked { device } => {
-            format!("A new device was linked to your account ({}).", device.fmt_short())
+        SecurityEventKind::DeviceLinked => "A new device was linked to your account.",
+        SecurityEventKind::DeviceRevoked => "A device was removed from your account.",
+        SecurityEventKind::DeviceLinkDenied => "A device linking attempt was denied.",
+        SecurityEventKind::IdentityChanged => {
+            "A contact's identity has changed. Re-verify before continuing."
         }
-        SecurityEventKind::DeviceRevoked { device } => {
-            format!("A device was removed from your account ({}).", device.fmt_short())
-        }
-        // Same exhaustiveness reasoning as `strong_warning_text` above,
-        // mirrored for the `Notice` tier.
-        other => format!("{other:?}"),
+        SecurityEventKind::VerificationFailed => "Identity verification failed.",
+        SecurityEventKind::RecoveryConfigured => "Account recovery was set up.",
+        SecurityEventKind::RecoveryChanged => "Your account recovery settings changed.",
+        SecurityEventKind::BackupFailed => "A backup attempt failed.",
+        SecurityEventKind::KeyRotation => "Your security keys were rotated.",
+        SecurityEventKind::SuspiciousAuthorization => "A suspicious authorization attempt was blocked.",
+        SecurityEventKind::SecurityPolicyChanged => "Your organization's security policy changed.",
+        SecurityEventKind::KeyExpiryActionRequired => "A security key requires renewal action.",
+    }
+}
+
+fn severity_label(severity: SecurityEventSeverity) -> &'static str {
+    match severity {
+        SecurityEventSeverity::Info => "Info",
+        SecurityEventSeverity::Warning => "Warning",
+        SecurityEventSeverity::Critical => "Critical",
+    }
+}
+
+fn severity_class(severity: SecurityEventSeverity) -> &'static str {
+    match severity {
+        SecurityEventSeverity::Info => "info",
+        SecurityEventSeverity::Warning => "warning",
+        SecurityEventSeverity::Critical => "critical",
     }
 }
