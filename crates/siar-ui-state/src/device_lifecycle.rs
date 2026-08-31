@@ -16,12 +16,22 @@ use siar_domain::DeviceId;
 
 use crate::security_center::DeviceListState;
 
-/// §30, verbatim.
+/// §30, verbatim, plus one addition: `RotateIdentityKey` isn't in
+/// §30's own listed five — added because §54 (Identity & Verification
+/// section, "Manual Key Rotation... Advanced/security operation. Needs
+/// explicit explanation") names a real, distinct operation from both
+/// `RotateRecoveryKey` (the recovery secret) and `ResetIdentity` (full
+/// identity reset, §55-57) — rotating the identity signing key itself
+/// without discarding the whole identity. Treated as its own reauth
+/// purpose rather than folded into `ResetIdentity`, since §54 and §55
+/// are explicitly two different risk tiers in the spec's own section
+/// numbering.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReauthPurpose {
     RevokeDevice(DeviceId),
     ShowRecoveryKey,
     RotateRecoveryKey,
+    RotateIdentityKey,
     ResetIdentity,
     ExportRecoveryMaterial,
 }
@@ -171,16 +181,41 @@ pub enum CompromiseResponseStep {
     RotateRecoveryMaterialIfNecessary,
     VerifyBackup,
     ReviewRecentSecurityEvents,
+    /// Not in §38's own five-step list — added when reconciling
+    /// against §184 (Integration section, a *second*, later checklist
+    /// this same spec gives for the same "I think I've been
+    /// compromised" scenario). §184's own order is: revoke unknown
+    /// devices, review recent security events, verify recovery method,
+    /// **re-verify affected contacts if identity changed**, create
+    /// fresh backup. That's a real, documented spec-internal
+    /// inconsistency, not a mistake on this crate's part — §38 and
+    /// §184 partially overlap (both start with revoke; both mention
+    /// security events and backup) but order and exact steps differ.
+    /// Rather than silently pick one interpretation or reorder the
+    /// already-shipped `ORDER` (which earlier rounds' tests already
+    /// depend on), this extends the existing checklist with §184's two
+    /// genuinely new steps, appended at the end, leaving the original
+    /// five in their original order.
+    ReVerifyAffectedContacts,
+    /// See `ReVerifyAffectedContacts`'s doc comment — §184's fifth
+    /// step. Distinct from `VerifyBackup` above: verifying an existing
+    /// backup still works is not the same action as creating a new one
+    /// after a suspected compromise.
+    CreateFreshBackup,
 }
 
 impl CompromiseResponseStep {
-    /// §38's own order, verbatim.
-    pub const ORDER: [Self; 5] = [
+    /// §38's own order, verbatim, with §184's two additional steps
+    /// appended — see `ReVerifyAffectedContacts`'s doc comment for why
+    /// this is an extension, not a reordering.
+    pub const ORDER: [Self; 7] = [
         Self::RevokeSuspiciousDevices,
         Self::ReviewIdentityState,
         Self::RotateRecoveryMaterialIfNecessary,
         Self::VerifyBackup,
         Self::ReviewRecentSecurityEvents,
+        Self::ReVerifyAffectedContacts,
+        Self::CreateFreshBackup,
     ];
 }
 
@@ -300,5 +335,30 @@ mod tests {
         }
         assert!(checklist.all_complete());
         assert_eq!(checklist.next_step(), None);
+    }
+
+    /// ui-ux-15 §184: confirms the two steps added when reconciling
+    /// against this later checklist are real, distinct, reachable
+    /// steps — not just declared but never exercised.
+    #[test]
+    fn the_two_steps_added_for_section_184_are_reachable_and_distinct() {
+        let mut checklist = CompromiseResponseChecklist::new();
+        for step in [
+            CompromiseResponseStep::RevokeSuspiciousDevices,
+            CompromiseResponseStep::ReviewIdentityState,
+            CompromiseResponseStep::RotateRecoveryMaterialIfNecessary,
+            CompromiseResponseStep::VerifyBackup,
+            CompromiseResponseStep::ReviewRecentSecurityEvents,
+        ] {
+            checklist.mark_complete(step);
+        }
+        assert!(!checklist.all_complete());
+        assert_eq!(checklist.next_step(), Some(CompromiseResponseStep::ReVerifyAffectedContacts));
+
+        checklist.mark_complete(CompromiseResponseStep::ReVerifyAffectedContacts);
+        assert_eq!(checklist.next_step(), Some(CompromiseResponseStep::CreateFreshBackup));
+
+        checklist.mark_complete(CompromiseResponseStep::CreateFreshBackup);
+        assert!(checklist.all_complete());
     }
 }

@@ -243,4 +243,28 @@ mod tests {
         assert_eq!(state.pending().count(), 1);
         assert_eq!(state.trusted().count(), 1);
     }
+
+    /// ui-ux-15 §120: "Do not show stale 'trusted' device after
+    /// revocation." Not new logic — proving a property this type
+    /// already had, since `set_devices` is a full replace and
+    /// `trusted()` filters strictly on `status == Trusted`, so a
+    /// device that transitioned to `Revoked` in the caller's data
+    /// simply doesn't match that filter on the next read. This test
+    /// exists to make that guarantee explicit and regression-checked,
+    /// not to add behavior.
+    #[test]
+    fn a_device_that_transitions_to_revoked_no_longer_appears_trusted() {
+        let mut state = DeviceListState::new();
+        let device = sample_device(DeviceTrustState::Trusted, false);
+        let device_id = device.id;
+        state.set_devices(vec![device]);
+        assert_eq!(state.trusted().count(), 1);
+
+        let mut revoked = sample_device(DeviceTrustState::Revoked, false);
+        revoked.id = device_id;
+        state.set_devices(vec![revoked]);
+
+        assert_eq!(state.trusted().count(), 0);
+        assert_eq!(state.revoked_or_history().count(), 1);
+    }
 }

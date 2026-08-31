@@ -1,97 +1,218 @@
-//! Security event view-model state (Part 28 §42, "Identity Change UX").
+//! Security Events Screen (ui-ux-15 §40-47), reconciling and widening
+//! the simpler model this module previously held (which implemented
+//! Part 28 §42, "Identity Change UX", specifically).
 //!
-//! §42's own rule set: "Routine session-key rotation should be
-//! invisible. A root/account identity change should trigger a strong
-//! warning. A newly added device should trigger a security event on
-//! existing trusted devices." This module is the UI-facing shape of
-//! that rule — a plain, `siar-crypto`-independent state slice
-//! (following this crate's own dependency rule: `siar-domain` only —
-//! see `lib.rs`'s top doc comment) that a component can render as a
-//! banner/list, populated by whatever background task translates real
-//! `siar-crypto`/`siar-identity-multidevice` events (a `SecurityEpoch`
-//! advance, a verified `DeviceRevocation`, a new `DeviceCertificate`)
-//! into this crate's own event shape — the same `AppEvent`-mediated
-//! boundary `command.rs`'s own doc comment already describes for every
-//! other backend→UI event in this crate, applied here rather than
-//! reinvented.
+//! **What changed and why**: the previous version of this module had
+//! a 3-variant `SecurityEventKind` (`NewDeviceLinked`, `DeviceRevoked`,
+//! `RootIdentityChanged`) and a 2-tier `SecurityEventSeverity`
+//! (`Notice`/`StrongWarning`) — accurate to Part 28 §42's own text, but
+//! narrower than this spec's own §41/§42, which define an 11-kind,
+//! fieldless `SecurityEventKind` and a 3-tier `Info`/`Warning`/
+//! `Critical` severity. Those are two different specs' models that
+//! happened to share a name; a previous round's roadmap entry noted
+//! this section as "already covered," which undersold the gap — this
+//! is the correction, widening the existing type in place (same
+//! module, same exported names where they still apply) rather than
+//! adding a second, parallel type.
 //!
-//! §42's "routine rotation should be invisible" isn't a variant here at
-//! all — there is deliberately no `SecurityEventKind::RoutineRotation`.
-//! Routine, expected events are simply never turned into a
-//! `SecurityEvent` by whatever populates this state; "invisible" means
-//! "never constructed," not "constructed and then filtered by
-//! severity."
+//! §41's `SecurityEventKind` is fieldless in the spec's own sketch —
+//! `related_device`/`related_contact` live on `SecurityEvent` itself
+//! (§40), not embedded per-variant. Only 3 of the 11 kinds have a real
+//! backend signal anywhere in this workspace today (device linked,
+//! device revoked, identity changed); the other 8
+//! (`DeviceLinkDenied`, `VerificationFailed`, `RecoveryConfigured`,
+//! `RecoveryChanged`, `BackupFailed`, `KeyRotation`,
+//! `SuspiciousAuthorization`, `SecurityPolicyChanged`) are included
+//! because §41 defines them as part of the type's own literal shape —
+//! same precedent as `trust.rs`'s `TrustSource` (Part 28 §41, a
+//! different §41) — not because anything can construct them yet. A
+//! caller trying to raise one of the 8 unbacked kinds today has no
+//! wired path to do so; that's an honest gap, not a claim of hidden
+//! functionality.
+//!
+//! §47: "Rust owns resolved state. UI can perform actions then event
+//! becomes resolved." `resolved` is therefore the one state field this
+//! module tracks — no separate "acknowledged" concept layered on top
+//! (the previous version had one; dropped here as redundant now that
+//! `resolved` exists and is the spec's own literal model).
 
 use siar_domain::{AccountId, DeviceId};
 
-/// §42's own three-tier severity, inferred from its own text rather
-/// than invented independently: a routine key rotation is invisible
-/// (§42, and not represented by this enum at all — see this module's
-/// top doc), a new device is a `Notice` ("should trigger a security
-/// event on existing trusted devices" — informational, not alarming, a
-/// legitimate account owner adding their own second device is the
-/// common case), and a root/account identity change is a
-/// `StrongWarning` ("should trigger a strong warning" — the spec's own
-/// words).
+/// §42, verbatim.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SecurityEventSeverity {
-    Notice,
-    StrongWarning,
+    Info,
+    Warning,
+    Critical,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// §41, verbatim — fieldless, per the spec's own sketch (see this
+/// module's top doc comment for where the per-event device/contact
+/// linkage actually lives).
+///
+/// §129-131 (Key Health Events): the spec's own worked examples —
+/// "device key rotated," "recovery key changed," "identity key
+/// changed," "backup key invalid" — map onto `KeyRotation`,
+/// `RecoveryChanged`, `IdentityChanged`, and `BackupFailed` below,
+/// already present before this reconciliation pass; §130's "routine
+/// key rotation: informational, not alarming" and §131's "unexpected
+/// root identity change: critical" already match this type's existing
+/// `severity()` mapping (`KeyRotation` → `Info`, `IdentityChanged` →
+/// `Critical`) — confirmed, not re-derived, when this doc comment was
+/// added.
+///
+/// `KeyExpiryActionRequired` (§132) is new: "if product uses expiring
+/// certs/keys: renew automatically, and only surface if action
+/// required" — the *only* variant added this round, since automatic
+/// renewal that succeeds is explicitly not supposed to raise any
+/// event at all (matching the "routine rotation is invisible"
+/// principle Part 28 §42 established, applied here to expiry too).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SecurityEventKind {
-    /// A new device was linked to this account. §42: "should trigger a
-    /// security event on existing trusted devices" — this is that
-    /// event, meant to be shown on every *other* already-trusted device
-    /// for the same account, not on the newly-linked device itself.
-    NewDeviceLinked { device: DeviceId },
-    /// A device was revoked — surfaced whether the local user initiated
-    /// it (confirmation) or another device/the account owner did
-    /// (something this device should know about).
-    DeviceRevoked { device: DeviceId },
-    /// The account's root identity itself changed — §42's own
-    /// explicitly named "strong warning" case. This is a rare,
-    /// high-stakes event (see `siar_identity_multidevice::root_key`'s
-    /// own doc comment on what a root key rotation implies) — nothing
-    /// about ordinary usage should ever produce this for an account
-    /// that hasn't gone through a deliberate root recovery/rotation
-    /// flow.
-    RootIdentityChanged { account: AccountId },
+    DeviceLinked,
+    DeviceRevoked,
+    DeviceLinkDenied,
+    IdentityChanged,
+    VerificationFailed,
+    RecoveryConfigured,
+    RecoveryChanged,
+    BackupFailed,
+    KeyRotation,
+    SuspiciousAuthorization,
+    SecurityPolicyChanged,
+    KeyExpiryActionRequired,
+}
+
+/// §43's filter list mixes two different groupings — severity-based
+/// (`Warnings`, `Critical`) and topic-based (`Devices`, `Identity`,
+/// `Recovery`) — this is the topic half, used by `SecurityEventKind::category`.
+/// `Other` isn't one of §43's named filter tabs (only `SecurityPolicyChanged`
+/// falls here) — it exists so `category()` stays a total function
+/// rather than needing an unwrap somewhere, not because the UI should
+/// render an "Other" tab.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SecurityEventCategory {
+    Devices,
+    Identity,
+    Recovery,
+    Other,
 }
 
 impl SecurityEventKind {
-    /// The severity this kind carries, per §42's own text — see this
-    /// type's own doc comment for the reasoning behind each mapping.
-    pub const fn severity(&self) -> SecurityEventSeverity {
+    /// Severity mapping: not given verbatim by the spec (§41 and §42
+    /// are two separate lists with no stated correspondence between
+    /// them) — inferred from §6-8's own worked Healthy/Attention/
+    /// Critical examples where they clearly apply (identity compromise
+    /// → Critical, unknown/suspicious authorization → Critical), and a
+    /// reasoned default elsewhere. Documented as inferred, not
+    /// spec-literal, so a future correction against clearer guidance
+    /// is an easy find-and-fix rather than an assumption buried in
+    /// behavior.
+    pub const fn severity(self) -> SecurityEventSeverity {
         match self {
-            Self::NewDeviceLinked { .. } | Self::DeviceRevoked { .. } => {
-                SecurityEventSeverity::Notice
+            Self::DeviceLinked
+            | Self::DeviceRevoked
+            | Self::DeviceLinkDenied
+            | Self::RecoveryConfigured
+            | Self::KeyRotation => SecurityEventSeverity::Info,
+            Self::VerificationFailed
+            | Self::RecoveryChanged
+            | Self::BackupFailed
+            | Self::SecurityPolicyChanged
+            | Self::KeyExpiryActionRequired => SecurityEventSeverity::Warning,
+            Self::IdentityChanged | Self::SuspiciousAuthorization => SecurityEventSeverity::Critical,
+        }
+    }
+
+    pub const fn category(self) -> SecurityEventCategory {
+        match self {
+            Self::DeviceLinked | Self::DeviceRevoked | Self::DeviceLinkDenied | Self::SuspiciousAuthorization => {
+                SecurityEventCategory::Devices
             }
-            Self::RootIdentityChanged { .. } => SecurityEventSeverity::StrongWarning,
+            Self::IdentityChanged
+            | Self::VerificationFailed
+            | Self::KeyRotation
+            | Self::KeyExpiryActionRequired => SecurityEventCategory::Identity,
+            Self::RecoveryConfigured | Self::RecoveryChanged | Self::BackupFailed => {
+                SecurityEventCategory::Recovery
+            }
+            Self::SecurityPolicyChanged => SecurityEventCategory::Other,
         }
     }
 }
 
+/// §43's six filter tabs, verbatim.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SecurityEventFilter {
+    All,
+    Warnings,
+    Critical,
+    Devices,
+    Identity,
+    Recovery,
+}
+
+impl SecurityEventFilter {
+    fn matches(self, event: &SecurityEvent) -> bool {
+        match self {
+            Self::All => true,
+            Self::Warnings => event.severity == SecurityEventSeverity::Warning,
+            Self::Critical => event.severity == SecurityEventSeverity::Critical,
+            Self::Devices => event.kind.category() == SecurityEventCategory::Devices,
+            Self::Identity => event.kind.category() == SecurityEventCategory::Identity,
+            Self::Recovery => event.kind.category() == SecurityEventCategory::Recovery,
+        }
+    }
+}
+
+/// Not one of §40's fields — a locally-assigned identifier this module
+/// needs to let `resolve()` target one specific event without relying
+/// on list position (which shifts under insertion). A `u64` sequence
+/// counter rather than a `Uuid`: this ID only needs to be unique within
+/// one `SecurityEventState` instance, not globally, and adding a `uuid`
+/// dependency to this crate for that would be more than the need calls
+/// for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SecurityEventId(u64);
+
+/// §41's actions have no spec-given enumeration anywhere in this
+/// document — same under-specification as `security_center.rs`'s
+/// `DeviceSecurityFlag`. This is a minimal, honestly-scoped set drawn
+/// from concrete actions already named elsewhere in this spec (§22
+/// Approve/Deny, §26/§32 revoke wording, §38's checklist actions), not
+/// a guess at an exhaustive list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SecurityEventAction {
+    Revoke,
+    Approve,
+    Deny,
+    Review,
+    RotateCredentials,
+    VerifyBackup,
+    Dismiss,
+}
+
+/// §40, field-for-field (`Timestamp` as `u64` millis, this workspace's
+/// existing convention — see `security_center.rs`'s own note on the
+/// same choice).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SecurityEvent {
+    pub id: SecurityEventId,
     pub kind: SecurityEventKind,
+    pub severity: SecurityEventSeverity,
     pub occurred_at_millis: u64,
-    /// Whether the local user has acknowledged/dismissed this event.
-    /// `StrongWarning`-severity events are the ones a caller should
-    /// treat as blocking until acknowledged — see
-    /// `SecurityEventState::unacknowledged_strong_warnings`.
-    pub acknowledged: bool,
+    pub resolved: bool,
+    pub related_device: Option<DeviceId>,
+    pub related_contact: Option<AccountId>,
+    pub actions: Vec<SecurityEventAction>,
 }
 
 /// Its own state slice for the same granular-re-render reason every
-/// other `*State` type in this crate already is (see `lib.rs`'s doc
-/// comment on plan.md §94) — a component rendering the security-event
-/// banner shouldn't re-render on every incoming chat message, and vice
-/// versa.
+/// other `*State` type in this crate already is.
 #[derive(Debug, Default)]
 pub struct SecurityEventState {
     events: Vec<SecurityEvent>,
+    next_id: u64,
 }
 
 impl SecurityEventState {
@@ -99,34 +220,65 @@ impl SecurityEventState {
         Self::default()
     }
 
-    pub fn push(&mut self, kind: SecurityEventKind, occurred_at_millis: u64) {
+    /// Constructs and appends a new, unresolved event. Severity is
+    /// derived from `kind` (`SecurityEventKind::severity`) rather than
+    /// caller-supplied — a caller doesn't get to independently assert
+    /// severity for a kind the type itself already has an answer for.
+    pub fn push(
+        &mut self,
+        kind: SecurityEventKind,
+        occurred_at_millis: u64,
+        related_device: Option<DeviceId>,
+        related_contact: Option<AccountId>,
+        actions: Vec<SecurityEventAction>,
+    ) -> SecurityEventId {
+        let id = SecurityEventId(self.next_id);
+        self.next_id += 1;
         self.events.push(SecurityEvent {
+            id,
             kind,
+            severity: kind.severity(),
             occurred_at_millis,
-            acknowledged: false,
+            resolved: false,
+            related_device,
+            related_contact,
+            actions,
         });
+        id
     }
 
-    pub fn acknowledge(&mut self, index: usize) {
-        if let Some(event) = self.events.get_mut(index) {
-            event.acknowledged = true;
+    /// §47: "Rust owns resolved state." The one way an event's
+    /// `resolved` flag ever flips — no direct field mutation exposed.
+    pub fn resolve(&mut self, id: SecurityEventId) {
+        if let Some(event) = self.events.iter_mut().find(|e| e.id == id) {
+            event.resolved = true;
         }
     }
 
-    pub fn events(&self) -> &[SecurityEvent] {
-        &self.events
+    /// §43: "sort newest first."
+    pub fn events(&self) -> Vec<&SecurityEvent> {
+        let mut sorted: Vec<&SecurityEvent> = self.events.iter().collect();
+        sorted.sort_by(|a, b| b.occurred_at_millis.cmp(&a.occurred_at_millis));
+        sorted
     }
 
-    /// What a component should treat as blocking/must-show — every
-    /// `StrongWarning` the user hasn't acknowledged yet. Deliberately
-    /// not "every unacknowledged event" — an unacknowledged `Notice`
-    /// (e.g. an unread "new device linked" banner) is fine to leave
-    /// sitting in a dismissible list; §42 only asks for a *strong*
-    /// warning on the identity-change case specifically.
-    pub fn unacknowledged_strong_warnings(&self) -> impl Iterator<Item = &SecurityEvent> {
-        self.events
-            .iter()
-            .filter(|e| !e.acknowledged && e.kind.severity() == SecurityEventSeverity::StrongWarning)
+    /// §43's filter tabs, applied on top of the same newest-first sort.
+    pub fn filtered(&self, filter: SecurityEventFilter) -> Vec<&SecurityEvent> {
+        self.events().into_iter().filter(|e| filter.matches(e)).collect()
+    }
+
+    /// What a component should treat as needing attention — every
+    /// unresolved `Critical`-severity event. Narrower than "every
+    /// unresolved event" the same way the previous version's
+    /// `unacknowledged_strong_warnings` was — a `Warning` or `Info`
+    /// event sitting unresolved in a list is fine; a `Critical` one
+    /// (identity compromise, suspicious authorization) is what should
+    /// interrupt.
+    pub fn unresolved_critical_events(&self) -> Vec<&SecurityEvent> {
+        self.filtered(SecurityEventFilter::Critical)
+            .into_iter()
+            .filter(|e| !e.resolved)
+            .collect()
     }
 }
 
@@ -135,63 +287,98 @@ mod tests {
     use super::*;
 
     #[test]
-    fn new_device_and_revocation_are_notices_not_strong_warnings() {
+    fn identity_changed_and_suspicious_authorization_are_critical() {
+        assert_eq!(SecurityEventKind::IdentityChanged.severity(), SecurityEventSeverity::Critical);
+        assert_eq!(SecurityEventKind::SuspiciousAuthorization.severity(), SecurityEventSeverity::Critical);
+    }
+
+    #[test]
+    fn device_linked_and_revoked_are_info() {
+        assert_eq!(SecurityEventKind::DeviceLinked.severity(), SecurityEventSeverity::Info);
+        assert_eq!(SecurityEventKind::DeviceRevoked.severity(), SecurityEventSeverity::Info);
+    }
+
+    /// ui-ux-15 §130: "Routine Key Rotation: informational, not
+    /// alarming."
+    #[test]
+    fn key_rotation_is_informational() {
+        assert_eq!(SecurityEventKind::KeyRotation.severity(), SecurityEventSeverity::Info);
+    }
+
+    /// §132: "if product uses expiring certs/keys: renew automatically,
+    /// and only surface if action required." This variant should only
+    /// ever be constructed when renewal has already failed/needs a
+    /// person — so it's a `Warning`, not `Info`: something did fail to
+    /// resolve itself automatically.
+    #[test]
+    fn key_expiry_action_required_is_a_warning_not_info_or_critical() {
         assert_eq!(
-            SecurityEventKind::NewDeviceLinked { device: DeviceId::new() }.severity(),
-            SecurityEventSeverity::Notice
-        );
-        assert_eq!(
-            SecurityEventKind::DeviceRevoked { device: DeviceId::new() }.severity(),
-            SecurityEventSeverity::Notice
+            SecurityEventKind::KeyExpiryActionRequired.severity(),
+            SecurityEventSeverity::Warning
         );
     }
 
     #[test]
-    fn root_identity_change_is_a_strong_warning() {
-        assert_eq!(
-            SecurityEventKind::RootIdentityChanged { account: AccountId::new() }.severity(),
-            SecurityEventSeverity::StrongWarning
-        );
+    fn events_sort_newest_first() {
+        let mut state = SecurityEventState::new();
+        state.push(SecurityEventKind::DeviceLinked, 1_000, None, None, vec![]);
+        state.push(SecurityEventKind::DeviceRevoked, 3_000, None, None, vec![]);
+        state.push(SecurityEventKind::IdentityChanged, 2_000, None, None, vec![]);
+
+        let ordered = state.events();
+        assert_eq!(ordered[0].occurred_at_millis, 3_000);
+        assert_eq!(ordered[1].occurred_at_millis, 2_000);
+        assert_eq!(ordered[2].occurred_at_millis, 1_000);
     }
 
     #[test]
-    fn unacknowledged_strong_warnings_excludes_notices() {
+    fn filtering_by_category() {
         let mut state = SecurityEventState::new();
-        state.push(SecurityEventKind::NewDeviceLinked { device: DeviceId::new() }, 1_000);
-        state.push(SecurityEventKind::RootIdentityChanged { account: AccountId::new() }, 2_000);
+        state.push(SecurityEventKind::DeviceLinked, 1_000, None, None, vec![]);
+        state.push(SecurityEventKind::RecoveryConfigured, 2_000, None, None, vec![]);
+        state.push(SecurityEventKind::IdentityChanged, 3_000, None, None, vec![]);
 
-        let warnings: Vec<_> = state.unacknowledged_strong_warnings().collect();
-        assert_eq!(warnings.len(), 1);
-        assert!(matches!(warnings[0].kind, SecurityEventKind::RootIdentityChanged { .. }));
+        assert_eq!(state.filtered(SecurityEventFilter::Devices).len(), 1);
+        assert_eq!(state.filtered(SecurityEventFilter::Recovery).len(), 1);
+        assert_eq!(state.filtered(SecurityEventFilter::Identity).len(), 1);
+        assert_eq!(state.filtered(SecurityEventFilter::All).len(), 3);
     }
 
     #[test]
-    fn acknowledging_a_strong_warning_removes_it_from_the_blocking_list() {
+    fn filtering_by_severity() {
         let mut state = SecurityEventState::new();
-        state.push(SecurityEventKind::RootIdentityChanged { account: AccountId::new() }, 1_000);
-        assert_eq!(state.unacknowledged_strong_warnings().count(), 1);
+        state.push(SecurityEventKind::DeviceLinked, 1_000, None, None, vec![]); // Info
+        state.push(SecurityEventKind::BackupFailed, 2_000, None, None, vec![]); // Warning
+        state.push(SecurityEventKind::IdentityChanged, 3_000, None, None, vec![]); // Critical
 
-        state.acknowledge(0);
-        assert_eq!(state.unacknowledged_strong_warnings().count(), 0);
-        assert!(state.events()[0].acknowledged);
+        assert_eq!(state.filtered(SecurityEventFilter::Warnings).len(), 1);
+        assert_eq!(state.filtered(SecurityEventFilter::Critical).len(), 1);
     }
 
     #[test]
-    fn events_preserve_insertion_order() {
+    fn resolving_an_event_removes_it_from_unresolved_critical() {
         let mut state = SecurityEventState::new();
-        let device_a = DeviceId::new();
-        let device_b = DeviceId::new();
-        state.push(SecurityEventKind::NewDeviceLinked { device: device_a }, 1_000);
-        state.push(SecurityEventKind::NewDeviceLinked { device: device_b }, 2_000);
+        let id = state.push(SecurityEventKind::SuspiciousAuthorization, 1_000, None, None, vec![]);
+        assert_eq!(state.unresolved_critical_events().len(), 1);
 
-        assert_eq!(state.events().len(), 2);
-        assert!(matches!(
-            state.events()[0].kind,
-            SecurityEventKind::NewDeviceLinked { device } if device == device_a
-        ));
-        assert!(matches!(
-            state.events()[1].kind,
-            SecurityEventKind::NewDeviceLinked { device } if device == device_b
-        ));
+        state.resolve(id);
+        assert_eq!(state.unresolved_critical_events().len(), 0);
+        assert!(state.events()[0].resolved);
+    }
+
+    #[test]
+    fn resolving_an_unknown_id_is_a_harmless_no_op() {
+        let mut state = SecurityEventState::new();
+        state.push(SecurityEventKind::DeviceLinked, 1_000, None, None, vec![]);
+        state.resolve(SecurityEventId(999));
+        assert!(!state.events()[0].resolved);
+    }
+
+    #[test]
+    fn warning_and_info_severity_events_never_appear_in_unresolved_critical() {
+        let mut state = SecurityEventState::new();
+        state.push(SecurityEventKind::DeviceLinked, 1_000, None, None, vec![]);
+        state.push(SecurityEventKind::BackupFailed, 2_000, None, None, vec![]);
+        assert_eq!(state.unresolved_critical_events().len(), 0);
     }
 }
