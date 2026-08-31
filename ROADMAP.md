@@ -102,7 +102,7 @@ now.
 | 12 | Nearby / QR / NFC Pairing / Device Linking | ⚪ (Part 15 has no crate either — joint gap) |
 | 13 | Notifications / Background / Incoming Call | ⚪ (Part 31 has no crate either — joint gap) |
 | 14 | Presence / Typing / Receipts / Status | ⚪ (Part 30 has no crate either — joint gap) |
-| **15** | **Security Center / Devices / Keys / Recovery** | 🟡 **§3-39 of 8 sections done** (Overview + Devices, including reauthentication semantics, last-trusted-device guard, lost/stolen device guided flows, compromise-response checklist — all in `siar-ui-state`, verified; desktop `DevicesScreen` component written, unverified — see Tier 3). §40-47 (Security Events Screen) needs reconciliation — this workspace's Part 28 §42 work (`security_event.rs`) used a simpler 3-kind/2-severity model than this spec's own literal §40-42 (11 kinds, 3-tier severity, resolved/actions/related-device/related-contact fields) — not yet reconciled, flagged as real remaining work, not silently claimed done. Identity & Verification (§48+), Recovery, Backups, Privacy, Advanced not started. |
+| **15** | **Security Center / Devices / Keys / Recovery** | 🟡 **§3-90, §96-100, §110-141, §144, §148-183, §186-194 (reconciled) done, ~83% of 221 total sections** — everything from prior rounds, plus now `RevocationCapabilities`/`sign_out_copy` (§179 — "this signs the device out" only ever renders when actually true), the fixed revocation-can't-erase-remote-copies disclaimer (§180-181), `RecoveryScope` and its history caveat (§182-183 — silence about unrestorable history would itself be the overclaim these sections warn against). **Real spec-internal inconsistency found and documented, not silently resolved**: §184's compromise-response checklist has a different order and two extra steps versus §38's (built in round 7) — extended the existing `CompromiseResponseStep` enum with §184's two genuinely new steps (`ReVerifyAffectedContacts`, `CreateFreshBackup`) rather than reordering the original five, since earlier rounds' tests already depend on that order. §186-194 closed via reconciliation, no new code — event correlation is explicitly deferred by the spec itself as "advanced future feature"; retention/search/Alerts-vs-Events are policy notes; the four cross-crate integration points (§190-193) were already satisfied by design (`RecoveryStatus`/`BackupSecurityState` reused not duplicated since round 11; `DeviceLinked`/`VerificationFailed`/`IdentityChanged` event kinds already exist) or point to still-unbuilt Parts (07 calls, 12 linking is partially built elsewhere, 13 notifications). |
 | 16 | Backup / Restore / Export / Migration | ⚪ (Part 33 has no crate either — joint gap) |
 | 17 | Emergency SOS / Offline Mesh | ⚪ (siar-emergency crate pre-exists, unreconciled) |
 | 18 | Settings / Privacy / Notifications / Data Controls | ⚪ |
@@ -141,17 +141,11 @@ one-off caveat.
 
 ## Suggested next priorities, in order
 
-1. **Reconcile `ui-ux-15` §40-47 (Security Events Screen)** against the
-   simpler Part 28 §42 model already built — the spec's own literal
-   `SecurityEventKind` has 11 variants (this workspace only has real
-   backend signals for 3 today: device linked, device revoked, root
-   identity changed); decide whether to widen the enum now (adding
-   variants nothing can construct yet) or keep it honestly scoped to
-   what's real and revisit as backend coverage grows.
-2. Finish `ui-ux-15`'s remaining sections: Identity & Verification
-   (§48+, directly consumes `SafetyFingerprint`), Recovery, Backups,
-   Privacy, Advanced.
-3. **`ui-ux-22` Design System** — tokens/typography/icons/motion that
+1. `ui-ux-15` **continue in ordinary batches** (§195-221 remain): next
+   natural slice continues the integration section (§195-206 — Privacy
+   Settings Integration onward), then testing matrix + final scope
+   (§207-221) — likely finishes the spec in 2-3 more rounds.
+2. **`ui-ux-22` Design System** — tokens/typography/icons/motion that
    every other visual spec in this tier implicitly depends on; doing it
    later means retrofitting styling into everything built before it.
 4. **Part 28 §46-92 in ordinary batches** — abuse resistance and
