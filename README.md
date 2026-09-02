@@ -192,89 +192,83 @@ siar/
 │   ├── siar-storage/             # Pure-Rust Stoolap embedded SQL repos
 │   ├── siar-testkit/             # Network simulator & mesh test harness
 │   ├── siar-transport/           # Transport manager & socket abstraction
-│   ├── siar-transport-ble/       # Bluetooth Low Energy protocol implementation
-│   ├── siar-transport-ble-android/ # Android BLE Scanner/Advertiser JNI bridge
-│   ├── siar-transport-bluetooth-classic/ # BT RFCOMM transport bridge
-│   ├── siar-transport-wifi-aware/ # Wi-Fi Aware (NAN) P2P transport bridge
-│   ├── siar-transport-wifi-direct/ # Wi-Fi Direct (P2P) transport bridge
-│   └── siar-ui-state/            # Framework-agnostic UI state machines
-├── sys-arch/                     # 33 Comprehensive System Architecture Specs
+│   ├── siar-transport-ble/       # Bluetooth Low Energy protoco│   └── siar-ui-state/            # Framework-agnostic UI state machines
 └── fuzz/                         # Cargo Fuzz targets for wire/codec parsing
 ```
 
 ---
 
-## System Architecture Topics (Specifications Index)
+## System Architecture & Technical Specifications
 
-The `sys-arch/` directory contains 33 comprehensive design documents defining every architectural subsystem of the SIAR platform:
+Comprehensive system architecture specifications (60 detailed design documents across core protocols, cryptography, and UI/UX) are hosted in the **[SIAR Official Site & Architecture Portal](https://irshadali5.github.io/siar-site/sys-arch/)** and maintained in the **[siar-site](https://github.com/irshadali5/siar-site)** repository:
 
-| Part | Document | Topic | Description |
+| Part | Specification Document | Topic | Description |
 | :---: | :--- | :--- | :--- |
-| **01** | [`01-protocol-extension`](sys-arch/01-protocol-extension-system-architecture.md) | **Protocol Extensions** | TLV frame framing, extensible wire headers, backward/forward compatibility |
-| **02** | [`02-multi-device-identity`](sys-arch/02-multi-device-identity-architecture.md) | **Multi-Device Identity** | Ed25519 master keys, subkey derivation, device provisioning, key revocation |
-| **03** | [`03-transport-routing-policy`](sys-arch/03-transport-routing-policy-engine-architecture.md) | **Routing Engine** | Cost metrics, latency/bandwidth scoring, dynamic link quality selection |
-| **04** | [`04-offline-event-log`](sys-arch/04-offline-event-log-architecture.md) | **Offline Event Log** | Append-only event log, sequence vectors, state synchronization |
-| **05** | [`05-robust-file-blob`](sys-arch/05-robust-file-blob-subsystem-architecture.md) | **Blob Subsystem** | Chunking, BLAKE3 content-addressable storage, AES-GCM streaming encryption |
-| **06** | [`06-dtn-store-carry-forward`](sys-arch/06-dtn-store-carry-forward-architecture.md) | **DTN Core** | Opportunistic epidemic routing, TTL expiry, anti-entropy sync for off-grid meshes |
-| **07** | [`07-capability-negotiation`](sys-arch/07-capability-negotiation-architecture.md) | **Capabilities** | Version handshakes, media codec capability matrix, link parameters |
-| **08** | [`08-resource-limits`](sys-arch/08-resource-limits-backpressure-architecture.md) | **Backpressure** | Flow control, memory bounds, priority queue dropping under congestion |
-| **09** | [`09-crash-recovery`](sys-arch/09-crash-recovery-architecture.md) | **Crash Safety** | WAL recovery, transactional checkpoints, corrupt state isolation |
-| **10** | [`10-fuzzing-protocol`](sys-arch/10-fuzzing-protocol-test-suite-architecture.md) | **Fuzz Testing** | AFL/libFuzzer strategies for Postcard frames, blob decoders, and fuzz targets |
-| **11** | [`11-relay-infrastructure`](sys-arch/11-relay-self-hosted-infrastructure-architecture.md) | **Relay Nodes** | Unlinkable token-mailbox relaying, DERP/STUN/TURN NAT traversal |
-| **12** | [`12-multipath-networking`](sys-arch/12-multipath-networking-architecture.md) | **Multipath** | Concurrent multi-socket striping across Wi-Fi, BLE, and cellular interfaces |
-| **13** | [`13-battery-aware`](sys-arch/13-battery-aware-scheduling-architecture.md) | **Power Management** | Battery level polling, BLE duty cycle adjustment, wake lock lifecycle control |
-| **14** | [`14-proximity-abstraction`](sys-arch/14-proximity-abstraction-architecture.md) | **Proximity** | Unified API for BLE RSSI, Wi-Fi Aware distance, and mDNS discovery |
-| **15** | [`15-qr-nfc-bootstrap`](sys-arch/15-qr-nfc-bootstrap-pairing-architecture.md) | **Out-of-Band Pairing** | QR code / NFC payload format for PeerTicket exchange |
-| **16** | [`16-daemon-headless`](sys-arch/16-daemon-headless-runtime-architecture.md) | **Headless Runtime** | UNIX domain socket IPC, systemd daemonization, and CLI control surfaces |
-| **17** | [`17-emergency-priority`](sys-arch/17-emergency-priority-classes-architecture.md) | **Emergency Priority** | High-priority SOS broadcast preemption over normal traffic |
-| **18** | [`18-network-diagnostics`](sys-arch/18-network-diagnostics-path-visualization-architecture.md) | **Path Diagnostics** | Route tracing, RTT latency measurement, graph visualization metrics |
-| **19** | [`19-c-abi-ffi`](sys-arch/19-c-abi-ffi-architecture.md) | **C/FFI Layer** | Stable C ABI header definitions for iOS/C++ integration |
-| **20** | [`20-embedded-linux`](sys-arch/20-embedded-linux-node-architecture.md) | **Embedded Linux** | Low-footprint compilation flags for Raspberry Pi, OpenWrt, and field nodes |
-| **21** | [`21-third-party-protocol-extensions`](sys-arch/21-third-party-protocol-extensions-architecture.md) | **Third-Party Extensions** | Sandboxed custom protocol handlers, frame registration, and hooks |
-| **22** | [`22-wasm-compatible-components`](sys-arch/22-wasm-compatible-components-architecture.md) | **WASM Components** | Compiling cryptographic and protocol verification filters to WebAssembly |
-| **23** | [`23-external-interoperability-suite`](sys-arch/23-external-interoperability-suite-architecture.md) | **Interoperability Suite** | Conformance testing, cross-client golden files, and compatibility test vectors |
-| **24** | [`24-plugin-module-ecosystem`](sys-arch/24-plugin-module-ecosystem-architecture.md) | **Plugin Ecosystem** | Dynamic extension modules, capability permissions, and lifecycle isolation |
-| **25** | [`25-android-hardware-surface`](sys-arch/25-android-direct-hardware-surface-zero-copy-media-architecture.md) | **Android Hardware Media** | Zero-copy `Surface` / `GraphicBuffer` pipeline into MediaCodec |
-| **26** | [`26-rust-first-audio-dsp`](sys-arch/26-rust-first-audio-dsp-resampling-aec-ns-agc-architecture.md) | **Rust Audio DSP** | Pure-Rust audio processing, acoustic echo cancellation, noise suppression, AGC |
-| **27** | [`27-rust-driven-android-native-build`](sys-arch/27-rust-driven-android-native-build-packaging-automation.md) | **Android Build Automation** | Automated `cargo-ndk` multi-ABI `.so` packaging and CI pipeline |
-| **28** | [`28-production-security`](sys-arch/28-production-security-e2ee-key-management-privacy-architecture.md) | **Security & Privacy** | Threat model, identity blinding, MLS key package rotation, abuse resistance |
-| **29** | [`29-realtime-calls-media-session`](sys-arch/29-realtime-calls-media-session-protocol-architecture.md) | **Realtime Call Sessions** | P2P audio/video call signaling, jitter buffering, and RTP session control |
-| **30** | [`30-presence-availability`](sys-arch/30-presence-availability-typing-read-receipts-ephemeral-state-architecture.md) | **Presence & Ephemeral State** | Typing indicators, read receipts, peer availability heartbeats, TTL state |
-| **31** | [`31-notifications-push-lifecycle`](sys-arch/31-notifications-push-background-delivery-lifecycle-architecture.md) | **Notifications & Lifecycle** | Unified push wake, background packet scheduling, battery-safe OS lifecycle |
-| **32** | [`32-search-indexing`](sys-arch/32-search-indexing-local-knowledge-privacy-architecture.md) | **Search & Local Knowledge** | Zero-knowledge local inverted index, encrypted text search, fast indexing |
-| **33** | [`33-backup-restore`](sys-arch/33-backup-restore-export-import-archival-portability-architecture.md) | **Backup & Portability** | Encrypted archival vaults, incremental snapshots, cross-platform export/import |
+| **01** | [`01-protocol-extension`](https://irshadali5.github.io/siar-site/sys-arch/01-protocol-extension-system-architecture.html) | **Protocol Extensions** | TLV frame framing, extensible wire headers, backward/forward compatibility |
+| **02** | [`02-multi-device-identity`](https://irshadali5.github.io/siar-site/sys-arch/02-multi-device-identity-architecture.html) | **Multi-Device Identity** | Ed25519 master keys, subkey derivation, device provisioning, key revocation |
+| **03** | [`03-transport-routing-policy`](https://irshadali5.github.io/siar-site/sys-arch/03-transport-routing-policy-engine-architecture.html) | **Routing Engine** | Cost metrics, latency/bandwidth scoring, dynamic link quality selection |
+| **04** | [`04-offline-event-log`](https://irshadali5.github.io/siar-site/sys-arch/04-offline-event-log-architecture.html) | **Offline Event Log** | Append-only event log, sequence vectors, state synchronization |
+| **05** | [`05-robust-file-blob`](https://irshadali5.github.io/siar-site/sys-arch/05-robust-file-blob-subsystem-architecture.html) | **Blob Subsystem** | Chunking, BLAKE3 content-addressable storage, AES-GCM streaming encryption |
+| **06** | [`06-dtn-store-carry-forward`](https://irshadali5.github.io/siar-site/sys-arch/06-dtn-store-carry-forward-architecture.html) | **DTN Core** | Opportunistic epidemic routing, TTL expiry, anti-entropy sync for off-grid meshes |
+| **07** | [`07-capability-negotiation`](https://irshadali5.github.io/siar-site/sys-arch/07-capability-negotiation-architecture.html) | **Capabilities** | Version handshakes, media codec capability matrix, link parameters |
+| **08** | [`08-resource-limits`](https://irshadali5.github.io/siar-site/sys-arch/08-resource-limits-backpressure-architecture.html) | **Backpressure** | Flow control, memory bounds, priority queue dropping under congestion |
+| **09** | [`09-crash-recovery`](https://irshadali5.github.io/siar-site/sys-arch/09-crash-recovery-architecture.html) | **Crash Safety** | WAL recovery, transactional checkpoints, corrupt state isolation |
+| **10** | [`10-fuzzing-protocol`](https://irshadali5.github.io/siar-site/sys-arch/10-fuzzing-protocol-test-suite-architecture.html) | **Fuzz Testing** | AFL/libFuzzer strategies for Postcard frames, blob decoders, and fuzz targets |
+| **11** | [`11-relay-infrastructure`](https://irshadali5.github.io/siar-site/sys-arch/11-relay-self-hosted-infrastructure-architecture.html) | **Relay Nodes** | Unlinkable token-mailbox relaying, DERP/STUN/TURN NAT traversal |
+| **12** | [`12-multipath-networking`](https://irshadali5.github.io/siar-site/sys-arch/12-multipath-networking-architecture.html) | **Multipath** | Concurrent multi-socket striping across Wi-Fi, BLE, and cellular interfaces |
+| **13** | [`13-battery-aware`](https://irshadali5.github.io/siar-site/sys-arch/13-battery-aware-scheduling-architecture.html) | **Power Management** | Battery level polling, BLE duty cycle adjustment, wake lock lifecycle control |
+| **14** | [`14-proximity-abstraction`](https://irshadali5.github.io/siar-site/sys-arch/14-proximity-abstraction-architecture.html) | **Proximity** | Unified API for BLE RSSI, Wi-Fi Aware distance, and mDNS discovery |
+| **15** | [`15-qr-nfc-bootstrap`](https://irshadali5.github.io/siar-site/sys-arch/15-qr-nfc-bootstrap-pairing-architecture.html) | **Out-of-Band Pairing** | QR code / NFC payload format for PeerTicket exchange |
+| **16** | [`16-daemon-headless`](https://irshadali5.github.io/siar-site/sys-arch/16-daemon-headless-runtime-architecture.html) | **Headless Runtime** | UNIX domain socket IPC, systemd daemonization, and CLI control surfaces |
+| **17** | [`17-emergency-priority`](https://irshadali5.github.io/siar-site/sys-arch/17-emergency-priority-classes-architecture.html) | **Emergency Priority** | High-priority SOS broadcast preemption over normal traffic |
+| **18** | [`18-network-diagnostics`](https://irshadali5.github.io/siar-site/sys-arch/18-network-diagnostics-path-visualization-architecture.html) | **Path Diagnostics** | Route tracing, RTT latency measurement, graph visualization metrics |
+| **19** | [`19-c-abi-ffi`](https://irshadali5.github.io/siar-site/sys-arch/19-c-abi-ffi-architecture.html) | **C/FFI Layer** | Stable C ABI header definitions for iOS/C++ integration |
+| **20** | [`20-embedded-linux`](https://irshadali5.github.io/siar-site/sys-arch/20-embedded-linux-node-architecture.html) | **Embedded Linux** | Low-footprint compilation flags for Raspberry Pi, OpenWrt, and field nodes |
+| **21** | [`21-third-party-protocol-extensions`](https://irshadali5.github.io/siar-site/sys-arch/21-third-party-protocol-extensions-architecture.html) | **Third-Party Extensions** | Sandboxed custom protocol handlers, frame registration, and hooks |
+| **22** | [`22-wasm-compatible-components`](https://irshadali5.github.io/siar-site/sys-arch/22-wasm-compatible-components-architecture.html) | **WASM Components** | Compiling cryptographic and protocol verification filters to WebAssembly |
+| **23** | [`23-external-interoperability-suite`](https://irshadali5.github.io/siar-site/sys-arch/23-external-interoperability-suite-architecture.html) | **Interoperability Suite** | Conformance testing, cross-client golden files, and compatibility test vectors |
+| **24** | [`24-plugin-module-ecosystem`](https://irshadali5.github.io/siar-site/sys-arch/24-plugin-module-ecosystem-architecture.html) | **Plugin Ecosystem** | Dynamic extension modules, capability permissions, and lifecycle isolation |
+| **25** | [`25-android-hardware-surface`](https://irshadali5.github.io/siar-site/sys-arch/25-android-direct-hardware-surface-zero-copy-media-architecture.html) | **Android Hardware Media** | Zero-copy `Surface` / `GraphicBuffer` pipeline into MediaCodec |
+| **26** | [`26-rust-first-audio-dsp`](https://irshadali5.github.io/siar-site/sys-arch/26-rust-first-audio-dsp-resampling-aec-ns-agc-architecture.html) | **Rust Audio DSP** | Pure-Rust audio processing, acoustic echo cancellation, noise suppression, AGC |
+| **27** | [`27-rust-driven-android-native-build`](https://irshadali5.github.io/siar-site/sys-arch/27-rust-driven-android-native-build-packaging-automation.html) | **Android Build Automation** | Automated `cargo-ndk` multi-ABI `.so` packaging and CI pipeline |
+| **28** | [`28-production-security`](https://irshadali5.github.io/siar-site/sys-arch/28-production-security-e2ee-key-management-privacy-architecture.html) | **Security & Privacy** | Threat model, identity blinding, MLS key package rotation, abuse resistance |
+| **29** | [`29-realtime-calls-media-session`](https://irshadali5.github.io/siar-site/sys-arch/29-realtime-calls-media-session-protocol-architecture.html) | **Realtime Call Sessions** | P2P audio/video call signaling, jitter buffering, and RTP session control |
+| **30** | [`30-presence-availability`](https://irshadali5.github.io/siar-site/sys-arch/30-presence-availability-typing-read-receipts-ephemeral-state-architecture.html) | **Presence & Ephemeral State** | Typing indicators, read receipts, peer availability heartbeats, TTL state |
+| **31** | [`31-notifications-push-lifecycle`](https://irshadali5.github.io/siar-site/sys-arch/31-notifications-push-background-delivery-lifecycle-architecture.html) | **Notifications & Lifecycle** | Unified push wake, background packet scheduling, battery-safe OS lifecycle |
+| **32** | [`32-search-indexing`](https://irshadali5.github.io/siar-site/sys-arch/32-search-indexing-local-knowledge-privacy-architecture.html) | **Search & Local Knowledge** | Zero-knowledge local inverted index, encrypted text search, fast indexing |
+| **33** | [`33-backup-restore`](https://irshadali5.github.io/siar-site/sys-arch/33-backup-restore-export-import-archival-portability-architecture.html) | **Backup & Portability** | Encrypted archival vaults, incremental snapshots, cross-platform export/import |
 
 ### UI/UX Architecture Specifications (27 Topics)
 
 | # | Specification Document | Domain | Scope & Technical Implementation |
 | :---: | :--- | :--- | :--- |
-| **01** | [`ui-ux-01-product-foundation`](sys-arch/ui-ux-01-product-foundation-cross-platform-interaction-architecture.md) | **Product Foundation** | Cross-platform interaction model, mental model, trust surfaces |
-| **02** | [`ui-ux-02-desktop-dioxus-app-shell`](sys-arch/ui-ux-02-desktop-dioxus-app-shell-navigation-window-architecture.md) | **Desktop Dioxus Shell** | Multi-window management, tray icon, responsive navigation rail |
-| **03** | [`ui-ux-03-android-jetpack-compose`](sys-arch/ui-ux-03-android-jetpack-compose-app-shell-navigation-lifecycle-architecture.md) | **Android Compose Shell** | Material You dynamic theming, background radio lifecycle, edge-to-edge |
-| **04** | [`ui-ux-04-conversation-list-inbox`](sys-arch/ui-ux-04-conversation-list-inbox-architecture.md) | **Inbox & Conversations** | Virtualized list, unread badges, route indicators (mesh, mule, relay) |
-| **05** | [`ui-ux-05-conversation-message-timeline`](sys-arch/ui-ux-05-conversation-message-timeline-architecture.md) | **Message Timeline** | Delivery status ticks, voice note waveforms, optimistic state bubbles |
-| **06** | [`ui-ux-06-message-composer-attachments`](sys-arch/ui-ux-06-message-composer-attachments-voice-notes-drafts-architecture.md) | **Composer & Attachments** | Live Opus voice note recorder, rich Markdown preview, draft auto-save |
-| **07** | [`ui-ux-07-calls-realtime-media`](sys-arch/ui-ux-07-calls-realtime-media-architecture.md) | **Realtime Calls UI** | P2P audio/video in-call interface, zero-copy video surfaces, audio controls |
-| **08** | [`ui-ux-08-contacts-requests-verification`](sys-arch/ui-ux-08-contacts-requests-verification-identity-architecture.md) | **Contacts & Verification** | SAS 6-digit codes, out-of-band trust levels, contact requests |
-| **09** | [`ui-ux-09-groups-membership-roles`](sys-arch/ui-ux-09-groups-membership-roles-architecture.md) | **Group Management** | MLS group roles, invite proposals, epoch ratchet indicators |
-| **10** | [`ui-ux-10-files-media-gallery`](sys-arch/ui-ux-10-files-media-gallery-transfer-architecture.md) | **Media Gallery & Transfers** | Merkle DAG swarming progress bars, chunk retry controls, media viewer |
-| **11** | [`ui-ux-11-search-local-knowledge`](sys-arch/ui-ux-11-search-local-knowledge-retrieval-architecture.md) | **Search & Knowledge** | Privacy-first offline BM25 search, vector embeddings, field manual lookup |
-| **12** | [`ui-ux-12-nearby-qr-nfc-pairing`](sys-arch/ui-ux-12-nearby-qr-nfc-pairing-device-linking-architecture.md) | **Nearby Pairing & Radar** | Dynamic fountain QR codes, NFC touch pairing, visual mesh radar UI |
-| **13** | [`ui-ux-13-notifications-background`](sys-arch/ui-ux-13-notifications-background-incoming-call-architecture.md) | **Notifications & Wakeup** | Full-screen incoming call wake, priority notification badges |
-| **14** | [`ui-ux-14-presence-typing-receipts`](sys-arch/ui-ux-14-presence-typing-receipts-status-architecture.md) | **Presence & Typing** | Debounced ephemeral typing state, ghost mode, verified-only availability |
-| **15** | [`ui-ux-15-security-center-devices`](sys-arch/ui-ux-15-security-center-devices-keys-recovery-architecture.md) | **Security Center** | Linked device manager, emergency lockdown broadcast, recovery phrases |
-| **16** | [`ui-ux-16-backup-restore-export`](sys-arch/ui-ux-16-backup-restore-export-migration-architecture.md) | **Backup & Migration** | Encrypted `.siarbackup` archive export, P2P direct device migration |
-| **17** | [`ui-ux-17-emergency-sos-offline-mesh`](sys-arch/ui-ux-17-emergency-sos-offline-mesh-architecture.md) | **Emergency SOS Hub** | Priority 0 life-safety beaconing, disaster triage, battery survival UI |
-| **18** | [`ui-ux-18-settings-privacy-data`](sys-arch/ui-ux-18-settings-privacy-notifications-data-controls-architecture.md) | **Settings & Privacy** | Radio transport toggles, telemetry controls, database encryption keys |
-| **19** | [`ui-ux-19-plugin-module-ecosystem`](sys-arch/ui-ux-19-plugin-module-ecosystem-architecture.md) | **Plugin Ecosystem UI** | WASM plugin manager, capability permission prompts, bot interfaces |
-| **20** | [`ui-ux-20-diagnostics-network-paths`](sys-arch/ui-ux-20-diagnostics-network-paths-advanced-developer-architecture.md) | **Network Diagnostics** | Multi-hop route visualizer, packet loss heatmap, live radio telemetry |
-| **21** | [`ui-ux-21-accessibility-inclusive`](sys-arch/ui-ux-21-accessibility-inclusive-interaction-architecture.md) | **Accessibility** | WCAG 2.1 AA contrast, screen reader semantics, high-DPI scaling |
-| **22** | [`ui-ux-22-design-system-tokens`](sys-arch/ui-ux-22-design-system-tokens-typography-icons-motion-architecture.md) | **Design System Tokens** | Design tokens, typography hierarchy, motion timing, dark theme palette |
-| **23** | [`ui-ux-23-responsive-adaptive-layout`](sys-arch/ui-ux-23-responsive-adaptive-desktop-tablet-foldable-phone-layout-architecture.md) | **Adaptive Layouts** | 5-tier responsive breakpoints (compact phone, tablet, foldable, desktop) |
-| **24** | [`ui-ux-24-error-loading-empty-state`](sys-arch/ui-ux-24-error-loading-empty-offline-degraded-state-architecture.md) | **State Architecture** | Skeleton loaders, empty states, offline mesh banners, error boundaries |
-| **25** | [`ui-ux-25-onboarding-first-run`](sys-arch/ui-ux-25-onboarding-first-run-permission-education-architecture.md) | **Onboarding & Education** | Zero-account creation wizard, StrongBox setup, radio permission flows |
-| **26** | [`ui-ux-26-performance-virtualization`](sys-arch/ui-ux-26-performance-virtualization-large-data-ui-architecture.md) | **UI Virtualization** | 120 FPS windowing, zero GC stutter, async texture decoding |
-| **27** | [`ui-ux-27-ui-testing-quality-gates`](sys-arch/ui-ux-27-ui-testing-screenshot-interaction-release-quality-gates-architecture.md) | **Quality Gates & Testing** | Automated screenshot regression testing, interaction fuzzing, release gates |
+| **01** | [`ui-ux-01-product-foundation`](https://irshadali5.github.io/siar-site/sys-arch/ui-ux-01-product-foundation-cross-platform-interaction-architecture.html) | **Product Foundation** | Cross-platform interaction model, mental model, trust surfaces |
+| **02** | [`ui-ux-02-desktop-dioxus-app-shell`](https://irshadali5.github.io/siar-site/sys-arch/ui-ux-02-desktop-dioxus-app-shell-navigation-window-architecture.html) | **Desktop Dioxus Shell** | Multi-window management, tray icon, responsive navigation rail |
+| **03** | [`ui-ux-03-android-jetpack-compose`](https://irshadali5.github.io/siar-site/sys-arch/ui-ux-03-android-jetpack-compose-app-shell-navigation-lifecycle-architecture.html) | **Android Compose Shell** | Material You dynamic theming, background radio lifecycle, edge-to-edge |
+| **04** | [`ui-ux-04-conversation-list-inbox`](https://irshadali5.github.io/siar-site/sys-arch/ui-ux-04-conversation-list-inbox-architecture.html) | **Inbox & Conversations** | Virtualized list, unread badges, route indicators (mesh, mule, relay) |
+| **05** | [`ui-ux-05-conversation-message-timeline`](https://irshadali5.github.io/siar-site/sys-arch/ui-ux-05-conversation-message-timeline-architecture.html) | **Message Timeline** | Delivery status ticks, voice note waveforms, optimistic state bubbles |
+| **06** | [`ui-ux-06-message-composer-attachments`](https://irshadali5.github.io/siar-site/sys-arch/ui-ux-06-message-composer-attachments-voice-notes-drafts-architecture.html) | **Composer & Attachments** | Live Opus voice note recorder, rich Markdown preview, draft auto-save |
+| **07** | [`ui-ux-07-calls-realtime-media`](https://irshadali5.github.io/siar-site/sys-arch/ui-ux-07-calls-realtime-media-architecture.html) | **Realtime Calls UI** | P2P audio/video in-call interface, zero-copy video surfaces, audio controls |
+| **08** | [`ui-ux-08-contacts-requests-verification`](https://irshadali5.github.io/siar-site/sys-arch/ui-ux-08-contacts-requests-verification-identity-architecture.html) | **Contacts & Verification** | SAS 6-digit codes, out-of-band trust levels, contact requests |
+| **09** | [`ui-ux-09-groups-membership-roles`](https://irshadali5.github.io/siar-site/sys-arch/ui-ux-09-groups-membership-roles-architecture.html) | **Group Management** | MLS group roles, invite proposals, epoch ratchet indicators |
+| **10** | [`ui-ux-10-files-media-gallery`](https://irshadali5.github.io/siar-site/sys-arch/ui-ux-10-files-media-gallery-transfer-architecture.html) | **Media Gallery & Transfers** | Merkle DAG swarming progress bars, chunk retry controls, media viewer |
+| **11** | [`ui-ux-11-search-local-knowledge`](https://irshadali5.github.io/siar-site/sys-arch/ui-ux-11-search-local-knowledge-retrieval-architecture.html) | **Search & Knowledge** | Privacy-first offline BM25 search, vector embeddings, field manual lookup |
+| **12** | [`ui-ux-12-nearby-qr-nfc-pairing`](https://irshadali5.github.io/siar-site/sys-arch/ui-ux-12-nearby-qr-nfc-pairing-device-linking-architecture.html) | **Nearby Pairing & Radar** | Dynamic fountain QR codes, NFC touch pairing, visual mesh radar UI |
+| **13** | [`ui-ux-13-notifications-background`](https://irshadali5.github.io/siar-site/sys-arch/ui-ux-13-notifications-background-incoming-call-architecture.html) | **Notifications & Wakeup** | Full-screen incoming call wake, priority notification badges |
+| **14** | [`ui-ux-14-presence-typing-receipts`](https://irshadali5.github.io/siar-site/sys-arch/ui-ux-14-presence-typing-receipts-status-architecture.html) | **Presence & Typing** | Debounced ephemeral typing state, ghost mode, verified-only availability |
+| **15** | [`ui-ux-15-security-center-devices`](https://irshadali5.github.io/siar-site/sys-arch/ui-ux-15-security-center-devices-keys-recovery-architecture.html) | **Security Center** | Linked device manager, emergency lockdown broadcast, recovery phrases |
+| **16** | [`ui-ux-16-backup-restore-export`](https://irshadali5.github.io/siar-site/sys-arch/ui-ux-16-backup-restore-export-migration-architecture.html) | **Backup & Migration** | Encrypted `.siarbackup` archive export, P2P direct device migration |
+| **17** | [`ui-ux-17-emergency-sos-offline-mesh`](https://irshadali5.github.io/siar-site/sys-arch/ui-ux-17-emergency-sos-offline-mesh-architecture.html) | **Emergency SOS Hub** | Priority 0 life-safety beaconing, disaster triage, battery survival UI |
+| **18** | [`ui-ux-18-settings-privacy-data`](https://irshadali5.github.io/siar-site/sys-arch/ui-ux-18-settings-privacy-notifications-data-controls-architecture.html) | **Settings & Privacy** | Radio transport toggles, telemetry controls, database encryption keys |
+| **19** | [`ui-ux-19-plugin-module-ecosystem`](https://irshadali5.github.io/siar-site/sys-arch/ui-ux-19-plugin-module-ecosystem-architecture.html) | **Plugin Ecosystem UI** | WASM plugin manager, capability permission prompts, bot interfaces |
+| **20** | [`ui-ux-20-diagnostics-network-paths`](https://irshadali5.github.io/siar-site/sys-arch/ui-ux-20-diagnostics-network-paths-advanced-developer-architecture.html) | **Network Diagnostics** | Multi-hop route visualizer, packet loss heatmap, live radio telemetry |
+| **21** | [`ui-ux-21-accessibility-inclusive`](https://irshadali5.github.io/siar-site/sys-arch/ui-ux-21-accessibility-inclusive-interaction-architecture.html) | **Accessibility** | WCAG 2.1 AA contrast, screen reader semantics, high-DPI scaling |
+| **22** | [`ui-ux-22-design-system-tokens`](https://irshadali5.github.io/siar-site/sys-arch/ui-ux-22-design-system-tokens-typography-icons-motion-architecture.html) | **Design System Tokens** | Design tokens, typography hierarchy, motion timing, dark theme palette |
+| **23** | [`ui-ux-23-responsive-adaptive-layout`](https://irshadali5.github.io/siar-site/sys-arch/ui-ux-23-responsive-adaptive-desktop-tablet-foldable-phone-layout-architecture.html) | **Adaptive Layouts** | 5-tier responsive breakpoints (compact phone, tablet, foldable, desktop) |
+| **24** | [`ui-ux-24-error-loading-empty-state`](https://irshadali5.github.io/siar-site/sys-arch/ui-ux-24-error-loading-empty-offline-degraded-state-architecture.html) | **State Architecture** | Skeleton loaders, empty states, offline mesh banners, error boundaries |
+| **25** | [`ui-ux-25-onboarding-first-run`](https://irshadali5.github.io/siar-site/sys-arch/ui-ux-25-onboarding-first-run-permission-education-architecture.html) | **Onboarding & Education** | Zero-account creation wizard, StrongBox setup, radio permission flows |
+| **26** | [`ui-ux-26-performance-virtualization`](https://irshadali5.github.io/siar-site/sys-arch/ui-ux-26-performance-virtualization-large-data-ui-architecture.html) | **UI Virtualization** | 120 FPS windowing, zero GC stutter, async texture decoding |
+| **27** | [`ui-ux-27-ui-testing-quality-gates`](https://irshadali5.github.io/siar-site/sys-arch/ui-ux-27-ui-testing-screenshot-interaction-release-quality-gates-architecture.html) | **Quality Gates & Testing** | Automated screenshot regression testing, interaction fuzzing, release gates |
 
 ---
 
