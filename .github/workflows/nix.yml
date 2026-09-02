@@ -35,9 +35,6 @@ jobs:
       - name: Build SIAR Emergency Node
         run: nix build .#siar-emergency-node --print-build-logs
 
-      - name: Build SIAR Book
-        run: nix build .#siar-book --print-build-logs
-
       - name: Build SIAR Desktop (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: nix build .#siar-desktop --print-build-logs
