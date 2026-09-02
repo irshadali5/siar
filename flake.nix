@@ -48,6 +48,7 @@
           openssl
           dbus
           gsettings-desktop-schemas
+          xdotool
         ];
 
         # Core headless / CLI Linux dependencies
@@ -66,18 +67,12 @@
           openssl
           libiconv
         ] ++ lib.optionals pkgs.stdenv.isDarwin (
-          if pkgs ? apple-sdk_11 then [
-            pkgs.apple-sdk_11
-          ] else if pkgs ? darwin && pkgs.darwin ? apple_sdk then (with pkgs.darwin.apple_sdk.frameworks; [
-            Security
-            CoreServices
-            CoreAudio
-            AudioToolbox
-            AppKit
-            WebKit
-            Foundation
-            CoreGraphics
-          ]) else [ ]
+          let
+            appleSdk = builtins.tryEval (pkgs.apple-sdk or null);
+          in
+          if appleSdk.success && appleSdk.value != null then [
+            appleSdk.value
+          ] else [ ]
         );
 
         # Common dependencies for all workspace cargo artifacts
@@ -161,7 +156,7 @@
 
         siar-all = pkgs.symlinkJoin {
           name = "siar-all";
-          paths = [ siar-cli siar-emergency-node siar-desktop ];
+          paths = [ siar-cli siar-emergency-node ] ++ lib.optionals pkgs.stdenv.isLinux [ siar-desktop ];
         };
 
         # Check derivations
