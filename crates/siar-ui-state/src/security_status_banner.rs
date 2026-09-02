@@ -70,7 +70,13 @@ mod tests {
     #[test]
     fn dismissing_an_event_hides_it_from_the_banner_but_not_from_resolution_state() {
         let mut events = SecurityEventState::new();
-        let id = events.push(SecurityEventKind::SuspiciousAuthorization, 1_000, None, None, vec![]);
+        let id = events.push(
+            SecurityEventKind::SuspiciousAuthorization,
+            1_000,
+            None,
+            None,
+            vec![],
+        );
 
         let mut banner = SecurityStatusBanner::new();
         assert_eq!(banner.visible_issues(&events).len(), 1);
@@ -85,7 +91,13 @@ mod tests {
     #[test]
     fn resolving_the_underlying_event_removes_it_from_the_banner_without_a_dismiss_call() {
         let mut events = SecurityEventState::new();
-        let id = events.push(SecurityEventKind::IdentityChanged, 1_000, None, None, vec![]);
+        let id = events.push(
+            SecurityEventKind::IdentityChanged,
+            1_000,
+            None,
+            None,
+            vec![],
+        );
         let banner = SecurityStatusBanner::new();
         assert_eq!(banner.visible_issues(&events).len(), 1);
 

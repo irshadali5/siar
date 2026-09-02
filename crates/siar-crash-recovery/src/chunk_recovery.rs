@@ -61,7 +61,10 @@ pub enum ChunkRecoveryState {
 
 pub fn can_transition(from: ChunkRecoveryState, to: ChunkRecoveryState) -> bool {
     use ChunkRecoveryState::*;
-    matches!((from, to), (WrittenUnverified, Verified) | (Verified, Acked))
+    matches!(
+        (from, to),
+        (WrittenUnverified, Verified) | (Verified, Acked)
+    )
 }
 
 /// §20's own instruction ("treat chunk as unverified, reverify on

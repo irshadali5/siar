@@ -182,13 +182,19 @@ mod tests {
     #[test]
     fn device_row_label_matches_the_spec_worked_example_shape() {
         let device = sample_device("Pixel 10", DeviceTrustState::Trusted, true);
-        assert_eq!(device_row_accessibility_label(&device), "Pixel 10, trusted, this device");
+        assert_eq!(
+            device_row_accessibility_label(&device),
+            "Pixel 10, trusted, this device"
+        );
     }
 
     #[test]
     fn device_row_label_omits_this_device_for_other_devices() {
         let device = sample_device("Old Laptop", DeviceTrustState::Trusted, false);
-        assert_eq!(device_row_accessibility_label(&device), "Old Laptop, trusted");
+        assert_eq!(
+            device_row_accessibility_label(&device),
+            "Old Laptop, trusted"
+        );
     }
 
     #[test]
@@ -220,7 +226,10 @@ mod tests {
             DestructiveAction::RotateRecoveryKey,
             DestructiveAction::DeleteRecoveryMethod,
         ] {
-            assert_eq!(action.required_friction(), ConfirmationFriction::SimpleConfirm);
+            assert_eq!(
+                action.required_friction(),
+                ConfirmationFriction::SimpleConfirm
+            );
         }
     }
 }

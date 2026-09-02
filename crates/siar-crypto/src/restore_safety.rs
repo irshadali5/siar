@@ -49,10 +49,7 @@ pub enum RestoreDecision {
 /// alternative (not recording it) would make the *next* restore of the
 /// same backup look like a first sighting again instead of a second,
 /// more suspicious repeat.
-pub fn decide_restore(
-    detector: &mut CloneDetector,
-    device: DeviceId,
-) -> RestoreDecision {
+pub fn decide_restore(detector: &mut CloneDetector, device: DeviceId) -> RestoreDecision {
     let fresh_instance = DeviceInstanceId::generate();
     match detector.check(device, fresh_instance) {
         // No prior instance on record — nothing to have conflicted
@@ -61,13 +58,17 @@ pub fn decide_restore(
         // whatever instance ID was in the backup itself; only the
         // *decision* differs by verdict, not whether an instance ID is
         // freshly generated.
-        CloneVerdict::FirstSeen => RestoreDecision::NewIncarnation { instance: fresh_instance },
+        CloneVerdict::FirstSeen => RestoreDecision::NewIncarnation {
+            instance: fresh_instance,
+        },
         // Should not occur in practice (the instance generated above is
         // fresh every call, so it can only equal `previous` by an
         // astronomically unlikely collision) — handled the same as
         // `FirstSeen` rather than treated as an error, since either way
         // a fresh instance was just recorded.
-        CloneVerdict::Known => RestoreDecision::NewIncarnation { instance: fresh_instance },
+        CloneVerdict::Known => RestoreDecision::NewIncarnation {
+            instance: fresh_instance,
+        },
         // A different instance was already on record for this device —
         // this restore is happening while another instance might still
         // be active (concurrent) or the backup is simply stale
@@ -113,7 +114,8 @@ mod tests {
         let mut detector = CloneDetector::new();
         let device = DeviceId::new();
 
-        let RestoreDecision::NewIncarnation { instance } = decide_restore(&mut detector, device) else {
+        let RestoreDecision::NewIncarnation { instance } = decide_restore(&mut detector, device)
+        else {
             panic!("expected NewIncarnation for a first-time restore");
         };
 
@@ -128,7 +130,13 @@ mod tests {
         let device_a = DeviceId::new();
         let device_b = DeviceId::new();
 
-        assert!(matches!(decide_restore(&mut detector, device_a), RestoreDecision::NewIncarnation { .. }));
-        assert!(matches!(decide_restore(&mut detector, device_b), RestoreDecision::NewIncarnation { .. }));
+        assert!(matches!(
+            decide_restore(&mut detector, device_a),
+            RestoreDecision::NewIncarnation { .. }
+        ));
+        assert!(matches!(
+            decide_restore(&mut detector, device_b),
+            RestoreDecision::NewIncarnation { .. }
+        ));
     }
 }

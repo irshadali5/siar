@@ -119,7 +119,10 @@ mod tests {
 
     struct StubFileResolver;
     impl ContentResolver for StubFileResolver {
-        async fn resolve(&self, reference: ContentReference) -> Result<ResolvedContent, ResolveError> {
+        async fn resolve(
+            &self,
+            reference: ContentReference,
+        ) -> Result<ResolvedContent, ResolveError> {
             if reference.0.is_empty() {
                 return Err(ResolveError {
                     reason: "empty reference".to_string(),
@@ -132,14 +135,20 @@ mod tests {
     #[tokio::test]
     async fn spec_87_a_files_provided_resolver_satisfies_the_abstract_trait() {
         let resolver = StubFileResolver;
-        let result = resolver.resolve(ContentReference(vec![1, 2, 3])).await.unwrap();
+        let result = resolver
+            .resolve(ContentReference(vec![1, 2, 3]))
+            .await
+            .unwrap();
         assert_eq!(result.0, vec![1, 2, 3]);
     }
 
     #[tokio::test]
     async fn spec_87_resolve_failure_carries_a_reason() {
         let resolver = StubFileResolver;
-        let err = resolver.resolve(ContentReference(vec![])).await.unwrap_err();
+        let err = resolver
+            .resolve(ContentReference(vec![]))
+            .await
+            .unwrap_err();
         assert!(!err.reason.is_empty());
     }
 
@@ -151,7 +160,10 @@ mod tests {
         let classification = ExtensionClassification::FirstPartyOptional;
         let stability = crate::descriptor::ExtensionStability::Experimental;
         assert_eq!(classification, ExtensionClassification::FirstPartyOptional);
-        assert_eq!(stability, crate::descriptor::ExtensionStability::Experimental);
+        assert_eq!(
+            stability,
+            crate::descriptor::ExtensionStability::Experimental
+        );
     }
 
     #[test]

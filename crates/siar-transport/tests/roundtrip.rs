@@ -38,7 +38,11 @@ struct MapBlobStore(Mutex<HashMap<[u8; 32], Vec<u8>>>);
 
 impl BlobStore for MapBlobStore {
     fn get(&self, blob_hash: &[u8; 32]) -> Option<Vec<u8>> {
-        self.0.lock().expect("MapBlobStore poisoned").get(blob_hash).cloned()
+        self.0
+            .lock()
+            .expect("MapBlobStore poisoned")
+            .get(blob_hash)
+            .cloned()
     }
 }
 
@@ -104,11 +108,7 @@ async fn fetch_blob_returns_found_when_the_peer_has_it() {
     let hash = [7u8; 32];
     let ciphertext = vec![1, 2, 3, 4, 5];
     let b_store = Arc::new(MapBlobStore::default());
-    b_store
-        .0
-        .lock()
-        .unwrap()
-        .insert(hash, ciphertext.clone());
+    b_store.0.lock().unwrap().insert(hash, ciphertext.clone());
 
     let a_store: Arc<dyn BlobStore> = Arc::new(MapBlobStore::default());
     let a = SiarEndpoint::bind(SecretKey::generate(), tx_a, a_store)
@@ -142,13 +142,10 @@ async fn fetch_blob_returns_none_when_the_peer_does_not_have_it() {
         .expect("endpoint B binds");
 
     let b_addr = direct_addr_only(b.addr());
-    let result = tokio::time::timeout(
-        Duration::from_secs(20),
-        a.fetch_blob(b_addr, [0xAAu8; 32]),
-    )
-    .await
-    .expect("fetch_blob did not time out")
-    .expect("fetch_blob succeeds (peer answering NotFound is not a transport error)");
+    let result = tokio::time::timeout(Duration::from_secs(20), a.fetch_blob(b_addr, [0xAAu8; 32]))
+        .await
+        .expect("fetch_blob did not time out")
+        .expect("fetch_blob succeeds (peer answering NotFound is not a transport error)");
 
     assert_eq!(result, None);
 }

@@ -36,7 +36,11 @@ pub struct RevocationProgress {
 
 impl RevocationProgress {
     pub fn start(device: DeviceId) -> Self {
-        Self { device, state: RevocationState::Pending, offline_pending: false }
+        Self {
+            device,
+            state: RevocationState::Pending,
+            offline_pending: false,
+        }
     }
 
     pub fn mark_offline_pending(&mut self) {
@@ -137,7 +141,10 @@ mod tests {
     fn offline_pending_revocation_gets_its_own_label() {
         let mut progress = RevocationProgress::start(DeviceId::new());
         progress.mark_offline_pending();
-        assert_eq!(progress.display_label(), "Pending (will complete when connected)");
+        assert_eq!(
+            progress.display_label(),
+            "Pending (will complete when connected)"
+        );
     }
 
     #[test]
@@ -150,7 +157,10 @@ mod tests {
 
     #[test]
     fn lost_device_label_never_promises_wipe_without_the_capability() {
-        assert_eq!(lost_device_action_label(WipeCapability::LocalWipeOnly), "Revoke access");
+        assert_eq!(
+            lost_device_action_label(WipeCapability::LocalWipeOnly),
+            "Revoke access"
+        );
         assert_eq!(
             lost_device_action_label(WipeCapability::LocalAndRemoteWipe),
             "Revoke access and wipe device"

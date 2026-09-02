@@ -90,9 +90,21 @@ mod tests {
         let cipher_c = ChaCha20Poly1305::new(&[3u8; 32].into());
 
         let recipients = vec![
-            RecipientDevice { device: DeviceId::new(), cipher: &cipher_a, next_counter: 0 },
-            RecipientDevice { device: DeviceId::new(), cipher: &cipher_b, next_counter: 0 },
-            RecipientDevice { device: DeviceId::new(), cipher: &cipher_c, next_counter: 0 },
+            RecipientDevice {
+                device: DeviceId::new(),
+                cipher: &cipher_a,
+                next_counter: 0,
+            },
+            RecipientDevice {
+                device: DeviceId::new(),
+                cipher: &cipher_b,
+                next_counter: 0,
+            },
+            RecipientDevice {
+                device: DeviceId::new(),
+                cipher: &cipher_c,
+                next_counter: 0,
+            },
         ];
 
         let envelopes = fan_out_envelope(
@@ -120,8 +132,16 @@ mod tests {
         let cipher_a = ChaCha20Poly1305::new(&[9u8; 32].into());
         let cipher_b = ChaCha20Poly1305::new(&[8u8; 32].into());
         let recipients = vec![
-            RecipientDevice { device: DeviceId::new(), cipher: &cipher_a, next_counter: 0 },
-            RecipientDevice { device: DeviceId::new(), cipher: &cipher_b, next_counter: 0 },
+            RecipientDevice {
+                device: DeviceId::new(),
+                cipher: &cipher_a,
+                next_counter: 0,
+            },
+            RecipientDevice {
+                device: DeviceId::new(),
+                cipher: &cipher_b,
+                next_counter: 0,
+            },
         ];
 
         let envelopes = fan_out_envelope(

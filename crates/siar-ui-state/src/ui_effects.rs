@@ -97,7 +97,9 @@ pub struct SensitiveRecoveryMaterialHandle {
 
 impl SensitiveRecoveryMaterialHandle {
     pub fn new(material: RecoveryMaterialView) -> Self {
-        Self { material: Some(material) }
+        Self {
+            material: Some(material),
+        }
     }
 
     /// `None` once released — a caller checks this rather than the

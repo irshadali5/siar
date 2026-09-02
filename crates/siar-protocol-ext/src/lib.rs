@@ -472,8 +472,12 @@ pub mod violation;
 pub use backpressure::{BoundedQueue, QueueFull};
 pub use capability::{CapabilityId, CapabilityRegistry, CapabilitySet};
 pub use channel::ChannelKind;
-pub use config::{ConfigError, ExtensionDependencyKind, FileConfig, MessagingConfig, validate_file_config};
-pub use definition_of_done::{DefinitionOfDoneItem, CUSTOM_APP_EXTENSIONS_WITHOUT_CORE_CHANGES_NOTE};
+pub use config::{
+    validate_file_config, ConfigError, ExtensionDependencyKind, FileConfig, MessagingConfig,
+};
+pub use definition_of_done::{
+    DefinitionOfDoneItem, CUSTOM_APP_EXTENSIONS_WITHOUT_CORE_CHANGES_NOTE,
+};
 pub use deprecation::{
     DeprecationStatus, InvalidDeprecationTransition, SecurityDeprecationAction,
     SECURITY_DEPRECATION_STEPS,
@@ -513,7 +517,10 @@ pub use lifecycle::{
 };
 pub use negotiation::{negotiate, NegotiationError, RemoteAdvertisement};
 pub use observability::{render_diagnostics, ExtensionMetrics, TraceFields, TraceResult};
-pub use peer::{CacheSource, CapabilityCacheEntry, CapabilityChangeReason, PeerCapabilities, PeerCapabilityCache};
+pub use peer::{
+    CacheSource, CapabilityCacheEntry, CapabilityChangeReason, PeerCapabilities,
+    PeerCapabilityCache,
+};
 pub use persistence::{OwnedTable, FILES_OWNED_TABLES, MESSAGING_OWNED_TABLES};
 pub use platform::{HeadlessCapableExtension, HeadlessUseCase, MobileEfficiencyPractice};
 pub use registry::{

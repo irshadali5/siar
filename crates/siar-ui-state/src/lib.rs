@@ -40,9 +40,9 @@ mod timeline;
 mod ui_effects;
 
 pub use accessibility::{
-    device_row_accessibility_label, security_event_severity_icon_name,
-    security_health_icon_name, security_overview_accessibility_summary, ConfirmationFriction,
-    DestructiveAction, HighRiskConfirmationCopy,
+    device_row_accessibility_label, security_event_severity_icon_name, security_health_icon_name,
+    security_overview_accessibility_summary, ConfirmationFriction, DestructiveAction,
+    HighRiskConfirmationCopy,
 };
 pub use attachment_preview::{AttachmentPreview, AttachmentPreviewState};
 pub use command::{AppCommand, AppEvent};
@@ -50,8 +50,8 @@ pub use composer::ComposerState;
 pub use contact_list::{ContactListState, SavedContact};
 pub use conversation_list::{ConversationKind, ConversationListState, ConversationSummary};
 pub use device_lifecycle::{
-    is_last_trusted_device, CompromiseResponseChecklist, CompromiseResponseStep, DeviceLossFlowState,
-    DeviceLossFlowStep, DeviceLossKind, ReauthPurpose, ReauthResult,
+    is_last_trusted_device, CompromiseResponseChecklist, CompromiseResponseStep,
+    DeviceLossFlowState, DeviceLossFlowStep, DeviceLossKind, ReauthPurpose, ReauthResult,
 };
 pub use diagnostics::SecurityDiagnosticDetail;
 pub use empty_states::{
@@ -70,9 +70,9 @@ pub use identity_verification::{
 pub use network::{NetworkState, NetworkStatus, PeerReachability};
 pub use presentation_api::{
     DeviceSecurityCapabilities, DeviceSecurityPresentation, ReauthProof, RecoveryCapabilities,
-    RecoveryMaterialView, RecoveryPresentation, RecoveryVerificationInput, RecoveryVerificationResult,
-    RevocationResultView, SecurityCenterSnapshot, SecurityEventCursor, SecurityEventPage,
-    SecurityPresentation, UiError,
+    RecoveryMaterialView, RecoveryPresentation, RecoveryVerificationInput,
+    RecoveryVerificationResult, RevocationResultView, SecurityCenterSnapshot, SecurityEventCursor,
+    SecurityEventPage, SecurityPresentation, UiError,
 };
 pub use privacy_and_lock::{
     app_unlock_satisfies_reauth, AdvancedKeyExportGate, AppLockMethod, AppLockSettings,

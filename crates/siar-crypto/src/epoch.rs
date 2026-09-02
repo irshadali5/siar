@@ -18,7 +18,9 @@
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Serialize, Deserialize,
+)]
 pub struct SecurityEpoch(pub u64);
 
 impl SecurityEpoch {
@@ -65,6 +67,9 @@ mod tests {
     fn ordering_is_by_value() {
         let mut epochs = vec![SecurityEpoch(3), SecurityEpoch(1), SecurityEpoch(2)];
         epochs.sort();
-        assert_eq!(epochs, vec![SecurityEpoch(1), SecurityEpoch(2), SecurityEpoch(3)]);
+        assert_eq!(
+            epochs,
+            vec![SecurityEpoch(1), SecurityEpoch(2), SecurityEpoch(3)]
+        );
     }
 }

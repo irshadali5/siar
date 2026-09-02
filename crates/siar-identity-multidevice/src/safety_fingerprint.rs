@@ -101,7 +101,12 @@ impl SafetyFingerprint {
     pub fn display_string(&self) -> String {
         self.groups
             .iter()
-            .map(|group| group.iter().map(|d| char::from(b'0' + d)).collect::<String>())
+            .map(|group| {
+                group
+                    .iter()
+                    .map(|d| char::from(b'0' + d))
+                    .collect::<String>()
+            })
             .collect::<Vec<_>>()
             .join(" ")
     }
@@ -135,8 +140,10 @@ mod tests {
         let alice = RootIdentityKey::generate();
         let bob = RootIdentityKey::generate();
         let carol = RootIdentityKey::generate();
-        let fp_alice_bob = SafetyFingerprint::derive(&alice.root_public_key(), &bob.root_public_key());
-        let fp_alice_carol = SafetyFingerprint::derive(&alice.root_public_key(), &carol.root_public_key());
+        let fp_alice_bob =
+            SafetyFingerprint::derive(&alice.root_public_key(), &bob.root_public_key());
+        let fp_alice_carol =
+            SafetyFingerprint::derive(&alice.root_public_key(), &carol.root_public_key());
         assert_ne!(fp_alice_bob, fp_alice_carol);
     }
 
@@ -165,7 +172,8 @@ mod tests {
         let bob = RootIdentityKey::generate();
         let bob_new = RootIdentityKey::generate();
         let fp_before = SafetyFingerprint::derive(&alice.root_public_key(), &bob.root_public_key());
-        let fp_after = SafetyFingerprint::derive(&alice.root_public_key(), &bob_new.root_public_key());
+        let fp_after =
+            SafetyFingerprint::derive(&alice.root_public_key(), &bob_new.root_public_key());
         assert_ne!(fp_before, fp_after);
     }
 }

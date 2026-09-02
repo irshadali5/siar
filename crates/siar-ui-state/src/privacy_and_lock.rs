@@ -65,7 +65,10 @@ pub struct AppLockSettings {
 /// in this codebase; §115's rule already holds structurally. This
 /// function exists to make that fact checkable/testable rather than
 /// merely true by the absence of a connection between the two types.
-pub const fn app_unlock_satisfies_reauth(_purpose: ReauthPurpose, _app_lock: &AppLockSettings) -> bool {
+pub const fn app_unlock_satisfies_reauth(
+    _purpose: ReauthPurpose,
+    _app_lock: &AppLockSettings,
+) -> bool {
     false
 }
 
@@ -148,8 +151,14 @@ mod tests {
         };
         // Every purpose, unlocked app, still `false` — §115's rule
         // holds regardless of which purpose or app-lock configuration.
-        assert!(!app_unlock_satisfies_reauth(ReauthPurpose::ShowRecoveryKey, &settings));
-        assert!(!app_unlock_satisfies_reauth(ReauthPurpose::ResetIdentity, &settings));
+        assert!(!app_unlock_satisfies_reauth(
+            ReauthPurpose::ShowRecoveryKey,
+            &settings
+        ));
+        assert!(!app_unlock_satisfies_reauth(
+            ReauthPurpose::ResetIdentity,
+            &settings
+        ));
         assert!(!app_unlock_satisfies_reauth(
             ReauthPurpose::RevokeDevice(DeviceId::new()),
             &settings

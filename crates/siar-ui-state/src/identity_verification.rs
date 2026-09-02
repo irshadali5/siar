@@ -187,9 +187,18 @@ mod tests {
     fn contact_verification_needs_review_count_matches_issue_count() {
         let mut summary = ContactVerificationSummary::new();
         summary.set_issues(vec![
-            ContactVerificationIssue { contact: AccountId::new(), kind: ContactVerificationIssueKind::IdentityChanged },
-            ContactVerificationIssue { contact: AccountId::new(), kind: ContactVerificationIssueKind::VerificationExpired },
-            ContactVerificationIssue { contact: AccountId::new(), kind: ContactVerificationIssueKind::VerificationInvalid },
+            ContactVerificationIssue {
+                contact: AccountId::new(),
+                kind: ContactVerificationIssueKind::IdentityChanged,
+            },
+            ContactVerificationIssue {
+                contact: AccountId::new(),
+                kind: ContactVerificationIssueKind::VerificationExpired,
+            },
+            ContactVerificationIssue {
+                contact: AccountId::new(),
+                kind: ContactVerificationIssueKind::VerificationInvalid,
+            },
         ]);
         assert_eq!(summary.needs_review_count(), 3);
     }
@@ -198,12 +207,24 @@ mod tests {
     fn identity_changed_issues_sort_before_expired_ones() {
         let mut summary = ContactVerificationSummary::new();
         summary.set_issues(vec![
-            ContactVerificationIssue { contact: AccountId::new(), kind: ContactVerificationIssueKind::VerificationExpired },
-            ContactVerificationIssue { contact: AccountId::new(), kind: ContactVerificationIssueKind::IdentityChanged },
+            ContactVerificationIssue {
+                contact: AccountId::new(),
+                kind: ContactVerificationIssueKind::VerificationExpired,
+            },
+            ContactVerificationIssue {
+                contact: AccountId::new(),
+                kind: ContactVerificationIssueKind::IdentityChanged,
+            },
         ]);
         let ordered = summary.high_priority_first();
-        assert_eq!(ordered[0].kind, ContactVerificationIssueKind::IdentityChanged);
-        assert_eq!(ordered[1].kind, ContactVerificationIssueKind::VerificationExpired);
+        assert_eq!(
+            ordered[0].kind,
+            ContactVerificationIssueKind::IdentityChanged
+        );
+        assert_eq!(
+            ordered[1].kind,
+            ContactVerificationIssueKind::VerificationExpired
+        );
     }
 
     #[test]

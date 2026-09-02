@@ -82,7 +82,10 @@ impl ReplayGuard {
     /// influence this guard's state. Either order is safe from a
     /// correctness standpoint since this guard makes no confidentiality
     /// claim of its own — this crate checks before, since it's cheaper.
-    pub fn check_and_record(&mut self, envelope: &SecureMessageEnvelope) -> Result<(), ReplayError> {
+    pub fn check_and_record(
+        &mut self,
+        envelope: &SecureMessageEnvelope,
+    ) -> Result<(), ReplayError> {
         let key = StreamKey {
             conversation: envelope.conversation,
             sender_device: envelope.sender_device,
@@ -138,7 +141,12 @@ mod tests {
     #[test]
     fn first_message_is_accepted() {
         let mut guard = ReplayGuard::new(16);
-        let e = envelope_with_counter(ConversationId::new(), DeviceId::new(), SecurityEpoch::zero(), 0);
+        let e = envelope_with_counter(
+            ConversationId::new(),
+            DeviceId::new(),
+            SecurityEpoch::zero(),
+            0,
+        );
         assert!(guard.check_and_record(&e).is_ok());
     }
 
@@ -154,7 +162,10 @@ mod tests {
         // Same conversation/sender/epoch/counter arriving a second time
         // (e.g. delivered via both a direct path and a DTN bundle).
         let e_again = envelope_with_counter(conversation, sender, epoch, 5);
-        assert_eq!(guard.check_and_record(&e_again), Err(ReplayError::Duplicate));
+        assert_eq!(
+            guard.check_and_record(&e_again),
+            Err(ReplayError::Duplicate)
+        );
     }
 
     #[test]

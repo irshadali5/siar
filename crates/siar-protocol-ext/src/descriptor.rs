@@ -190,18 +190,12 @@ mod tests {
 
     #[test]
     fn spec_47_experimental_in_production_requires_opt_in() {
-        assert!(requires_opt_in(
-            ExtensionStability::Experimental,
-            true
-        ));
+        assert!(requires_opt_in(ExtensionStability::Experimental, true));
     }
 
     #[test]
     fn spec_47_experimental_outside_production_does_not_require_opt_in() {
-        assert!(!requires_opt_in(
-            ExtensionStability::Experimental,
-            false
-        ));
+        assert!(!requires_opt_in(ExtensionStability::Experimental, false));
     }
 
     #[test]

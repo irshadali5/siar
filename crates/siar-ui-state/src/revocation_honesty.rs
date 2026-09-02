@@ -82,14 +82,21 @@ mod tests {
 
     #[test]
     fn sign_out_copy_is_none_when_tokens_are_not_actually_invalidated() {
-        let capabilities = RevocationCapabilities { invalidates_session_tokens: false };
+        let capabilities = RevocationCapabilities {
+            invalidates_session_tokens: false,
+        };
         assert_eq!(capabilities.sign_out_copy(), None);
     }
 
     #[test]
     fn sign_out_copy_is_present_only_when_true() {
-        let capabilities = RevocationCapabilities { invalidates_session_tokens: true };
-        assert_eq!(capabilities.sign_out_copy(), Some("This signs the device out."));
+        let capabilities = RevocationCapabilities {
+            invalidates_session_tokens: true,
+        };
+        assert_eq!(
+            capabilities.sign_out_copy(),
+            Some("This signs the device out.")
+        );
     }
 
     #[test]
@@ -102,13 +109,21 @@ mod tests {
         };
         assert_eq!(full_scope.history_caveat(), None);
 
-        let no_history = RecoveryScope { restores_history: false, ..full_scope };
+        let no_history = RecoveryScope {
+            restores_history: false,
+            ..full_scope
+        };
         assert!(no_history.history_caveat().is_some());
-        assert!(no_history.history_caveat().unwrap().contains("not missing message history"));
+        assert!(no_history
+            .history_caveat()
+            .unwrap()
+            .contains("not missing message history"));
     }
 
     #[test]
     fn revocation_disclaimer_never_claims_remote_erasure() {
-        assert!(!REVOCATION_DATA_DISCLAIMER.to_lowercase().contains("all data is erased"));
+        assert!(!REVOCATION_DATA_DISCLAIMER
+            .to_lowercase()
+            .contains("all data is erased"));
     }
 }

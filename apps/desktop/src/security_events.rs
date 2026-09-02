@@ -114,7 +114,9 @@ fn event_headline(kind: SecurityEventKind) -> &'static str {
         SecurityEventKind::RecoveryChanged => "Your account recovery settings changed.",
         SecurityEventKind::BackupFailed => "A backup attempt failed.",
         SecurityEventKind::KeyRotation => "Your security keys were rotated.",
-        SecurityEventKind::SuspiciousAuthorization => "A suspicious authorization attempt was blocked.",
+        SecurityEventKind::SuspiciousAuthorization => {
+            "A suspicious authorization attempt was blocked."
+        }
         SecurityEventKind::SecurityPolicyChanged => "Your organization's security policy changed.",
         SecurityEventKind::KeyExpiryActionRequired => "A security key requires renewal action.",
     }

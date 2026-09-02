@@ -152,7 +152,10 @@ impl RecoveryRotationStep {
     ];
 
     fn index(self) -> usize {
-        Self::ORDER.iter().position(|s| *s == self).expect("all variants are in ORDER")
+        Self::ORDER
+            .iter()
+            .position(|s| *s == self)
+            .expect("all variants are in ORDER")
     }
 }
 
@@ -175,7 +178,9 @@ pub struct RecoveryRotationFlow {
 
 impl RecoveryRotationFlow {
     pub fn start() -> Self {
-        Self { step: RecoveryRotationStep::Reauthenticate }
+        Self {
+            step: RecoveryRotationStep::Reauthenticate,
+        }
     }
 
     pub fn step(&self) -> RecoveryRotationStep {
@@ -250,7 +255,10 @@ mod tests {
     fn show_reveals_only_after_reauth() {
         let mut state = RecoveryKeyDisplayState::new();
         state.show();
-        assert!(!state.is_visible(), "show() before reauth must not reveal the key");
+        assert!(
+            !state.is_visible(),
+            "show() before reauth must not reveal the key"
+        );
 
         state.mark_reauthenticated();
         state.show();

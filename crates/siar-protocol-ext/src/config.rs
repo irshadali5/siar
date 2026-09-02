@@ -36,7 +36,10 @@ pub enum ConfigError {
 /// they actually call — the "before opening network listeners" part is
 /// a caller-ordering discipline this type can't structurally guarantee
 /// any more than any validation function can.
-pub fn validate_file_config(config: &FileConfig, limits: &ExtensionLimits) -> Result<(), ConfigError> {
+pub fn validate_file_config(
+    config: &FileConfig,
+    limits: &ExtensionLimits,
+) -> Result<(), ConfigError> {
     if config.chunk_size > limits.max_frame_size {
         return Err(ConfigError::ChunkSizeExceedsMaxFrameSize {
             chunk_size: config.chunk_size,
@@ -57,7 +60,9 @@ pub enum ExtensionDependencyKind {
 mod tests {
     use super::*;
     use crate::capability::{CapabilityId, CapabilitySet};
-    use crate::descriptor::{ExtensionDescriptor, ExtensionRequirement, ExtensionStability, ExtensionVersion};
+    use crate::descriptor::{
+        ExtensionDescriptor, ExtensionRequirement, ExtensionStability, ExtensionVersion,
+    };
     use crate::identifier::{NamespaceId, ProtocolId, ProtocolMajor, ProtocolMinor, ProtocolName};
     use crate::negotiation::{negotiate, RemoteAdvertisement};
     use crate::security::SecurityRequirements;

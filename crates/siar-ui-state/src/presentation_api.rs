@@ -24,9 +24,9 @@ use siar_domain::DeviceId;
 use crate::device_lifecycle::ReauthPurpose;
 use crate::recovery::{RecoveryMethod, RecoveryOverview, RecoveryStatus};
 use crate::recovery_advanced::BackupSecurityState;
+use crate::revocation_lifecycle::RevocationState;
 use crate::security_center::{DeviceSecurityView, SecurityHealth};
 use crate::security_event::{SecurityEvent, SecurityEventId};
-use crate::revocation_lifecycle::RevocationState;
 
 /// §135, verbatim.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -109,7 +109,10 @@ pub struct ReauthProof {
 
 impl ReauthProof {
     pub fn new(purpose: ReauthPurpose, verified_at_millis: u64) -> Self {
-        Self { purpose, verified_at_millis }
+        Self {
+            purpose,
+            verified_at_millis,
+        }
     }
 
     pub fn purpose(&self) -> ReauthPurpose {
@@ -170,7 +173,10 @@ pub enum RecoveryVerificationResult {
 #[async_trait::async_trait]
 pub trait SecurityPresentation {
     async fn snapshot(&self) -> Result<SecurityCenterSnapshot, UiError>;
-    async fn events(&self, cursor: Option<SecurityEventCursor>) -> Result<SecurityEventPage, UiError>;
+    async fn events(
+        &self,
+        cursor: Option<SecurityEventCursor>,
+    ) -> Result<SecurityEventPage, UiError>;
     async fn resolve_event(&self, event: SecurityEventId) -> Result<(), UiError>;
 }
 
@@ -180,7 +186,11 @@ pub trait DeviceSecurityPresentation {
     async fn devices(&self) -> Result<Vec<DeviceSecurityView>, UiError>;
     async fn device(&self, id: DeviceId) -> Result<DeviceSecurityView, UiError>;
     async fn rename(&self, id: DeviceId, name: String) -> Result<(), UiError>;
-    async fn revoke(&self, id: DeviceId, auth: ReauthProof) -> Result<RevocationResultView, UiError>;
+    async fn revoke(
+        &self,
+        id: DeviceId,
+        auth: ReauthProof,
+    ) -> Result<RevocationResultView, UiError>;
 }
 
 /// §140, verbatim. `RecoveryStatusView` is `RecoveryOverview` (see this
@@ -189,7 +199,10 @@ pub trait DeviceSecurityPresentation {
 pub trait RecoveryPresentation {
     async fn status(&self) -> Result<RecoveryOverview, UiError>;
     async fn create(&self, auth: ReauthProof) -> Result<RecoveryMaterialView, UiError>;
-    async fn verify(&self, proof: RecoveryVerificationInput) -> Result<RecoveryVerificationResult, UiError>;
+    async fn verify(
+        &self,
+        proof: RecoveryVerificationInput,
+    ) -> Result<RecoveryVerificationResult, UiError>;
     async fn rotate(&self, auth: ReauthProof) -> Result<RecoveryMaterialView, UiError>;
 }
 
@@ -217,8 +230,14 @@ mod tests {
             })
         }
 
-        async fn events(&self, _cursor: Option<SecurityEventCursor>) -> Result<SecurityEventPage, UiError> {
-            Ok(SecurityEventPage { events: Vec::new(), next_cursor: None })
+        async fn events(
+            &self,
+            _cursor: Option<SecurityEventCursor>,
+        ) -> Result<SecurityEventPage, UiError> {
+            Ok(SecurityEventPage {
+                events: Vec::new(),
+                next_cursor: None,
+            })
         }
 
         async fn resolve_event(&self, _event: SecurityEventId) -> Result<(), UiError> {
@@ -249,7 +268,10 @@ mod tests {
             })
         }
 
-        async fn verify(&self, proof: RecoveryVerificationInput) -> Result<RecoveryVerificationResult, UiError> {
+        async fn verify(
+            &self,
+            proof: RecoveryVerificationInput,
+        ) -> Result<RecoveryVerificationResult, UiError> {
             if proof.submitted_material == "AAAA-BBBB-CCCC-DDDD" {
                 Ok(RecoveryVerificationResult::Valid)
             } else {
@@ -277,7 +299,10 @@ mod tests {
     async fn recovery_create_requires_the_right_reauth_purpose() {
         let presentation = MockRecoveryPresentation;
         let wrong_purpose = ReauthProof::new(ReauthPurpose::ResetIdentity, 1_000);
-        assert_eq!(presentation.create(wrong_purpose).await, Err(UiError::NotAuthorized));
+        assert_eq!(
+            presentation.create(wrong_purpose).await,
+            Err(UiError::NotAuthorized)
+        );
 
         let right_purpose = ReauthProof::new(ReauthPurpose::ShowRecoveryKey, 1_000);
         assert!(presentation.create(right_purpose).await.is_ok());
@@ -290,19 +315,31 @@ mod tests {
             method: RecoveryMethod::RecoveryKey,
             submitted_material: "AAAA-BBBB-CCCC-DDDD".to_string(),
         };
-        assert_eq!(presentation.verify(valid).await.unwrap(), RecoveryVerificationResult::Valid);
+        assert_eq!(
+            presentation.verify(valid).await.unwrap(),
+            RecoveryVerificationResult::Valid
+        );
 
         let invalid = RecoveryVerificationInput {
             method: RecoveryMethod::RecoveryKey,
             submitted_material: "wrong".to_string(),
         };
-        assert_eq!(presentation.verify(invalid).await.unwrap(), RecoveryVerificationResult::Invalid);
+        assert_eq!(
+            presentation.verify(invalid).await.unwrap(),
+            RecoveryVerificationResult::Invalid
+        );
     }
 
     #[test]
     fn security_event_cursor_wraps_a_stable_event_id() {
         let mut events = crate::security_event::SecurityEventState::new();
-        let id = events.push(crate::security_event::SecurityEventKind::DeviceLinked, 1_000, None, None, vec![]);
+        let id = events.push(
+            crate::security_event::SecurityEventKind::DeviceLinked,
+            1_000,
+            None,
+            None,
+            vec![],
+        );
         let cursor = SecurityEventCursor(id);
         assert_eq!(cursor.0, id);
     }

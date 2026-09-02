@@ -26,7 +26,10 @@ pub struct RecoveryDrillState {
 
 impl RecoveryDrillState {
     pub fn start() -> Self {
-        Self { step: RecoveryDrillStep::EnterMaterial, passed: None }
+        Self {
+            step: RecoveryDrillStep::EnterMaterial,
+            passed: None,
+        }
     }
 
     pub fn step(&self) -> RecoveryDrillStep {
@@ -145,7 +148,10 @@ impl LostAllDevicesStep {
     ];
 
     fn index(self) -> usize {
-        Self::ORDER.iter().position(|s| *s == self).expect("all variants are in ORDER")
+        Self::ORDER
+            .iter()
+            .position(|s| *s == self)
+            .expect("all variants are in ORDER")
     }
 }
 
@@ -161,7 +167,10 @@ pub struct LostAllDevicesFlow {
 
 impl LostAllDevicesFlow {
     pub fn start() -> Self {
-        Self { method: None, step: LostAllDevicesStep::ChooseMethod }
+        Self {
+            method: None,
+            step: LostAllDevicesStep::ChooseMethod,
+        }
     }
 
     pub fn step(&self) -> LostAllDevicesStep {
@@ -284,7 +293,10 @@ mod tests {
 
     #[test]
     fn recovery_qr_expires_at_the_stated_time() {
-        let qr = RecoveryQrState { generated_at_millis: 1_000, expires_at_millis: 2_000 };
+        let qr = RecoveryQrState {
+            generated_at_millis: 1_000,
+            expires_at_millis: 2_000,
+        };
         assert!(!qr.is_expired(1_500));
         assert!(qr.is_expired(2_000));
         assert!(qr.is_expired(3_000));

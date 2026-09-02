@@ -35,8 +35,8 @@
 //! propagation is still in flight.
 
 use serde::{Deserialize, Serialize};
-use siar_identity_multidevice::RootIdentityKey;
 use siar_domain::{AccountId, DeviceId};
+use siar_identity_multidevice::RootIdentityKey;
 
 use crate::epoch::SecurityEpoch;
 
@@ -90,7 +90,12 @@ impl DeviceRevocation {
     /// Fixed field order, same reasoning as `envelope.rs`'s associated
     /// data: this is part of the format, not something to reorder later
     /// without every previously-issued revocation's signature breaking.
-    fn signable_bytes(account: AccountId, device: DeviceId, revoked_at_millis: u64, reason: RevocationReason) -> Vec<u8> {
+    fn signable_bytes(
+        account: AccountId,
+        device: DeviceId,
+        revoked_at_millis: u64,
+        reason: RevocationReason,
+    ) -> Vec<u8> {
         let mut bytes = Vec::with_capacity(16 + 16 + 8 + 1);
         bytes.extend_from_slice(account.as_uuid().as_bytes());
         bytes.extend_from_slice(device.as_uuid().as_bytes());
@@ -139,7 +144,12 @@ impl DeviceRevocation {
     /// a `DeviceRevocation` via gossip with no directory to compare
     /// against (§21's whole point) can still verify it via this alone.
     pub fn verify(&self, root_public_key: &siar_identity_multidevice::RootPublicKey) -> bool {
-        let signable = Self::signable_bytes(self.account, self.device, self.revoked_at_millis, self.reason);
+        let signable = Self::signable_bytes(
+            self.account,
+            self.device,
+            self.revoked_at_millis,
+            self.reason,
+        );
         let Ok(signature): Result<[u8; 64], _> = self.signature.clone().try_into() else {
             return false;
         };
@@ -232,8 +242,17 @@ mod tests {
     #[test]
     fn epoch_staleness_check_flags_pre_revocation_epochs() {
         let revoked_into = SecurityEpoch(5);
-        assert!(is_epoch_stale_after_revocation(SecurityEpoch(4), revoked_into));
-        assert!(!is_epoch_stale_after_revocation(SecurityEpoch(5), revoked_into));
-        assert!(!is_epoch_stale_after_revocation(SecurityEpoch(6), revoked_into));
+        assert!(is_epoch_stale_after_revocation(
+            SecurityEpoch(4),
+            revoked_into
+        ));
+        assert!(!is_epoch_stale_after_revocation(
+            SecurityEpoch(5),
+            revoked_into
+        ));
+        assert!(!is_epoch_stale_after_revocation(
+            SecurityEpoch(6),
+            revoked_into
+        ));
     }
 }

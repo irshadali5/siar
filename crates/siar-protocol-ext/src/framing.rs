@@ -188,15 +188,12 @@ mod tests {
         // format changed, which is exactly what a golden test exists
         // to catch.
         let header = FrameHeader {
-            frame_length: 0x0000_0064, // 100
+            frame_length: 0x0000_0064,                             // 100
             extension_session_id: SessionLocalExtensionId(0x0007), // 7
             frame_type: 0x01,
             flags: 0x00,
         };
         let bytes = encode_frame_header(&header);
-        assert_eq!(
-            bytes,
-            [0x00, 0x00, 0x00, 0x64, 0x00, 0x07, 0x01, 0x00]
-        );
+        assert_eq!(bytes, [0x00, 0x00, 0x00, 0x64, 0x00, 0x07, 0x01, 0x00]);
     }
 }

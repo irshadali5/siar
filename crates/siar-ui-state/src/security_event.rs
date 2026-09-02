@@ -120,15 +120,18 @@ impl SecurityEventKind {
             | Self::BackupFailed
             | Self::SecurityPolicyChanged
             | Self::KeyExpiryActionRequired => SecurityEventSeverity::Warning,
-            Self::IdentityChanged | Self::SuspiciousAuthorization => SecurityEventSeverity::Critical,
+            Self::IdentityChanged | Self::SuspiciousAuthorization => {
+                SecurityEventSeverity::Critical
+            }
         }
     }
 
     pub const fn category(self) -> SecurityEventCategory {
         match self {
-            Self::DeviceLinked | Self::DeviceRevoked | Self::DeviceLinkDenied | Self::SuspiciousAuthorization => {
-                SecurityEventCategory::Devices
-            }
+            Self::DeviceLinked
+            | Self::DeviceRevoked
+            | Self::DeviceLinkDenied
+            | Self::SuspiciousAuthorization => SecurityEventCategory::Devices,
             Self::IdentityChanged
             | Self::VerificationFailed
             | Self::KeyRotation
@@ -264,7 +267,10 @@ impl SecurityEventState {
 
     /// §43's filter tabs, applied on top of the same newest-first sort.
     pub fn filtered(&self, filter: SecurityEventFilter) -> Vec<&SecurityEvent> {
-        self.events().into_iter().filter(|e| filter.matches(e)).collect()
+        self.events()
+            .into_iter()
+            .filter(|e| filter.matches(e))
+            .collect()
     }
 
     /// What a component should treat as needing attention — every
@@ -288,21 +294,36 @@ mod tests {
 
     #[test]
     fn identity_changed_and_suspicious_authorization_are_critical() {
-        assert_eq!(SecurityEventKind::IdentityChanged.severity(), SecurityEventSeverity::Critical);
-        assert_eq!(SecurityEventKind::SuspiciousAuthorization.severity(), SecurityEventSeverity::Critical);
+        assert_eq!(
+            SecurityEventKind::IdentityChanged.severity(),
+            SecurityEventSeverity::Critical
+        );
+        assert_eq!(
+            SecurityEventKind::SuspiciousAuthorization.severity(),
+            SecurityEventSeverity::Critical
+        );
     }
 
     #[test]
     fn device_linked_and_revoked_are_info() {
-        assert_eq!(SecurityEventKind::DeviceLinked.severity(), SecurityEventSeverity::Info);
-        assert_eq!(SecurityEventKind::DeviceRevoked.severity(), SecurityEventSeverity::Info);
+        assert_eq!(
+            SecurityEventKind::DeviceLinked.severity(),
+            SecurityEventSeverity::Info
+        );
+        assert_eq!(
+            SecurityEventKind::DeviceRevoked.severity(),
+            SecurityEventSeverity::Info
+        );
     }
 
     /// ui-ux-15 §130: "Routine Key Rotation: informational, not
     /// alarming."
     #[test]
     fn key_rotation_is_informational() {
-        assert_eq!(SecurityEventKind::KeyRotation.severity(), SecurityEventSeverity::Info);
+        assert_eq!(
+            SecurityEventKind::KeyRotation.severity(),
+            SecurityEventSeverity::Info
+        );
     }
 
     /// §132: "if product uses expiring certs/keys: renew automatically,
@@ -323,7 +344,13 @@ mod tests {
         let mut state = SecurityEventState::new();
         state.push(SecurityEventKind::DeviceLinked, 1_000, None, None, vec![]);
         state.push(SecurityEventKind::DeviceRevoked, 3_000, None, None, vec![]);
-        state.push(SecurityEventKind::IdentityChanged, 2_000, None, None, vec![]);
+        state.push(
+            SecurityEventKind::IdentityChanged,
+            2_000,
+            None,
+            None,
+            vec![],
+        );
 
         let ordered = state.events();
         assert_eq!(ordered[0].occurred_at_millis, 3_000);
@@ -335,8 +362,20 @@ mod tests {
     fn filtering_by_category() {
         let mut state = SecurityEventState::new();
         state.push(SecurityEventKind::DeviceLinked, 1_000, None, None, vec![]);
-        state.push(SecurityEventKind::RecoveryConfigured, 2_000, None, None, vec![]);
-        state.push(SecurityEventKind::IdentityChanged, 3_000, None, None, vec![]);
+        state.push(
+            SecurityEventKind::RecoveryConfigured,
+            2_000,
+            None,
+            None,
+            vec![],
+        );
+        state.push(
+            SecurityEventKind::IdentityChanged,
+            3_000,
+            None,
+            None,
+            vec![],
+        );
 
         assert_eq!(state.filtered(SecurityEventFilter::Devices).len(), 1);
         assert_eq!(state.filtered(SecurityEventFilter::Recovery).len(), 1);
@@ -349,7 +388,13 @@ mod tests {
         let mut state = SecurityEventState::new();
         state.push(SecurityEventKind::DeviceLinked, 1_000, None, None, vec![]); // Info
         state.push(SecurityEventKind::BackupFailed, 2_000, None, None, vec![]); // Warning
-        state.push(SecurityEventKind::IdentityChanged, 3_000, None, None, vec![]); // Critical
+        state.push(
+            SecurityEventKind::IdentityChanged,
+            3_000,
+            None,
+            None,
+            vec![],
+        ); // Critical
 
         assert_eq!(state.filtered(SecurityEventFilter::Warnings).len(), 1);
         assert_eq!(state.filtered(SecurityEventFilter::Critical).len(), 1);
@@ -358,7 +403,13 @@ mod tests {
     #[test]
     fn resolving_an_event_removes_it_from_unresolved_critical() {
         let mut state = SecurityEventState::new();
-        let id = state.push(SecurityEventKind::SuspiciousAuthorization, 1_000, None, None, vec![]);
+        let id = state.push(
+            SecurityEventKind::SuspiciousAuthorization,
+            1_000,
+            None,
+            None,
+            vec![],
+        );
         assert_eq!(state.unresolved_critical_events().len(), 1);
 
         state.resolve(id);

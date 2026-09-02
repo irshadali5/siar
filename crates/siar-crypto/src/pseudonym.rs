@@ -80,7 +80,11 @@ pub struct RotatingDiscoveryId([u8; OUTPUT_LEN]);
 /// device's *old* discovery IDs stop being derivable by anything that
 /// only has the new epoch.
 pub fn derive_rotating_discovery_id(device: DeviceId, epoch: SecurityEpoch) -> RotatingDiscoveryId {
-    RotatingDiscoveryId(derive_scoped_value(DISCOVERY_TAG, device, &epoch.as_u64().to_be_bytes()))
+    RotatingDiscoveryId(derive_scoped_value(
+        DISCOVERY_TAG,
+        device,
+        &epoch.as_u64().to_be_bytes(),
+    ))
 }
 
 #[cfg(test)]

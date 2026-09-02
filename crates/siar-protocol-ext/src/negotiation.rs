@@ -338,11 +338,18 @@ mod tests {
 
     #[test]
     fn spec_60_v1_0_local_against_v1_0_remote_negotiates_the_shared_set() {
-        let local = vec![descriptor("messaging", ExtensionRequirement::Optional, &[1, 2])];
+        let local = vec![descriptor(
+            "messaging",
+            ExtensionRequirement::Optional,
+            &[1, 2],
+        )];
         let remote = vec![advertisement_with_major("messaging", 1, &[1, 2])];
         let result = negotiate(&local, &remote).unwrap();
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].capabilities, CapabilitySet::new([CapabilityId(1), CapabilityId(2)]));
+        assert_eq!(
+            result[0].capabilities,
+            CapabilitySet::new([CapabilityId(1), CapabilityId(2)])
+        );
     }
 
     #[test]
@@ -352,11 +359,18 @@ mod tests {
         // version) additionally advertises capability 3. Negotiation
         // must still succeed with just the shared subset — the old
         // side is never broken by the new side knowing more.
-        let local = vec![descriptor("messaging", ExtensionRequirement::Optional, &[1])];
+        let local = vec![descriptor(
+            "messaging",
+            ExtensionRequirement::Optional,
+            &[1],
+        )];
         let remote = vec![advertisement_with_major("messaging", 1, &[1, 3])];
         let result = negotiate(&local, &remote).unwrap();
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].capabilities, CapabilitySet::new([CapabilityId(1)]));
+        assert_eq!(
+            result[0].capabilities,
+            CapabilitySet::new([CapabilityId(1)])
+        );
     }
 
     #[test]
@@ -364,11 +378,18 @@ mod tests {
         // The mirror image: local (newer) knows about capabilities
         // [1, 3]; remote (older) only has [1]. Must still negotiate
         // cleanly down to the shared subset, not fail.
-        let local = vec![descriptor("messaging", ExtensionRequirement::Optional, &[1, 3])];
+        let local = vec![descriptor(
+            "messaging",
+            ExtensionRequirement::Optional,
+            &[1, 3],
+        )];
         let remote = vec![advertisement_with_major("messaging", 1, &[1])];
         let result = negotiate(&local, &remote).unwrap();
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].capabilities, CapabilitySet::new([CapabilityId(1)]));
+        assert_eq!(
+            result[0].capabilities,
+            CapabilitySet::new([CapabilityId(1)])
+        );
     }
 
     #[test]
@@ -378,7 +399,11 @@ mod tests {
         // predictably," not silently negotiate something wrong.
         // ProtocolId includes ProtocolMajor, so this is already just
         // "no matching advertisement" from negotiate()'s point of view.
-        let local = vec![descriptor("messaging", ExtensionRequirement::Required, &[1])];
+        let local = vec![descriptor(
+            "messaging",
+            ExtensionRequirement::Required,
+            &[1],
+        )];
         let remote = vec![advertisement_with_major("messaging", 2, &[1])];
         let err = negotiate(&local, &remote).unwrap_err();
         assert_eq!(
@@ -391,10 +416,17 @@ mod tests {
 
     #[test]
     fn spec_60_major_version_incompatibility_is_a_clean_no_op_for_an_optional_extension() {
-        let local = vec![descriptor("messaging", ExtensionRequirement::Optional, &[1])];
+        let local = vec![descriptor(
+            "messaging",
+            ExtensionRequirement::Optional,
+            &[1],
+        )];
         let remote = vec![advertisement_with_major("messaging", 2, &[1])];
         let result = negotiate(&local, &remote).unwrap();
-        assert!(result.is_empty(), "no matching major version negotiated, cleanly");
+        assert!(
+            result.is_empty(),
+            "no matching major version negotiated, cleanly"
+        );
     }
 
     // --- spec §63 "Property Tests": "duplicate advertisement is
@@ -416,7 +448,11 @@ mod tests {
         // .collect() processes the input Vec in its given order every
         // time). This test pins that behavior down explicitly so a
         // future refactor can't silently make it nondeterministic.
-        let local = vec![descriptor("messaging", ExtensionRequirement::Optional, &[1, 2, 3])];
+        let local = vec![descriptor(
+            "messaging",
+            ExtensionRequirement::Optional,
+            &[1, 2, 3],
+        )];
         let remote = vec![
             advertisement("messaging", &[1]),
             advertisement("messaging", &[1, 2, 3]), // duplicate id, listed second
@@ -445,7 +481,10 @@ mod tests {
         let remote = vec![advertisement("messaging", &[1])]; // Peer B: messaging/1 only
 
         let result = negotiate(&local, &remote).unwrap(); // "session remains valid"
-        let negotiated_ids: Vec<_> = result.iter().map(|e| e.id.protocol.as_str().to_string()).collect();
+        let negotiated_ids: Vec<_> = result
+            .iter()
+            .map(|e| e.id.protocol.as_str().to_string())
+            .collect();
         assert!(negotiated_ids.contains(&"messaging".to_string())); // "messaging works"
         assert!(!negotiated_ids.contains(&"files".to_string())); // "files unsupported"
     }
@@ -454,18 +493,15 @@ mod tests {
     #[test]
     fn spec_65_peer_a_and_peer_b_negotiate_the_only_version_b_has() {
         // Peer A: files/1, files/2. Peer B: files/1 only. -> files/1.
-        let local = vec![
-            descriptor("files", ExtensionRequirement::Optional, &[1]),
-            {
-                let mut files_v2 = descriptor("files", ExtensionRequirement::Optional, &[1]);
-                files_v2.id = ProtocolId::new(
-                    NamespaceId::new("org.example.comm").unwrap(),
-                    ProtocolName::new("files").unwrap(),
-                    ProtocolMajor(2),
-                );
-                files_v2
-            },
-        ];
+        let local = vec![descriptor("files", ExtensionRequirement::Optional, &[1]), {
+            let mut files_v2 = descriptor("files", ExtensionRequirement::Optional, &[1]);
+            files_v2.id = ProtocolId::new(
+                NamespaceId::new("org.example.comm").unwrap(),
+                ProtocolName::new("files").unwrap(),
+                ProtocolMajor(2),
+            );
+            files_v2
+        }];
         let remote = vec![advertisement_with_major("files", 1, &[1])];
 
         let result = negotiate(&local, &remote).unwrap();
@@ -479,18 +515,15 @@ mod tests {
         // Peer C: files/2 only. -> files/2. "This enables gradual
         // protocol migration": A didn't have to drop files/1 support
         // to also speak files/2 with a newer peer.
-        let local = vec![
-            descriptor("files", ExtensionRequirement::Optional, &[1]),
-            {
-                let mut files_v2 = descriptor("files", ExtensionRequirement::Optional, &[1]);
-                files_v2.id = ProtocolId::new(
-                    NamespaceId::new("org.example.comm").unwrap(),
-                    ProtocolName::new("files").unwrap(),
-                    ProtocolMajor(2),
-                );
-                files_v2
-            },
-        ];
+        let local = vec![descriptor("files", ExtensionRequirement::Optional, &[1]), {
+            let mut files_v2 = descriptor("files", ExtensionRequirement::Optional, &[1]);
+            files_v2.id = ProtocolId::new(
+                NamespaceId::new("org.example.comm").unwrap(),
+                ProtocolName::new("files").unwrap(),
+                ProtocolMajor(2),
+            );
+            files_v2
+        }];
         let remote = vec![advertisement_with_major("files", 2, &[1])];
 
         let result = negotiate(&local, &remote).unwrap();

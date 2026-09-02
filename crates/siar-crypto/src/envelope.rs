@@ -152,7 +152,13 @@ pub fn encrypt_envelope(
     epoch: SecurityEpoch,
     counter: u64,
 ) -> Result<SecureMessageEnvelope, CryptoError> {
-    let aad = build_associated_data(&conversation, &sender_device, &message_id, message_type, epoch);
+    let aad = build_associated_data(
+        &conversation,
+        &sender_device,
+        &message_id,
+        message_type,
+        epoch,
+    );
     let nonce_bytes = derive_nonce(epoch, counter);
     let nonce = Nonce::from_slice(&nonce_bytes);
 

@@ -25,7 +25,10 @@ impl DeprecationStatus {
     /// straight to `Removed` — [`Self::force_security_deprecate`] is
     /// the one sanctioned way around that, and it's a different method
     /// entirely, not a parameter on this one.
-    pub fn advance(self, to: DeprecationStatus) -> Result<DeprecationStatus, InvalidDeprecationTransition> {
+    pub fn advance(
+        self,
+        to: DeprecationStatus,
+    ) -> Result<DeprecationStatus, InvalidDeprecationTransition> {
         use DeprecationStatus::*;
         let valid = matches!(
             (self, to),

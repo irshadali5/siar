@@ -100,7 +100,10 @@ impl DeviceLossFlowStep {
     ];
 
     fn index(self) -> usize {
-        Self::ORDER.iter().position(|s| *s == self).expect("all variants are in ORDER")
+        Self::ORDER
+            .iter()
+            .position(|s| *s == self)
+            .expect("all variants are in ORDER")
     }
 }
 
@@ -148,7 +151,8 @@ impl DeviceLossFlowState {
     /// for a `Stolen` device is a no-op (stays on the same step) rather
     /// than silently completing the flow without the mandatory step.
     pub fn advance(&mut self) {
-        if self.step == DeviceLossFlowStep::RotateAffectedCredentials && self.rotation_is_required() {
+        if self.step == DeviceLossFlowStep::RotateAffectedCredentials && self.rotation_is_required()
+        {
             // A caller must reach `Done` by explicitly completing
             // rotation (there's no separate "rotation completed" input
             // in this minimal state — a fuller implementation would
@@ -238,7 +242,9 @@ impl CompromiseResponseChecklist {
     }
 
     pub fn all_complete(&self) -> bool {
-        CompromiseResponseStep::ORDER.iter().all(|s| self.completed.contains(s))
+        CompromiseResponseStep::ORDER
+            .iter()
+            .all(|s| self.completed.contains(s))
     }
 
     /// The next step a UI should highlight — §38's own listed order,
@@ -320,10 +326,16 @@ mod tests {
     fn compromise_checklist_tracks_partial_completion() {
         let mut checklist = CompromiseResponseChecklist::new();
         assert!(!checklist.all_complete());
-        assert_eq!(checklist.next_step(), Some(CompromiseResponseStep::RevokeSuspiciousDevices));
+        assert_eq!(
+            checklist.next_step(),
+            Some(CompromiseResponseStep::RevokeSuspiciousDevices)
+        );
 
         checklist.mark_complete(CompromiseResponseStep::RevokeSuspiciousDevices);
-        assert_eq!(checklist.next_step(), Some(CompromiseResponseStep::ReviewIdentityState));
+        assert_eq!(
+            checklist.next_step(),
+            Some(CompromiseResponseStep::ReviewIdentityState)
+        );
         assert!(!checklist.all_complete());
     }
 
@@ -353,10 +365,16 @@ mod tests {
             checklist.mark_complete(step);
         }
         assert!(!checklist.all_complete());
-        assert_eq!(checklist.next_step(), Some(CompromiseResponseStep::ReVerifyAffectedContacts));
+        assert_eq!(
+            checklist.next_step(),
+            Some(CompromiseResponseStep::ReVerifyAffectedContacts)
+        );
 
         checklist.mark_complete(CompromiseResponseStep::ReVerifyAffectedContacts);
-        assert_eq!(checklist.next_step(), Some(CompromiseResponseStep::CreateFreshBackup));
+        assert_eq!(
+            checklist.next_step(),
+            Some(CompromiseResponseStep::CreateFreshBackup)
+        );
 
         checklist.mark_complete(CompromiseResponseStep::CreateFreshBackup);
         assert!(checklist.all_complete());

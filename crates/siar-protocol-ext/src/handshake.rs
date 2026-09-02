@@ -42,10 +42,8 @@ impl HandshakeStage {
                 | (ExtensionAdvertisement, CapabilityNegotiation)
                 | (CapabilityNegotiation, SessionEstablished)
                 | (SessionEstablished, LazyExtensionOpens)
-        ) || (
-            to == Failed
-                && !matches!(self, SessionEstablished | LazyExtensionOpens | Failed)
-        );
+        ) || (to == Failed
+            && !matches!(self, SessionEstablished | LazyExtensionOpens | Failed));
         if valid {
             Ok(to)
         } else {

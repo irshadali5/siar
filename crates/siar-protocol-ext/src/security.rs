@@ -147,7 +147,9 @@ mod tests {
             required_capability: None,
         };
 
-        let decision = authorizer.authorize(PeerIdentity([1u8; 32]), operation).await;
+        let decision = authorizer
+            .authorize(PeerIdentity([1u8; 32]), operation)
+            .await;
         assert_eq!(decision, AuthorizationDecision::Allow);
     }
 }

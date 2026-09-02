@@ -91,7 +91,9 @@ impl CloneDetector {
         match self.known_instances.insert(device, instance) {
             None => CloneVerdict::FirstSeen,
             Some(previous) if previous == instance => CloneVerdict::Known,
-            Some(previous) => CloneVerdict::ConcurrentOrRestoredClone { known_instance: previous },
+            Some(previous) => CloneVerdict::ConcurrentOrRestoredClone {
+                known_instance: previous,
+            },
         }
     }
 }
@@ -126,7 +128,12 @@ mod tests {
 
         detector.check(device, original);
         let verdict = detector.check(device, clone);
-        assert_eq!(verdict, CloneVerdict::ConcurrentOrRestoredClone { known_instance: original });
+        assert_eq!(
+            verdict,
+            CloneVerdict::ConcurrentOrRestoredClone {
+                known_instance: original
+            }
+        );
     }
 
     #[test]
@@ -134,8 +141,14 @@ mod tests {
         let mut detector = CloneDetector::new();
         let a = DeviceId::new();
         let b = DeviceId::new();
-        assert_eq!(detector.check(a, DeviceInstanceId::generate()), CloneVerdict::FirstSeen);
-        assert_eq!(detector.check(b, DeviceInstanceId::generate()), CloneVerdict::FirstSeen);
+        assert_eq!(
+            detector.check(a, DeviceInstanceId::generate()),
+            CloneVerdict::FirstSeen
+        );
+        assert_eq!(
+            detector.check(b, DeviceInstanceId::generate()),
+            CloneVerdict::FirstSeen
+        );
     }
 
     #[test]

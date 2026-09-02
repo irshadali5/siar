@@ -199,13 +199,16 @@ mod tests {
 
     #[test]
     fn spec_56_escalation_ladder_is_in_spec_order() {
-        assert_eq!(ABUSE_ESCALATION_LADDER, [
-            AbuseControl::RateLimit,
-            AbuseControl::PauseExtension,
-            AbuseControl::CloseExtension,
-            AbuseControl::QuarantinePeer,
-            AbuseControl::CloseSession,
-        ]);
+        assert_eq!(
+            ABUSE_ESCALATION_LADDER,
+            [
+                AbuseControl::RateLimit,
+                AbuseControl::PauseExtension,
+                AbuseControl::CloseExtension,
+                AbuseControl::QuarantinePeer,
+                AbuseControl::CloseSession,
+            ]
+        );
     }
 
     #[test]

@@ -86,11 +86,9 @@ impl PeerCapabilityCache {
     /// an expired hint is treated exactly like no hint at all, never
     /// silently returned as though it were still current.
     pub fn get(&self, peer: PeerIdentity, now_millis: u64) -> Option<&CapabilityCacheEntry> {
-        self.entries.get(&peer).filter(|entry| {
-            entry
-                .expiry_millis
-                .is_none_or(|expiry| now_millis < expiry)
-        })
+        self.entries
+            .get(&peer)
+            .filter(|entry| entry.expiry_millis.is_none_or(|expiry| now_millis < expiry))
     }
 }
 

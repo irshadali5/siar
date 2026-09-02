@@ -84,7 +84,10 @@ mod tests {
     fn spec_42_aggregation_is_opt_in_via_from() {
         let messaging: AggregatedEvent = MessagingEvent::TypingChanged.into();
         let file: AggregatedEvent = FileEvent::TransferStarted.into();
-        assert_eq!(messaging, AggregatedEvent::Messaging(MessagingEvent::TypingChanged));
+        assert_eq!(
+            messaging,
+            AggregatedEvent::Messaging(MessagingEvent::TypingChanged)
+        );
         assert_eq!(file, AggregatedEvent::File(FileEvent::TransferStarted));
     }
 }

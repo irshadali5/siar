@@ -142,25 +142,29 @@ mod tests {
 
     #[test]
     fn single_device_with_no_recovery_escalates_healthy_to_attention() {
-        let health = effective_security_health(SecurityHealth::Healthy, 1, RecoveryStatus::NotConfigured);
+        let health =
+            effective_security_health(SecurityHealth::Healthy, 1, RecoveryStatus::NotConfigured);
         assert_eq!(health, SecurityHealth::Attention);
     }
 
     #[test]
     fn single_device_with_recovery_configured_stays_healthy() {
-        let health = effective_security_health(SecurityHealth::Healthy, 1, RecoveryStatus::Configured);
+        let health =
+            effective_security_health(SecurityHealth::Healthy, 1, RecoveryStatus::Configured);
         assert_eq!(health, SecurityHealth::Healthy);
     }
 
     #[test]
     fn multiple_devices_with_no_recovery_does_not_trigger_the_escalation() {
-        let health = effective_security_health(SecurityHealth::Healthy, 3, RecoveryStatus::NotConfigured);
+        let health =
+            effective_security_health(SecurityHealth::Healthy, 3, RecoveryStatus::NotConfigured);
         assert_eq!(health, SecurityHealth::Healthy);
     }
 
     #[test]
     fn escalation_never_downgrades_an_already_worse_health_state() {
-        let health = effective_security_health(SecurityHealth::Critical, 1, RecoveryStatus::NotConfigured);
+        let health =
+            effective_security_health(SecurityHealth::Critical, 1, RecoveryStatus::NotConfigured);
         assert_eq!(health, SecurityHealth::Critical);
     }
 
@@ -180,7 +184,10 @@ mod tests {
 
     #[test]
     fn missing_last_active_is_unknown_not_stale() {
-        assert_eq!(device_activity_display(None, 1_000_000, 60_000), DeviceActivityDisplay::Unknown);
+        assert_eq!(
+            device_activity_display(None, 1_000_000, 60_000),
+            DeviceActivityDisplay::Unknown
+        );
     }
 
     #[test]

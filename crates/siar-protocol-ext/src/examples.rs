@@ -122,7 +122,7 @@ pub fn presence_default_routing() -> crate::routing::RoutingRequirements {
         realtime_requirement: true,
         maximum_age_millis: Some(30_000), // "short expiry"
         durability: crate::routing::DeliveryClass::Realtime, // "loss tolerant" -> not Durable
-        forwarding_permission: false, // "usually not DTN"
+        forwarding_permission: false,     // "usually not DTN"
         size_class: crate::routing::SizeClass::Small, // "small frames"
         priority: crate::lifecycle::TrafficPriority::Interactive,
     }
@@ -163,7 +163,10 @@ mod tests {
     use crate::negotiation::{negotiate, RemoteAdvertisement};
     use crate::security::SecurityRequirements;
 
-    fn minimal_descriptor(id: ProtocolId, requirement: ExtensionRequirement) -> ExtensionDescriptor {
+    fn minimal_descriptor(
+        id: ProtocolId,
+        requirement: ExtensionRequirement,
+    ) -> ExtensionDescriptor {
         ExtensionDescriptor {
             id,
             version: ExtensionVersion {
@@ -191,7 +194,10 @@ mod tests {
         // extension would go through, with nothing special-cased for
         // this namespace anywhere in negotiate()'s own implementation.
         let id = erp_approval_example();
-        let local = vec![minimal_descriptor(id.clone(), ExtensionRequirement::Optional)];
+        let local = vec![minimal_descriptor(
+            id.clone(),
+            ExtensionRequirement::Optional,
+        )];
         let remote = vec![RemoteAdvertisement {
             id,
             capabilities: CapabilitySet::new([CapabilityId(1)]),
@@ -243,7 +249,14 @@ mod tests {
             }
         }
 
-        let names = ["messaging", "files", "presence", "calls", "emergency", "customapp"];
+        let names = [
+            "messaging",
+            "files",
+            "presence",
+            "calls",
+            "emergency",
+            "customapp",
+        ];
         let local: Vec<_> = names.iter().map(|n| descriptor(n)).collect();
         let remote: Vec<_> = names.iter().map(|n| advertisement(n)).collect();
 

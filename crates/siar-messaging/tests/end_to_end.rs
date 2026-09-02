@@ -297,7 +297,12 @@ async fn fetch_attachment_uses_the_local_cache_on_a_second_call() {
 
     alice
         .service
-        .send_attachment(conversation, &bob_ticket, plaintext.clone(), MediaType::Other)
+        .send_attachment(
+            conversation,
+            &bob_ticket,
+            plaintext.clone(),
+            MediaType::Other,
+        )
         .await
         .expect("send_attachment succeeds");
     let envelope = bob.recv_envelope().await;
@@ -330,7 +335,8 @@ async fn fetch_attachment_uses_the_local_cache_on_a_second_call() {
     };
     let second = tokio::time::timeout(
         Duration::from_secs(5),
-        bob.service.fetch_attachment(&unreachable_ticket, &reference),
+        bob.service
+            .fetch_attachment(&unreachable_ticket, &reference),
     )
     .await
     .expect("cached fetch must return quickly, not hang trying to dial an unreachable peer")
@@ -443,10 +449,7 @@ async fn retry_due_backs_off_a_message_whose_peer_is_unreachable() {
 
     // The failed send should already have scheduled a backed-off retry
     // (send_text's Err branch calls record_failure) — not due yet.
-    let due_now = alice
-        .outbox
-        .due(millis_now(), 50)
-        .expect("due() succeeds");
+    let due_now = alice.outbox.due(millis_now(), 50).expect("due() succeeds");
     assert!(
         due_now.iter().all(|op| op.message_id != message_id),
         "a freshly-failed send must be backed off, not immediately due again"

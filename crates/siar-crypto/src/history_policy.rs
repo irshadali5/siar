@@ -60,7 +60,10 @@ mod tests {
 
     #[test]
     fn conservative_default_is_future_only() {
-        assert_eq!(HistoryAccessPolicy::conservative_default(), HistoryAccessPolicy::FutureOnly);
+        assert_eq!(
+            HistoryAccessPolicy::conservative_default(),
+            HistoryAccessPolicy::FutureOnly
+        );
     }
 
     #[test]

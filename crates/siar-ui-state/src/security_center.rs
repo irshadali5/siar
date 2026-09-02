@@ -136,7 +136,9 @@ impl DeviceListState {
     }
 
     pub fn pending(&self) -> impl Iterator<Item = &DeviceSecurityView> {
-        self.devices.iter().filter(|d| d.status == DeviceTrustState::Pending)
+        self.devices
+            .iter()
+            .filter(|d| d.status == DeviceTrustState::Pending)
     }
 
     /// §14's "Revoked / History" — includes both `Revoked` and
@@ -145,9 +147,12 @@ impl DeviceListState {
     /// two separate lists for what's functionally one "no longer has
     /// access" bucket.
     pub fn revoked_or_history(&self) -> impl Iterator<Item = &DeviceSecurityView> {
-        self.devices
-            .iter()
-            .filter(|d| matches!(d.status, DeviceTrustState::Revoked | DeviceTrustState::Compromised))
+        self.devices.iter().filter(|d| {
+            matches!(
+                d.status,
+                DeviceTrustState::Revoked | DeviceTrustState::Compromised
+            )
+        })
     }
 
     pub fn trusted_count(&self) -> usize {
