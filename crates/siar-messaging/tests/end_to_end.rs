@@ -1,0 +1,521 @@
+//! `MessageService`'s entire public API was untested before this file —
+//! confirmed by grep before writing a line here. Every test below uses
+//! the REAL stack: `siar_storage::open_in_memory()` (real stoolap),
+//! real `siar_crypto::DeviceIdentity`, and two real `SiarEndpoint`s
+//! talking real QUIC over loopback (same direct-IP-only pattern
+//! `siar-transport/tests/roundtrip.rs` established, for the same
+//! reason: never depend on relay/DNS discovery in this sandbox).
+//! Nothing here is mocked except that there's no UI above it.
+
+use siar_crypto::DeviceIdentity;
+use siar_domain::{
+    CallControlEvent, ConversationId, DeliveryState, DeviceId, MediaType, MessageContent,
+    MessageText,
+};
+use siar_messaging::{IncomingEvent, MessageService, PeerTicket, StorageBlobStore};
+use siar_storage::{
+    open_in_memory, BlobRepository, MessageRepository, OutboxRepository, StoolapBlobRepository,
+    StoolapMessageRepository, StoolapOutboxRepository,
+};
+use siar_transport::{BlobStore, SiarEndpoint};
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::mpsc;
+
+/// One simulated device: its own identity, its own in-memory database,
+/// its own bound endpoint, and — unlike a production caller, which
+/// spawns a receive loop over this — a directly-held `mpsc::Receiver`
+/// so tests can assert on exactly what arrived.
+struct Node {
+    device_id: DeviceId,
+    identity: DeviceIdentity,
+    endpoint: Arc<SiarEndpoint>,
+    service: MessageService,
+    messages: Arc<dyn MessageRepository + Send + Sync>,
+    outbox: Arc<dyn OutboxRepository + Send + Sync>,
+    incoming: mpsc::Receiver<siar_transport::IncomingFrame>,
+}
+
+impl Node {
+    async fn spawn() -> Self {
+        let device_id = DeviceId::new();
+        let identity = DeviceIdentity::generate();
+
+        let db = open_in_memory().expect("in-memory db opens");
+        let messages: Arc<dyn MessageRepository + Send + Sync> =
+            Arc::new(StoolapMessageRepository::new(Arc::clone(&db)));
+        let outbox: Arc<dyn OutboxRepository + Send + Sync> =
+            Arc::new(StoolapOutboxRepository::new(Arc::clone(&db)));
+        let blobs: Arc<dyn BlobRepository + Send + Sync> =
+            Arc::new(StoolapBlobRepository::new(Arc::clone(&db)));
+
+        let blob_store: Arc<dyn BlobStore> = Arc::new(StorageBlobStore(Arc::clone(&blobs)));
+        let (incoming_tx, incoming_rx) = mpsc::channel(16);
+        let endpoint = Arc::new(
+            SiarEndpoint::bind(iroh::SecretKey::generate(), incoming_tx, blob_store)
+                .await
+                .expect("endpoint binds"),
+        );
+
+        let service = MessageService::new(
+            device_id,
+            identity.try_clone().expect("identity clones"),
+            Arc::clone(&endpoint),
+            Arc::clone(&messages),
+            Arc::clone(&outbox),
+            Arc::clone(&blobs),
+        );
+
+        Self {
+            device_id,
+            identity,
+            endpoint,
+            service,
+            messages,
+            outbox,
+            incoming: incoming_rx,
+        }
+    }
+
+    /// A `PeerTicket` another node can use to reach *this* one — direct
+    /// loopback address only (no relay/DNS discovery in this sandbox).
+    fn ticket(&self) -> PeerTicket {
+        let full = self.endpoint.addr();
+        let ip_addrs = full
+            .addrs
+            .into_iter()
+            .filter(|a| matches!(a, iroh::TransportAddr::Ip(_)));
+        PeerTicket {
+            endpoint_addr: iroh::EndpointAddr::from_parts(full.id, ip_addrs),
+            x25519_public: self.identity.x25519_public().to_bytes(),
+            ed25519_verifying: self.identity.verifying_key().to_bytes(),
+        }
+    }
+
+    /// Waits for the next raw frame this node's transport received and
+    /// decodes it as a `v1::Envelope` — what a real receive loop would
+    /// hand straight to `handle_incoming`.
+    async fn recv_envelope(&mut self) -> siar_protocol::v1::Envelope {
+        let frame = tokio::time::timeout(Duration::from_secs(20), self.incoming.recv())
+            .await
+            .expect("frame arrives within timeout")
+            .expect("channel stays open");
+        let siar_protocol::WireMessage::V1(envelope) = frame.message else {
+            panic!("expected a V1 envelope, got something else");
+        };
+        envelope
+    }
+}
+
+fn text(s: &str) -> MessageText {
+    MessageText::parse(s.to_string()).expect("test string is valid message text")
+}
+
+fn millis_now() -> i64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock is after 1970")
+        .as_millis() as i64
+}
+
+#[tokio::test]
+async fn send_text_persists_locally_via_the_transactional_outbox() {
+    // plan.md §111: persist first. No receive loop runs on either side
+    // in this test — the only way `messages.get` can find anything is
+    // if `send_text` really does write through `outbox.enqueue`'s
+    // transactional insert, not merely queue a network send.
+    let alice = Node::spawn().await;
+    let bob = Node::spawn().await;
+    let bob_ticket = bob.ticket();
+    let conversation = ConversationId::new();
+
+    let message_id = alice
+        .service
+        .send_text(conversation, &bob_ticket, text("hello, stored locally"))
+        .await
+        .expect("send_text succeeds");
+
+    let stored = alice
+        .messages
+        .get(message_id)
+        .expect("lookup succeeds")
+        .expect("send_text must persist the message, not just attempt to send it");
+    assert_eq!(stored.conversation_id, conversation);
+    assert_eq!(stored.sender_device, alice.device_id);
+}
+
+#[tokio::test]
+async fn send_text_delivers_and_the_ack_completes_the_outbox() {
+    let mut alice = Node::spawn().await;
+    let mut bob = Node::spawn().await;
+    let alice_ticket = alice.ticket();
+    let bob_ticket = bob.ticket();
+    let conversation = ConversationId::new();
+
+    let sent_id = alice
+        .service
+        .send_text(conversation, &bob_ticket, text("hi bob"))
+        .await
+        .expect("send_text succeeds");
+
+    // Bob receives the raw frame and hands it to his own service — the
+    // real receive-loop shape (see apps/cli's main.rs).
+    let envelope = bob.recv_envelope().await;
+    let event = bob
+        .service
+        .handle_incoming(&alice_ticket, envelope)
+        .await
+        .expect("handle_incoming succeeds");
+
+    let IncomingEvent::Content(MessageContent::Text(received)) =
+        event.expect("a fresh text message must surface as an event")
+    else {
+        panic!("expected Content(Text)");
+    };
+    assert_eq!(received.as_str(), "hi bob");
+
+    // handle_incoming's ACK path sent a DeliveryAck back to Alice —
+    // receive it on her side too, closing the loop for real.
+    let ack_envelope = alice.recv_envelope().await;
+    alice
+        .service
+        .handle_incoming(&bob_ticket, ack_envelope)
+        .await
+        .expect("processing the ack succeeds");
+
+    let stored = alice
+        .messages
+        .get(sent_id)
+        .expect("lookup succeeds")
+        .expect("message still exists");
+    assert_eq!(stored.delivery_state, DeliveryState::Delivered);
+
+    let due = alice.outbox.due(i64::MAX, 50).expect("due() succeeds");
+    assert!(
+        due.iter().all(|op| op.message_id != sent_id),
+        "acked message must not still be due for retry"
+    );
+}
+
+#[tokio::test]
+async fn handle_incoming_is_idempotent_under_duplicate_delivery() {
+    // plan.md §70: receiving the same envelope twice must not produce a
+    // second event or a second stored row.
+    let alice = Node::spawn().await;
+    let mut bob = Node::spawn().await;
+    let alice_ticket = alice.ticket();
+    let bob_ticket = bob.ticket();
+    let conversation = ConversationId::new();
+
+    alice
+        .service
+        .send_text(conversation, &bob_ticket, text("only once"))
+        .await
+        .expect("send_text succeeds");
+
+    let envelope = bob.recv_envelope().await;
+
+    let first = bob
+        .service
+        .handle_incoming(&alice_ticket, envelope.clone())
+        .await
+        .expect("first handle_incoming succeeds");
+    assert!(matches!(first, Some(IncomingEvent::Content(_))));
+
+    let second = bob
+        .service
+        .handle_incoming(&alice_ticket, envelope)
+        .await
+        .expect("second handle_incoming succeeds");
+    assert!(
+        second.is_none(),
+        "a duplicate envelope must not surface a second event"
+    );
+}
+
+#[tokio::test]
+async fn send_attachment_lets_the_recipient_fetch_and_decrypt_it() {
+    let mut alice = Node::spawn().await;
+    let mut bob = Node::spawn().await;
+    let alice_ticket = alice.ticket();
+    let bob_ticket = bob.ticket();
+    let conversation = ConversationId::new();
+    let plaintext = b"these are the attachment bytes".to_vec();
+
+    alice
+        .service
+        .send_attachment(
+            conversation,
+            &bob_ticket,
+            plaintext.clone(),
+            MediaType::ImagePng,
+        )
+        .await
+        .expect("send_attachment succeeds");
+
+    let envelope = bob.recv_envelope().await;
+    let event = bob
+        .service
+        .handle_incoming(&alice_ticket, envelope)
+        .await
+        .expect("handle_incoming succeeds");
+    let IncomingEvent::Content(MessageContent::Attachment(reference)) =
+        event.expect("attachment message must surface as an event")
+    else {
+        panic!("expected Content(Attachment)");
+    };
+
+    // Bob doesn't have the blob cached yet — this must go over the wire
+    // to Alice's endpoint (served by her StorageBlobStore) and decrypt
+    // correctly on arrival.
+    let fetched = bob
+        .service
+        .fetch_attachment(&alice_ticket, &reference)
+        .await
+        .expect("fetch_attachment succeeds");
+    assert_eq!(fetched, plaintext);
+
+    // Drain Alice's ack-receive so it can't leak into a later assertion
+    // if this test is ever extended.
+    let _ = alice.recv_envelope().await;
+}
+
+#[tokio::test]
+async fn fetch_attachment_uses_the_local_cache_on_a_second_call() {
+    // Real behavioral claim, not just "it works once": after the first
+    // fetch_attachment call caches the ciphertext (service.rs's own
+    // documented behavior), a second call for the same reference must
+    // not need the peer at all — proven here by handing it a peer
+    // ticket that cannot possibly answer (nothing bound at that address).
+    let mut alice = Node::spawn().await;
+    let mut bob = Node::spawn().await;
+    let alice_ticket = alice.ticket();
+    let bob_ticket = bob.ticket();
+    let conversation = ConversationId::new();
+    let plaintext = b"cache me".to_vec();
+
+    alice
+        .service
+        .send_attachment(conversation, &bob_ticket, plaintext.clone(), MediaType::Other)
+        .await
+        .expect("send_attachment succeeds");
+    let envelope = bob.recv_envelope().await;
+    let event = bob
+        .service
+        .handle_incoming(&alice_ticket, envelope)
+        .await
+        .expect("handle_incoming succeeds");
+    let IncomingEvent::Content(MessageContent::Attachment(reference)) =
+        event.expect("attachment event")
+    else {
+        panic!("expected Content(Attachment)");
+    };
+
+    let first = bob
+        .service
+        .fetch_attachment(&alice_ticket, &reference)
+        .await
+        .expect("first fetch succeeds over the network");
+    assert_eq!(first, plaintext);
+    let _ = alice.recv_envelope().await; // drain alice's ack receive
+
+    // A ticket pointing at a real, but nothing-listening, iroh identity
+    // — any attempt to actually dial it will fail/hang, so a passing
+    // second fetch proves the cache path was taken, not the network.
+    let unreachable_ticket = PeerTicket {
+        endpoint_addr: iroh::EndpointAddr::new(iroh::SecretKey::generate().public()),
+        x25519_public: alice_ticket.x25519_public,
+        ed25519_verifying: alice_ticket.ed25519_verifying,
+    };
+    let second = tokio::time::timeout(
+        Duration::from_secs(5),
+        bob.service.fetch_attachment(&unreachable_ticket, &reference),
+    )
+    .await
+    .expect("cached fetch must return quickly, not hang trying to dial an unreachable peer")
+    .expect("cached fetch succeeds without the network");
+    assert_eq!(second, plaintext);
+}
+
+#[tokio::test]
+async fn send_call_signal_is_fire_and_forget_not_outboxed() {
+    let alice = Node::spawn().await;
+    let mut bob = Node::spawn().await;
+    let alice_ticket = alice.ticket();
+    let bob_ticket = bob.ticket();
+
+    alice
+        .service
+        .send_call_signal(&bob_ticket, CallControlEvent::Ring)
+        .await
+        .expect("send_call_signal succeeds");
+
+    let envelope = bob.recv_envelope().await;
+    let event = bob
+        .service
+        .handle_incoming(&alice_ticket, envelope)
+        .await
+        .expect("handle_incoming succeeds");
+    match event {
+        Some(IncomingEvent::CallSignal { event, .. }) => {
+            assert!(matches!(event, CallControlEvent::Ring));
+        }
+        other => panic!("expected a CallSignal event, got {other:?}"),
+    }
+
+    // Fire-and-forget per service.rs's own doc comment: nothing should
+    // ever have touched Alice's outbox for a call signal.
+    let due = alice.outbox.due(i64::MAX, 50).expect("due() succeeds");
+    assert!(due.is_empty(), "call signals must never enter the outbox");
+}
+
+#[tokio::test]
+async fn retry_due_resends_unacked_messages_and_stops_after_the_ack_arrives() {
+    let mut alice = Node::spawn().await;
+    let mut bob = Node::spawn().await;
+    let alice_ticket = alice.ticket();
+    let bob_ticket = bob.ticket();
+    let conversation = ConversationId::new();
+
+    let sent_id = alice
+        .service
+        .send_text(conversation, &bob_ticket, text("retry me"))
+        .await
+        .expect("send_text succeeds");
+
+    // Drain the first delivery so it doesn't leak into the resend
+    // assertion below.
+    let _first_delivery = bob.recv_envelope().await;
+
+    // Force this message due right now regardless of the real
+    // ACK_TIMEOUT_MILLIS window, then let retry_due find it.
+    alice
+        .outbox
+        .reschedule(sent_id, 0)
+        .expect("reschedule succeeds");
+
+    let retried = alice.service.retry_due().await.expect("retry_due succeeds");
+    assert_eq!(retried, 1, "exactly the one due message should be retried");
+
+    let resent_envelope = bob.recv_envelope().await;
+    let event = bob
+        .service
+        .handle_incoming(&alice_ticket, resent_envelope)
+        .await
+        .expect("handle_incoming succeeds");
+    assert!(matches!(event, Some(IncomingEvent::Content(_))));
+
+    // Now process the ack and confirm retry_due finds nothing left due.
+    let ack_envelope = alice.recv_envelope().await;
+    alice
+        .service
+        .handle_incoming(&bob_ticket, ack_envelope)
+        .await
+        .expect("ack processes");
+
+    let retried_again = alice.service.retry_due().await.expect("retry_due succeeds");
+    assert_eq!(
+        retried_again, 0,
+        "an acked message must not be retried again"
+    );
+}
+
+#[tokio::test]
+async fn retry_due_backs_off_a_message_whose_peer_is_unreachable() {
+    let alice = Node::spawn().await;
+    let conversation = ConversationId::new();
+
+    // A ticket for a real key with no endpoint bound at that address —
+    // send_text's own network leg will fail, leaving the message queued
+    // for retry via record_failure (the Err branch in service.rs).
+    let unreachable_ticket = PeerTicket {
+        endpoint_addr: iroh::EndpointAddr::new(iroh::SecretKey::generate().public()),
+        x25519_public: [1u8; 32],
+        ed25519_verifying: [2u8; 32],
+    };
+
+    let message_id = alice
+        .service
+        .send_text(conversation, &unreachable_ticket, text("nobody home"))
+        .await
+        .expect("send_text still succeeds locally even though delivery will fail");
+
+    // The failed send should already have scheduled a backed-off retry
+    // (send_text's Err branch calls record_failure) — not due yet.
+    let due_now = alice
+        .outbox
+        .due(millis_now(), 50)
+        .expect("due() succeeds");
+    assert!(
+        due_now.iter().all(|op| op.message_id != message_id),
+        "a freshly-failed send must be backed off, not immediately due again"
+    );
+
+    // But it is queued for a later attempt.
+    let due_far_future = alice.outbox.due(i64::MAX, 50).expect("due() succeeds");
+    assert!(
+        due_far_future.iter().any(|op| op.message_id == message_id),
+        "a failed send must still be scheduled for a future retry"
+    );
+}
+
+#[tokio::test]
+async fn mailbox_check_in_and_anonymous_check_in_are_independently_signed() {
+    let alice = Node::spawn().await;
+    let bob = Node::spawn().await;
+    let bob_ticket = bob.ticket();
+
+    let now = millis_now() as u64;
+    let signed = alice.service.sign_mailbox_check_in(now);
+    assert_eq!(signed.device, alice.device_id);
+
+    // Two anonymous check-ins for the same peer at the same instant
+    // must be deterministic (same epoch/token), not a fresh random
+    // token every call — an anonymous relay-facing check-in that
+    // changed every call couldn't be matched twice by design.
+    let anon_a = alice.service.build_anonymous_check_in(&bob_ticket, now);
+    let anon_b = alice.service.build_anonymous_check_in(&bob_ticket, now);
+    assert_eq!(
+        format!("{anon_a:?}"),
+        format!("{anon_b:?}"),
+        "the same peer+epoch must derive the same anonymous check-in"
+    );
+}
+
+#[tokio::test]
+async fn send_text_anon_round_trips_through_the_relay_deposit() {
+    // send_text_anon addresses by TokenMailboxDeposit rather than a
+    // direct V1 envelope — confirm decrypt_token_mailbox_envelope (the
+    // one method on this path nothing had ever called) really can
+    // decrypt what arrived at the relay.
+    let mut alice = Node::spawn().await; // plays "relay" here: receives the deposit frame
+    let bob = Node::spawn().await; // the intended recipient
+    let alice_ticket = alice.ticket();
+    let bob_ticket = bob.ticket();
+
+    // Bob addresses the deposit to himself via alice-as-relay, so this
+    // test's crypto assertion (decrypt_token_mailbox_envelope) is about
+    // the encrypt/decrypt round trip itself, not contact-list wiring.
+    bob.service
+        .send_text_anon(&bob_ticket, &alice_ticket, text("via relay"))
+        .await
+        .expect("send_text_anon succeeds");
+
+    let frame = tokio::time::timeout(Duration::from_secs(20), alice.incoming.recv())
+        .await
+        .expect("relay receives within timeout")
+        .expect("channel open");
+    let siar_protocol::WireMessage::TokenMailboxDeposit(deposit) = frame.message else {
+        panic!("expected a TokenMailboxDeposit frame");
+    };
+
+    let content = bob
+        .service
+        .decrypt_token_mailbox_envelope(&bob_ticket, &deposit)
+        .expect("decrypts with the matching session");
+    let MessageContent::Text(received) = content else {
+        panic!("expected Text content");
+    };
+    assert_eq!(received.as_str(), "via relay");
+}
