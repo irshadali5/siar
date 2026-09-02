@@ -24,12 +24,27 @@ notes in project memory (`/areas/resilient-mesh.md`) for exact section
 counts; not re-duplicated here since that detail changes less than this
 file's priority ordering does.
 
+**2026-09-01: working through all nine 1-by-1, round by round.** Total
+remaining across all nine is ~1,110 sections (1,552 total, ~445 done
+after this round) — at this project's actual historical pace (5-15
+sections per round, each needing real spec-reading + code + compile +
+test, not just prose), that's realistically 70-140+ more rounds, not
+something any single session finishes. Tracking progress here as it
+happens rather than promising a completion date. This round: spec 01
+(`siar-protocol-ext`) §17 (confirmed already done, doc was stale),
+§24-26, §28-31, §32-33 — see its own crate row below and its `lib.rs`
+doc comment for specifics. Also fixed two real bugs in `siar-transport`
+(pooled-connection reuse silently dropping every message after the
+first) and added full test coverage to `siar-transport`/`siar-messaging`'s
+`MessageService` half this session — see `/areas/resilient-mesh.md`,
+not spec-numbered work but real correctness fixes found via testing.
+
 | # | Crate | State |
 |---|---|---|
-| 01 | siar-protocol-ext | ✅ ~22/108 sections |
+| 01 | siar-protocol-ext | ✅ **108/108 — spec complete** (final round: §91-92 reconciled, §93-95 error codes/health/recovery, §96-99 scheduler contract/storage/metrics/capability isolation, §100-105 reconciled with notes, §106 honest 16-item Definition of Done self-audit — 4 genuine gaps named, §107-108 reconciled) |
 | 02 | siar-identity-multidevice | ✅ ~140/204 (+ safety_fingerprint.rs this round) |
 | 03 | siar-routing-policy | ✅ ~60/200 |
-| 04 | siar-event-log | 🟡 ~10/95 (Phase 2 SQLite blocked on rustc 1.87 in sandbox) |
+| 04 | siar-event-log | 🟡 ~10/95 (Phase 2 SQLite blocker below is now STALE — see Tier 3 update) |
 | 05 | siar-blob-manifest | ✅ ~23/210 (+ metadata_encryption.rs) |
 | 06 | siar-dtn-bundle | ✅ ~50/192 |
 | 07 | siar-capability | ✅ ~19/164 |
@@ -118,28 +133,51 @@ now.
 
 ---
 
-## Tier 3 — The verification-boundary problem (applies to ALL UI work)
+## Tier 3 — The verification-boundary problem — **STALE as of 2026-09-01, see below**
 
-**This isn't a spec, it's a standing constraint on everything in Tier
-2.** `apps/desktop` transitively depends on `siar-messaging`/
-`siar-transport`, workspace-pinned to `rust-version = "1.91"` (the
-`iroh`/`stoolap` floor). The verification sandbox used for every crate
-in Tier 0/1 only has rustc 1.75.0, with no network path to a newer
-toolchain. `apps/android` needs a full Android/Gradle/JNI toolchain not
-present at all.
+**Original text, kept for history**: This isn't a spec, it's a standing
+constraint on everything in Tier 2. `apps/desktop` transitively depends
+on `siar-messaging`/`siar-transport`, workspace-pinned to
+`rust-version = "1.91"` (the `iroh`/`stoolap` floor). The verification
+sandbox used for every crate in Tier 0/1 only has rustc 1.75.0, with no
+network path to a newer toolchain. `apps/android` needs a full
+Android/Gradle/JNI toolchain not present at all.
 
-**Practical consequence**: any `siar-ui-state` view-model work
-(Tier 0/1-grade verification: real `cargo build`/`cargo test`) stays at
-full rigor. Any actual `apps/desktop`/`apps/android` component code is
-delivered flagged-unverified, in its own separate folder, needing a
-local build + error report before it's trustworthy — this has been true
-since the first UI deliverable this session and remains true for
-everything in Tier 2's desktop/Android columns going forward, not a
-one-off caveat.
+**Correction**: `apt-cache search "^rustc-1"` in this sandbox exposes
+`rustc-1.91`/`cargo-1.91`/`rust-1.91-clippy` packages directly
+(`archive.ubuntu.com` is allowlisted) — installable directly, binaries
+land at `/usr/lib/rust-1.91/bin`. Combined with the right system libs
+(`libgtk-3-dev libssl-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev
+libwebkit2gtk-4.1-dev libasound2-dev cmake libopus-dev libdav1d-dev`),
+`cargo check --workspace --all-targets` against the ORIGINAL
+repo-root `Cargo.lock` (v4 format — parses fine under cargo 1.91;
+don't delete/regenerate it) passes clean across all 33 crates,
+including `apps/desktop` (webview/GTK/audio/AV1). So: `apps/desktop`
+and `apps/android`'s Rust glue ARE now compile-verifiable here — only
+real device/emulator testing (actual Kotlin/JNI runtime behavior,
+hardware codecs) remains genuinely out of reach. Disk space is tight
+(~6G free after the above) — expect to `rm -rf target && apt-get
+clean` between big check runs.
+
+**Practical consequence, updated**: full `cargo build`/`cargo
+test`/`cargo clippy -D warnings` rigor is now available for
+EVERYTHING in this workspace, not just Tier 0/1-grade crates — spec 04
+`siar-event-log`'s "Phase 2 SQLite blocked on rustc 1.87" note above is
+one direct casualty of this correction and should be re-evaluated
+next time that crate is picked up. `apps/desktop`/`apps/android`
+Rust-level code no longer needs to ship flagged-unverified by default —
+only genuine device/emulator/hardware-codec behavior does.
 
 ---
 
 ## Suggested next priorities, in order
+
+**Superseded by explicit user instruction (2026-09-01): work through the
+9 Tier 0 core specs first, one by one, before returning to this list.**
+Spec 01 (`siar-protocol-ext`) is now complete (108/108). Next up: spec
+02 (`siar-identity-multidevice`, already furthest along at ~140/204).
+
+Original list, resumes once Tier 0 is done:
 
 1. `ui-ux-15` **continue in ordinary batches** (§195-221 remain): next
    natural slice continues the integration section (§195-206 — Privacy
