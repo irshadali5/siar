@@ -186,6 +186,7 @@ mod tests {
                     minor: ProtocolMinor(0),
                 },
                 capabilities: CapabilitySet::default(),
+                required_capabilities: CapabilitySet::default(),
                 requirement: ExtensionRequirement::Optional,
                 limits: ExtensionLimits {
                     max_frame_size: 1024,
@@ -193,6 +194,8 @@ mod tests {
                     max_concurrent_streams: 1,
                     max_buffered_bytes: 1024,
                 },
+                security: crate::security::SecurityRequirements::messaging_default(),
+                stability: crate::descriptor::ExtensionStability::Stable,
             }
         }
 

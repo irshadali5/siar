@@ -63,6 +63,21 @@ pub fn parse_frame_header(bytes: &[u8]) -> Result<FrameHeader, FramingError> {
     })
 }
 
+/// spec §39's "golden compatibility tests" need something to encode
+/// against in the first place — [`parse_frame_header`] alone only
+/// decodes. Inverse of `parse_frame_header` field-for-field, same
+/// fixed 8-byte big-endian layout, hand-rolled for the same reason
+/// decoding is: this is the wire format itself, not something to hand
+/// to a general-purpose serializer.
+pub fn encode_frame_header(header: &FrameHeader) -> [u8; FRAME_HEADER_BYTES] {
+    let mut bytes = [0u8; FRAME_HEADER_BYTES];
+    bytes[0..4].copy_from_slice(&header.frame_length.to_be_bytes());
+    bytes[4..6].copy_from_slice(&header.extension_session_id.0.to_be_bytes());
+    bytes[6] = header.frame_type;
+    bytes[7] = header.flags;
+    bytes
+}
+
 /// §18 steps 2-3: "validate length" + "check extension limit" — run
 /// against the already-parsed header, before step 4 (allocation) ever
 /// happens. Kept as its own function, separate from
@@ -151,5 +166,37 @@ mod tests {
         let bytes = header_bytes(500, 1, 0, 0);
         let header = parse_frame_header(&bytes).unwrap();
         assert!(validate_frame_length(&header, &limits()).is_ok());
+    }
+
+    #[test]
+    fn spec_39_encode_then_parse_round_trips_exactly() {
+        let header = FrameHeader {
+            frame_length: 12345,
+            extension_session_id: SessionLocalExtensionId(42),
+            frame_type: 3,
+            flags: 0b0000_0101,
+        };
+        let bytes = encode_frame_header(&header);
+        assert_eq!(parse_frame_header(&bytes).unwrap(), header);
+    }
+
+    #[test]
+    fn spec_39_golden_byte_layout_is_big_endian_field_for_field() {
+        // A golden compatibility test per spec §39: this exact byte
+        // sequence for this exact header must never silently change
+        // across a refactor — if this test starts failing, the wire
+        // format changed, which is exactly what a golden test exists
+        // to catch.
+        let header = FrameHeader {
+            frame_length: 0x0000_0064, // 100
+            extension_session_id: SessionLocalExtensionId(0x0007), // 7
+            frame_type: 0x01,
+            flags: 0x00,
+        };
+        let bytes = encode_frame_header(&header);
+        assert_eq!(
+            bytes,
+            [0x00, 0x00, 0x00, 0x64, 0x00, 0x07, 0x01, 0x00]
+        );
     }
 }
