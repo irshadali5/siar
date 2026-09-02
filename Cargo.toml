@@ -55,6 +55,9 @@ edition = "2021"
 rust-version = "1.91"
 license = "MIT OR Apache-2.0"
 
+[workspace.metadata.crane]
+name = "siar-workspace"
+
 [workspace.dependencies]
 siar-domain = { path = "crates/siar-domain" }
 siar-identity-multidevice = { path = "crates/siar-identity-multidevice" }

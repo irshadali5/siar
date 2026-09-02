@@ -22,6 +22,10 @@
         };
 
         inherit (pkgs) lib;
+        inherit (pkgs.stdenv.hostPlatform) isLinux isDarwin;
+
+        # Modern nixfmt package
+        nixfmtPkg = pkgs.nixfmt or pkgs.nixfmt-rfc-style;
 
         # Rust toolchain matching rust-toolchain.toml (stable Rust)
         rustToolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
@@ -66,7 +70,7 @@
           dav1d
           openssl
           libiconv
-        ] ++ lib.optionals pkgs.stdenv.isDarwin (
+        ] ++ lib.optionals isDarwin (
           let
             appleSdk = builtins.tryEval (pkgs.apple-sdk or null);
           in
@@ -85,8 +89,8 @@
           dav1d
           libopus
         ]
-        ++ lib.optionals pkgs.stdenv.isLinux desktopLinuxBuildInputs
-        ++ lib.optionals pkgs.stdenv.isDarwin darwinBuildInputs;
+        ++ lib.optionals isLinux desktopLinuxBuildInputs
+        ++ lib.optionals isDarwin darwinBuildInputs;
 
         # Filter source to include cargo files, source code, and static assets
         assetFilter = path: _type:
@@ -117,7 +121,7 @@
           pname = "siar";
           cargoExtraArgs = "--package siar-cli --bin siar";
           nativeBuildInputs = [ pkgs.pkg-config ];
-          buildInputs = if pkgs.stdenv.isLinux then coreLinuxBuildInputs else commonBuildInputs;
+          buildInputs = if isLinux then coreLinuxBuildInputs else commonBuildInputs;
           meta = with lib; {
             description = "SIAR CLI - Sovereign, Interoperable, Asynchronous, Resilient CLI client";
             homepage = "https://github.com/irshadali5/siar";
@@ -131,7 +135,7 @@
           pname = "siar-emergency-node";
           cargoExtraArgs = "--package siar-emergency-node --bin siar-emergency-node";
           nativeBuildInputs = [ pkgs.pkg-config ];
-          buildInputs = if pkgs.stdenv.isLinux then coreLinuxBuildInputs else commonBuildInputs;
+          buildInputs = if isLinux then coreLinuxBuildInputs else commonBuildInputs;
           meta = with lib; {
             description = "SIAR Emergency DTN Mesh Node daemon";
             homepage = "https://github.com/irshadali5/siar";
@@ -144,7 +148,7 @@
           inherit cargoArtifacts;
           pname = "siar-desktop";
           cargoExtraArgs = "--package siar-desktop --bin siar-desktop";
-          nativeBuildInputs = [ pkgs.pkg-config ] ++ lib.optionals pkgs.stdenv.isLinux desktopLinuxNativeBuildInputs;
+          nativeBuildInputs = [ pkgs.pkg-config ] ++ lib.optionals isLinux desktopLinuxNativeBuildInputs;
           buildInputs = commonBuildInputs;
           meta = with lib; {
             description = "SIAR Desktop GUI client (Dioxus)";
@@ -156,7 +160,7 @@
 
         siar-all = pkgs.symlinkJoin {
           name = "siar-all";
-          paths = [ siar-cli siar-emergency-node ] ++ lib.optionals pkgs.stdenv.isLinux [ siar-desktop ];
+          paths = [ siar-cli siar-emergency-node ] ++ lib.optionals isLinux [ siar-desktop ];
         };
 
         # Check derivations
@@ -176,7 +180,7 @@
             inherit cargoArtifacts;
             cargoTestExtraArgs = "--workspace";
           });
-        } // lib.optionalAttrs pkgs.stdenv.isLinux {
+        } // lib.optionalAttrs isLinux {
           inherit siar-desktop;
         };
       in
@@ -219,14 +223,14 @@
             cargo-deny
             cargo-audit
             cargo-fuzz
-            nixfmt-rfc-style
+            nixfmtPkg
           ]
           ++ commonNativeBuildInputs
           ++ commonBuildInputs;
 
           shellHook = ''
             export RUST_BACKTRACE=1
-            ${lib.optionalString pkgs.stdenv.isLinux ''
+            ${lib.optionalString isLinux ''
               export LD_LIBRARY_PATH="${lib.makeLibraryPath commonBuildInputs}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
               export XDG_DATA_DIRS="${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}:${pkgs.gtk3}/share/gsettings-schemas/${pkgs.gtk3.name}''${XDG_DATA_DIRS:+:$XDG_DATA_DIRS}"
             ''}
@@ -248,7 +252,7 @@
           '';
         };
 
-        formatter = pkgs.nixfmt-rfc-style;
+        formatter = nixfmtPkg;
       }
     );
 }
