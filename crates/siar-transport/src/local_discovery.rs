@@ -88,6 +88,25 @@ impl LocalPeerDirectory {
     }
 }
 
+/// Spawns the background task draining `mdns`'s event stream into
+/// `directory`. Returns nothing to hold onto deliberately: this task's
+/// lifetime is tied to `mdns` and `directory` staying alive (both are
+/// held by `SiarEndpoint` — `directory` via its own field, `mdns`
+/// implicitly by whatever `endpoint.address_lookup()...add()` retains
+/// internally), not to a handle a caller needs to manage. It exits on
+/// its own once the event stream ends.
+pub(crate) fn spawn_local_discovery_task(
+    mdns: MdnsAddressLookup,
+    directory: Arc<LocalPeerDirectory>,
+) {
+    tokio::spawn(async move {
+        let mut events = mdns.subscribe().await;
+        while let Some(event) = n0_future::StreamExt::next(&mut events).await {
+            directory.apply(event);
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     //! `LocalPeerDirectory::apply` is where all of this module's real
@@ -212,23 +231,4 @@ mod tests {
         assert!(ids.contains(&a));
         assert!(ids.contains(&b));
     }
-}
-
-/// Spawns the background task draining `mdns`'s event stream into
-/// `directory`. Returns nothing to hold onto deliberately: this task's
-/// lifetime is tied to `mdns` and `directory` staying alive (both are
-/// held by `SiarEndpoint` — `directory` via its own field, `mdns`
-/// implicitly by whatever `endpoint.address_lookup()...add()` retains
-/// internally), not to a handle a caller needs to manage. It exits on
-/// its own once the event stream ends.
-pub(crate) fn spawn_local_discovery_task(
-    mdns: MdnsAddressLookup,
-    directory: Arc<LocalPeerDirectory>,
-) {
-    tokio::spawn(async move {
-        let mut events = mdns.subscribe().await;
-        while let Some(event) = n0_future::StreamExt::next(&mut events).await {
-            directory.apply(event);
-        }
-    });
 }

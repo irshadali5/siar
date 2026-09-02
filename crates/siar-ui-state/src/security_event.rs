@@ -261,7 +261,7 @@ impl SecurityEventState {
     /// §43: "sort newest first."
     pub fn events(&self) -> Vec<&SecurityEvent> {
         let mut sorted: Vec<&SecurityEvent> = self.events.iter().collect();
-        sorted.sort_by(|a, b| b.occurred_at_millis.cmp(&a.occurred_at_millis));
+        sorted.sort_by_key(|e| std::cmp::Reverse(e.occurred_at_millis));
         sorted
     }
 

@@ -17,6 +17,8 @@
 //! this file would no longer compile even setting aside the
 //! iroh/rustc-version issue.
 
+#![allow(dead_code)]
+
 use crate::state::AppState;
 use dioxus::prelude::*;
 use siar_ui_state::{SecurityEvent, SecurityEventFilter, SecurityEventKind, SecurityEventSeverity};

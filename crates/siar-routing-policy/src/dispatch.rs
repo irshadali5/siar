@@ -69,6 +69,7 @@ impl<T> RouteDispatchQueue<T> {
     /// queue is already at [`FairScheduler`]'s bound (§20: every
     /// queue in `siar-protocol-ext` is bounded, no exceptions) —
     /// never silently drops or blocks.
+    #[allow(clippy::result_large_err)]
     pub fn enqueue(
         &mut self,
         priority: Priority,

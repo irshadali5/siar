@@ -58,7 +58,7 @@ pub enum ReauthResult {
 pub fn is_last_trusted_device(devices: &DeviceListState, target: DeviceId) -> bool {
     let active_ids: HashSet<DeviceId> = devices
         .trusted()
-        .chain(devices.this_device().into_iter())
+        .chain(devices.this_device())
         .map(|d| d.id)
         .collect();
 

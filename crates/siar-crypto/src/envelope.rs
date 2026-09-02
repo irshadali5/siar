@@ -142,6 +142,7 @@ fn derive_nonce(epoch: SecurityEpoch, counter: u64) -> [u8; NONCE_LEN] {
 /// The caller is responsible for never reusing the same `counter` under
 /// the same `(cipher, epoch)` — see this module's top-level doc and
 /// `replay.rs::ReplayGuard` for the receive-side half of that contract.
+#[allow(clippy::too_many_arguments)]
 pub fn encrypt_envelope(
     cipher: &ChaCha20Poly1305,
     plaintext: &[u8],

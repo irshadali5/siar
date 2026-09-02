@@ -7,6 +7,8 @@
 //! compile+test-verified in `siar-ui-state`. Please build this locally
 //! (`cargo build -p siar-desktop`) and paste back any errors.
 
+#![allow(dead_code)]
+
 use crate::state::AppState;
 use dioxus::prelude::*;
 use siar_ui_state::{DeviceKind, DeviceSecurityView, DeviceTrustState};

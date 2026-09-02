@@ -16,7 +16,7 @@
   outputs = { self, nixpkgs, flake-utils, rust-overlay, crane }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        overlays = [ (import rust-overlay) ];
+        overlays = [ rust-overlay.overlays.default ];
         pkgs = import nixpkgs {
           inherit system overlays;
         };
@@ -64,14 +64,21 @@
           libopus
           dav1d
           openssl
-        ] ++ (lib.optionals pkgs.stdenv.isDarwin (with pkgs.darwin.apple_sdk.frameworks; [
-          Security
-          CoreServices
-          CoreAudio
-          AudioToolbox
-          AppKit
-          WebKit
-        ]));
+          libiconv
+        ] ++ lib.optionals pkgs.stdenv.isDarwin (
+          if pkgs ? apple-sdk_11 then [
+            pkgs.apple-sdk_11
+          ] else if pkgs ? darwin && pkgs.darwin ? apple_sdk then (with pkgs.darwin.apple_sdk.frameworks; [
+            Security
+            CoreServices
+            CoreAudio
+            AudioToolbox
+            AppKit
+            WebKit
+            Foundation
+            CoreGraphics
+          ]) else [ ]
+        );
 
         # Common dependencies for all workspace cargo artifacts
         commonNativeBuildInputs = with pkgs; [
@@ -159,7 +166,7 @@
 
         # Check derivations
         checks = {
-          inherit siar-cli siar-emergency-node siar-desktop;
+          inherit siar-cli siar-emergency-node;
 
           clippy = craneLib.cargoClippy (commonArgs // {
             inherit cargoArtifacts;
@@ -174,6 +181,8 @@
             inherit cargoArtifacts;
             cargoTestExtraArgs = "--workspace";
           });
+        } // lib.optionalAttrs pkgs.stdenv.isLinux {
+          inherit siar-desktop;
         };
       in
       {

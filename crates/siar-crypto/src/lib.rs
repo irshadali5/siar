@@ -41,8 +41,8 @@
 //! ad hoc domain strings elsewhere in this crate are documented, not
 //! renamed), `pseudonym` (§34-36, scoped per-context pseudonyms +
 //! rotating proximity discovery IDs), and `trust` (§40-41, `PeerTrustState`
-//! + `TrustSource`). See each module's own doc comment for how it
-//! relates to — and, where relevant, deliberately doesn't modify —
+//! and `TrustSource`). See each module's own doc comment for how it
+//! relates to — and, where relevant, deliberately doesn't modify
 //! `session.rs` or `siar-identity-multidevice`.
 //!
 //! Also reconciliation-only this round (no new module — see this
