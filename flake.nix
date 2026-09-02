@@ -24,7 +24,7 @@
         inherit (pkgs) lib;
 
         # Rust toolchain matching rust-toolchain.toml (stable Rust)
-        rustToolchain = pkgs.rust-bin.fromRustToolchainFile ./rust-toolchain.toml;
+        rustToolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
         craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
 
         # Linux-specific build requirements for Desktop & Media
@@ -99,6 +99,8 @@
         # Common derivation arguments
         commonArgs = {
           inherit src;
+          pname = "siar-workspace";
+          version = "0.1.0";
           strictDeps = true;
           nativeBuildInputs = commonNativeBuildInputs;
           buildInputs = commonBuildInputs;
