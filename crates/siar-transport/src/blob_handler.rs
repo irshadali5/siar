@@ -50,32 +50,40 @@ impl BlobProtocolHandler {
 
 impl ProtocolHandler for BlobProtocolHandler {
     async fn accept(&self, connection: Connection) -> Result<(), AcceptError> {
-        let (mut send, mut recv) = connection
-            .accept_bi()
-            .await
-            .map_err(AcceptError::from_err)?;
+        // Same fix as `handler.rs::MessagingProtocolHandler::accept`,
+        // and for the identical reason: `SiarEndpoint::fetch_blob` goes
+        // through the same pooled-connection path (`connection_for`),
+        // so a peer that fetches two blobs over one reused connection
+        // needs this handler to keep accepting streams, not just serve
+        // one request and then idle until the connection closes.
+        loop {
+            let (mut send, mut recv) = match connection.accept_bi().await {
+                Ok(streams) => streams,
+                Err(_) => break,
+            };
 
-        let bytes = recv
-            .read_to_end(MAX_BLOB_FRAME_BYTES)
-            .await
-            .map_err(AcceptError::from_err)?;
-        let (request, _consumed): (BlobRequest, usize) =
-            decode_frame_generic(&bytes, MAX_BLOB_FRAME_BYTES).map_err(AcceptError::from_err)?;
+            let bytes = recv
+                .read_to_end(MAX_BLOB_FRAME_BYTES)
+                .await
+                .map_err(AcceptError::from_err)?;
+            let (request, _consumed): (BlobRequest, usize) =
+                decode_frame_generic(&bytes, MAX_BLOB_FRAME_BYTES)
+                    .map_err(AcceptError::from_err)?;
 
-        let response = match self.store.get(&request.blob_hash) {
-            Some(ciphertext) => BlobResponse::Found { ciphertext },
-            None => BlobResponse::NotFound,
-        };
+            let response = match self.store.get(&request.blob_hash) {
+                Some(ciphertext) => BlobResponse::Found { ciphertext },
+                None => BlobResponse::NotFound,
+            };
 
-        let mut framed = Vec::new();
-        encode_frame_generic(&response, MAX_BLOB_FRAME_BYTES, &mut framed)
-            .map_err(AcceptError::from_err)?;
-        send.write_all(&framed)
-            .await
-            .map_err(AcceptError::from_err)?;
-        send.finish().map_err(AcceptError::from_err)?;
+            let mut framed = Vec::new();
+            encode_frame_generic(&response, MAX_BLOB_FRAME_BYTES, &mut framed)
+                .map_err(AcceptError::from_err)?;
+            send.write_all(&framed)
+                .await
+                .map_err(AcceptError::from_err)?;
+            send.finish().map_err(AcceptError::from_err)?;
+        }
 
-        connection.closed().await;
         Ok(())
     }
 }

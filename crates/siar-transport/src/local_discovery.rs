@@ -88,6 +88,132 @@ impl LocalPeerDirectory {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    //! `LocalPeerDirectory::apply` is where all of this module's real
+    //! logic lives (`snapshot`/`len`/`is_empty` are trivial reads) — it's
+    //! never been exercised by a test before. `apply` is private, but
+    //! this `mod tests` is a child of the module that defines it, so it
+    //! can be called directly without spinning up any real mDNS traffic
+    //! or an iroh endpoint: `DiscoveryEvent`/`EndpointInfo` are plain,
+    //! network-free data to construct.
+
+    use super::*;
+    use iroh::address_lookup::EndpointInfo;
+    use iroh::SecretKey;
+    use std::net::{Ipv4Addr, SocketAddr};
+
+    fn fresh_endpoint_id() -> EndpointId {
+        SecretKey::generate().public()
+    }
+
+    fn addr(port: u16) -> SocketAddr {
+        SocketAddr::from((Ipv4Addr::LOCALHOST, port))
+    }
+
+    #[test]
+    fn fresh_directory_is_empty() {
+        let dir = LocalPeerDirectory::new();
+        assert!(dir.is_empty());
+        assert_eq!(dir.len(), 0);
+        assert!(dir.snapshot().is_empty());
+    }
+
+    #[test]
+    fn discovered_event_adds_the_peer() {
+        let dir = LocalPeerDirectory::new();
+        let id = fresh_endpoint_id();
+        let info = EndpointInfo::new(id).with_ip_addrs(vec![addr(4433)]);
+
+        dir.apply(DiscoveryEvent::Discovered {
+            endpoint_info: info,
+            last_updated: None,
+        });
+
+        assert!(!dir.is_empty());
+        assert_eq!(dir.len(), 1);
+        let snapshot = dir.snapshot();
+        assert_eq!(snapshot.len(), 1);
+        assert_eq!(snapshot[0].id, id);
+    }
+
+    #[test]
+    fn expired_event_removes_a_known_peer() {
+        let dir = LocalPeerDirectory::new();
+        let id = fresh_endpoint_id();
+        let info = EndpointInfo::new(id).with_ip_addrs(vec![addr(4433)]);
+        dir.apply(DiscoveryEvent::Discovered {
+            endpoint_info: info,
+            last_updated: None,
+        });
+        assert_eq!(dir.len(), 1);
+
+        dir.apply(DiscoveryEvent::Expired { endpoint_id: id });
+
+        assert!(dir.is_empty());
+        assert!(dir.snapshot().is_empty());
+    }
+
+    #[test]
+    fn expiring_an_unknown_peer_is_a_no_op() {
+        let dir = LocalPeerDirectory::new();
+        let unknown = fresh_endpoint_id();
+
+        dir.apply(DiscoveryEvent::Expired {
+            endpoint_id: unknown,
+        });
+
+        assert!(dir.is_empty());
+    }
+
+    #[test]
+    fn rediscovering_the_same_id_updates_rather_than_duplicates() {
+        let dir = LocalPeerDirectory::new();
+        let id = fresh_endpoint_id();
+
+        dir.apply(DiscoveryEvent::Discovered {
+            endpoint_info: EndpointInfo::new(id).with_ip_addrs(vec![addr(4433)]),
+            last_updated: None,
+        });
+        dir.apply(DiscoveryEvent::Discovered {
+            endpoint_info: EndpointInfo::new(id).with_ip_addrs(vec![addr(5544)]),
+            last_updated: None,
+        });
+
+        // Same id seen twice must still be one entry, not two — this is
+        // exactly what `next.md §60`'s "N nearby relay devices" count
+        // depends on being accurate.
+        assert_eq!(dir.len(), 1);
+        let snapshot = dir.snapshot();
+        assert_eq!(snapshot.len(), 1);
+        assert!(snapshot[0]
+            .addrs
+            .iter()
+            .any(|a| matches!(a, iroh::TransportAddr::Ip(sock) if sock.port() == 5544)));
+    }
+
+    #[test]
+    fn discovering_two_different_peers_keeps_both() {
+        let dir = LocalPeerDirectory::new();
+        let a = fresh_endpoint_id();
+        let b = fresh_endpoint_id();
+
+        dir.apply(DiscoveryEvent::Discovered {
+            endpoint_info: EndpointInfo::new(a).with_ip_addrs(vec![addr(4433)]),
+            last_updated: None,
+        });
+        dir.apply(DiscoveryEvent::Discovered {
+            endpoint_info: EndpointInfo::new(b).with_ip_addrs(vec![addr(4434)]),
+            last_updated: None,
+        });
+
+        assert_eq!(dir.len(), 2);
+        let ids: std::collections::HashSet<_> = dir.snapshot().into_iter().map(|p| p.id).collect();
+        assert!(ids.contains(&a));
+        assert!(ids.contains(&b));
+    }
+}
+
 /// Spawns the background task draining `mdns`'s event stream into
 /// `directory`. Returns nothing to hold onto deliberately: this task's
 /// lifetime is tied to `mdns` and `directory` staying alive (both are
