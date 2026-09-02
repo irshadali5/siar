@@ -8,3 +8,9 @@ target/
 *.zip
 dist
 book/
+
+# Nix & Direnv
+result
+result-*
+.direnv/
+

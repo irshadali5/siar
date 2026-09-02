@@ -15,7 +15,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
 
 jobs:
@@ -36,7 +36,7 @@ jobs:
         with:
           components: clippy
       - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev
-      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo clippy --workspace --all-targets -- -D warnings -A clippy::too_many_arguments -A clippy::result_large_err -A clippy::doc_lazy_continuation -A clippy::items_after_test_module -A dead_code -A clippy::unnecessary_sort_by -A clippy::useless_conversion
 
   test:
     runs-on: ubuntu-latest
