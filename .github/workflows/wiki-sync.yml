@@ -1,0 +1,56 @@
+name: Sync Wiki to GitHub Native Wiki
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'wiki/**'
+      - '.github/workflows/wiki-sync.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync-wiki:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Sync wiki files to GitHub Wiki repository
+        env:
+          ACTION_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          WIKI_REPO="https://x-access-token:${ACTION_TOKEN}@github.com/${{ github.repository }}.wiki.git"
+          TEMP_DIR="$(mktemp -d)"
+
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          echo "Attempting to clone existing GitHub Wiki..."
+          if git clone "$WIKI_REPO" "$TEMP_DIR"; then
+            cd "$TEMP_DIR"
+            # Remove all tracked/untracked files except the .git directory
+            find . -maxdepth 1 ! -name '.' ! -name '..' ! -name '.git' -exec rm -rf {} +
+            cp -r "$GITHUB_WORKSPACE"/wiki/* .
+            git add -A
+            if git diff --cached --quiet; then
+              echo "Wiki is already up to date. No changes to commit."
+              exit 0
+            fi
+            git commit -m "docs(wiki): sync documentation from main repository (${{ github.sha }})"
+            echo "Pushing changes to GitHub Wiki..."
+            git push origin master
+          else
+            echo "Cloning wiki failed (possibly uninitialized). Initializing fresh repository..."
+            cd "$TEMP_DIR"
+            cp -r "$GITHUB_WORKSPACE"/wiki/* .
+            git init
+            git branch -M master
+            git add -A
+            git commit -m "docs(wiki): sync documentation from main repository (${{ github.sha }})"
+            git push --force "$WIKI_REPO" master
+          fi
