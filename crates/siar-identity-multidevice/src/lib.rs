@@ -79,6 +79,39 @@
 //!   double-checks the result (generation advanced, target really
 //!   revoked, every other device's status untouched) rather than
 //!   trusting `revoke_device`'s own return value blindly.
+//! - [`rotation`] — §31 "Device Rotation"
+//!   ([`rotation::rotate_device_key`], mirroring `revoke_device`'s
+//!   exact shape: same generation-advances-by-one discipline, same
+//!   real-error-not-silent-noop handling for an unknown or already-
+//!   revoked device), §32 "Rotation Reasons"
+//!   ([`rotation::RotationReason`], verbatim five reasons). See that
+//!   module's own doc comment for why "device key generation N -> N+1"
+//!   is modeled via the directory's existing generation counter rather
+//!   than a second, invented per-device counter.
+//! - [`root_rotation`] — §33 "Root Key Rotation", §34 "Root Rotation
+//!   Event" ([`root_rotation::rotate_root_key`]/[`root_rotation::verify_root_rotation`],
+//!   a dual-signed continuity attestation — old root authorizes,
+//!   new root accepts, both signatures cover the same payload), §35
+//!   "Compromised Root Scenario"
+//!   ([`root_rotation::CompromisedRootRecoveryStrategy`], spec's own
+//!   five named future candidates — only two get real implementations,
+//!   see [`recovery`] — plus a test making "rotation structurally
+//!   requires the old private key" visible, not just true by
+//!   inspection).
+//! - [`recovery`] — §36 "Recovery Architecture", §37 "Recovery Policy
+//!   Type" ([`recovery::RecoveryPolicy`], verbatim four variants), §38
+//!   "Recovery Secret" ([`recovery::RecoverySecret`], deliberately not
+//!   `Serialize`/`Deserialize` so nothing can put it on the wire by
+//!   accident; [`recovery::RecoveryKeyDerivation`] is the boundary
+//!   trait to a real Argon2id implementation this dependency-minimal
+//!   crate doesn't provide itself), §39 "Recovery Device Addition"
+//!   ([`recovery::add_device_via_recovery`], provably the same
+//!   certificate-issuance path [`rotation::rotate_device_key`]/
+//!   [`revocation::revoke_device`] already use, gated by recovery
+//!   evidence instead of an existing device's approval — tested for
+//!   both the `RecoverySecret` and `TrustedDeviceQuorum` policies,
+//!   including a revoked device's signature correctly not counting
+//!   toward quorum).
 //! - [`device_keys`] — §21 "New Device Key Generation": the piece
 //!   sitting between [`link_key`]'s ephemeral handshake key and
 //!   [`certificate::DeviceCertificate::issue`]'s signature — before
@@ -208,8 +241,11 @@ pub mod directory;
 pub mod error;
 pub mod invite;
 pub mod link_key;
+pub mod recovery;
 pub mod revocation;
 pub mod root_key;
+pub mod root_rotation;
+pub mod rotation;
 pub mod safety_fingerprint;
 pub mod trust_store;
 pub mod verification_code;
@@ -227,8 +263,17 @@ pub use directory::{DeviceDirectory, DeviceDirectoryEntry, DeviceStatus};
 pub use error::IdentityError;
 pub use invite::DeviceLinkInvite;
 pub use link_key::{EphemeralLinkKeyPair, EphemeralLinkPublicKey};
+pub use recovery::{
+    add_device_via_recovery, DerivedRecoveryKey, RecoveryError, RecoveryEvidence,
+    RecoveryKeyDerivation, RecoveryPolicy, RecoverySecret,
+};
 pub use revocation::{revoke_device, verify_revocation, RevocationError};
 pub use root_key::{RootIdentityKey, RootPublicKey};
+pub use root_rotation::{
+    rotate_root_key, verify_root_rotation, CompromisedRootRecoveryStrategy, RootRotation,
+    RootRotationError,
+};
+pub use rotation::{rotate_device_key, RotationError, RotationReason};
 pub use safety_fingerprint::SafetyFingerprint;
 pub use trust_store::TrustedAccountStore;
 pub use verification_code::derive_verification_code;
