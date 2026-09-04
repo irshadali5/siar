@@ -338,7 +338,19 @@ SIAR features an honest, compile-and-test verified implementation tracking matri
 
 ### 1. Nix Development Environment (Recommended)
 
-SIAR provides a hermetic Nix Flake configuration ([`flake.nix`](file:///home/irshad/Projects/siar/flake.nix), [`shell.nix`](file:///home/irshad/Projects/siar/shell.nix)) that automatically provides Rust 1.91, native GUI build dependencies (GTK3, WebKit2GTK, ALSA, OpenSSL, CMake, libxdo), and Darwin SDK frameworks:
+SIAR provides a universal, cross-distribution Nix installer script ([`install-nix.sh`](file:///home/irshad/Projects/siar/install-nix.sh) / [`scripts/install-nix.sh`](file:///home/irshad/Projects/siar/scripts/install-nix.sh)) that automates Nix setup across **any Linux distribution** (Arch Linux, Ubuntu, Debian, Fedora, RHEL, openSUSE, Alpine, Void, etc.) and macOS, pre-configured with **Nix Flakes** and daemon optimizations:
+
+```bash
+# Automated cross-distribution Nix installer
+./install-nix.sh
+
+# Or install remotely via curl on any system:
+curl --proto '=https' --tlsv1.2 -sSfL https://raw.githubusercontent.com/irshadali5/siar/develop/scripts/install-nix.sh | bash
+```
+
+> See the full [Nix Installation & Configuration Guide](docs/nix-installation-guide.md) for distro-specific options, diagnostics (`--doctor`), and uninstallation (`--uninstall`).
+
+Once installed, SIAR's hermetic Nix Flake configuration ([`flake.nix`](flake.nix), [`shell.nix`](shell.nix)) automatically provides Rust 1.91, native GUI build dependencies (GTK3, WebKit2GTK, ALSA, OpenSSL, CMake, libxdo), and Darwin SDK frameworks:
 
 ```bash
 # Enter the fully provisioned hermetic development shell
