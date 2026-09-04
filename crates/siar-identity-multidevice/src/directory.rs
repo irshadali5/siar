@@ -23,11 +23,23 @@ pub enum DeviceStatus {
     Expired,
 }
 
+/// §53's `transport_endpoints` field, kept fully opaque — this crate
+/// has no transport dependency and shouldn't gain one just to type
+/// this field (the same transport-neutrality principle spec 01
+/// establishes for `siar-protocol-ext::RoutingRequirements`/
+/// `PeerIdentity`, applied here too). A real transport layer
+/// (`siar-transport`) is responsible for interpreting these bytes;
+/// identity only stores and forwards them as part of the signed
+/// directory.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DeviceEndpoint(pub Vec<u8>);
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeviceDirectoryEntry {
     pub device_id: DeviceId,
     pub certificate: DeviceCertificate,
     pub status: DeviceStatus,
+    pub transport_endpoints: Vec<DeviceEndpoint>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -116,6 +128,19 @@ impl DeviceDirectory {
             .iter()
             .any(|d| d.device_id == device_id && d.status == DeviceStatus::Active)
     }
+
+    /// §59 "Account State Chain"'s `prev_hash` field needs something
+    /// real to hash — this is it: a blake3 hash of this directory's own
+    /// signature bytes (which already commit to every other field via
+    /// [`Self::signing_payload`], so hashing the signature alone is
+    /// sufficient and avoids re-serializing the whole directory a
+    /// second time just to hash it). See [`crate::state_chain`] for
+    /// where this is actually used, and its own module doc for why
+    /// this crate's snapshot model doesn't switch to a live event
+    /// chain just because this hash now exists.
+    pub fn state_hash(&self) -> [u8; 32] {
+        blake3::hash(&self.signature).into()
+    }
 }
 
 #[cfg(test)]
@@ -160,11 +185,13 @@ mod tests {
                     device_id: active_device,
                     certificate: active_cert,
                     status: DeviceStatus::Active,
+                    transport_endpoints: vec![],
                 },
                 DeviceDirectoryEntry {
                     device_id: revoked_device,
                     certificate: revoked_cert,
                     status: DeviceStatus::Revoked,
+                    transport_endpoints: vec![],
                 },
             ],
         );

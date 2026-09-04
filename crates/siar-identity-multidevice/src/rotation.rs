@@ -91,6 +91,7 @@ pub fn rotate_device_key(
                     device_id: d.device_id,
                     certificate: new_certificate.clone(),
                     status: DeviceStatus::Active,
+                    transport_endpoints: vec![],
                 }
             } else {
                 d.clone()
@@ -136,6 +137,7 @@ mod tests {
                 device_id: device,
                 certificate: cert,
                 status: DeviceStatus::Active,
+                transport_endpoints: vec![],
             }],
         );
         (directory, device)

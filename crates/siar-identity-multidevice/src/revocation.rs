@@ -71,6 +71,7 @@ pub fn revoke_device(
                     device_id: d.device_id,
                     certificate: d.certificate.clone(),
                     status: DeviceStatus::Revoked,
+                    transport_endpoints: vec![],
                 }
             } else {
                 d.clone()
@@ -169,11 +170,13 @@ mod tests {
                     device_id: device_a,
                     certificate: cert_a,
                     status: DeviceStatus::Active,
+                    transport_endpoints: vec![],
                 },
                 DeviceDirectoryEntry {
                     device_id: device_b,
                     certificate: cert_b,
                     status: DeviceStatus::Active,
+                    transport_endpoints: vec![],
                 },
             ],
         );

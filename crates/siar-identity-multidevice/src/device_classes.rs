@@ -150,6 +150,7 @@ mod tests {
                 device_id: device,
                 certificate: cert,
                 status: DeviceStatus::Active,
+                transport_endpoints: vec![],
             }],
         );
 

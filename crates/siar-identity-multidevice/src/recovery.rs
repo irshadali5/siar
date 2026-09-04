@@ -221,6 +221,7 @@ pub fn add_device_via_recovery(
         device_id: new_device_id,
         certificate: new_certificate,
         status: DeviceStatus::Active,
+        transport_endpoints: vec![],
     });
 
     Ok(DeviceDirectory::sign(
@@ -380,11 +381,13 @@ mod tests {
                     device_id: device_a_id,
                     certificate: device_a_cert,
                     status: DeviceStatus::Active,
+                    transport_endpoints: vec![],
                 },
                 DeviceDirectoryEntry {
                     device_id: device_b_id,
                     certificate: device_b_cert,
                     status: DeviceStatus::Active,
+                    transport_endpoints: vec![],
                 },
             ],
         );
@@ -466,6 +469,7 @@ mod tests {
                 device_id: revoked_id,
                 certificate: revoked_cert,
                 status: DeviceStatus::Revoked, // already revoked
+                transport_endpoints: vec![],
             }],
         );
 

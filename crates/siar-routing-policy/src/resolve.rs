@@ -94,11 +94,13 @@ mod tests {
                     device_id: active_device,
                     certificate: active_cert,
                     status: DeviceStatus::Active,
+                    transport_endpoints: vec![],
                 },
                 DeviceDirectoryEntry {
                     device_id: revoked_device,
                     certificate: revoked_cert,
                     status: DeviceStatus::Revoked,
+                    transport_endpoints: vec![],
                 },
             ],
         );
