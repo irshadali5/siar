@@ -196,6 +196,41 @@
 //!   itself either, so this type is a real, usable primitive toward
 //!   §59, not a claim the chain exists end-to-end anywhere in this
 //!   workspace yet).
+//! - [`linking_authority`] — §60 "Device Linking Authority"
+//!   ([`linking_authority::LinkingAuthorityPolicy`], verbatim four),
+//!   §61 "Default Consumer Policy"
+//!   ([`linking_authority::default_consumer_policy`]/[`linking_authority::default_enterprise_policy`]),
+//!   §62 "Link Approval Certificate"
+//!   ([`linking_authority::device_can_approve_links`], checked against
+//!   the real `LINK_NEW_DEVICE` capability bit, not just "is Active" —
+//!   tested including a revoked device with the bit still set), §63
+//!   "Device Roles" ([`linking_authority::DeviceRole`], verbatim six,
+//!   each mapped to a real [`capability::DeviceCapabilitySet`] via
+//!   [`linking_authority::DeviceRole::default_capabilities`] — "not UI
+//!   labels only" made real), §64 "Security Capabilities" (extended
+//!   [`capability::DeviceCapabilitySet`] with its three still-missing
+//!   named bits — `ROTATE_ACCOUNT_STATE`/`SYNC_HISTORY`/`RELAY`,
+//!   alongside the five already there from an earlier round), §65
+//!   "Principle of Least Authority"
+//!   ([`linking_authority::headless_relay_minimum_capabilities`],
+//!   spec's own worked example — a relay gets `RELAY` and nothing that
+//!   could link, revoke, rotate account state, or send messages).
+//! - [`destination`] — §66 "Multi-Device File Transfer", §67 "Account
+//!   Address vs Device Address" ([`destination::Destination`],
+//!   verbatim three-variant enum), §68 "Device Resolution"
+//!   ([`destination::resolve_destination`], the real flow — directory
+//!   lookup, active+capability-authorized filtering, transport
+//!   endpoints attached — so "the application must manually maintain
+//!   endpoint lists" never has to be true for a caller of this
+//!   function), §69 "Fan-Out Policy"
+//!   ([`destination::FanOutPolicy`], verbatim five, plus spec's own
+//!   two named defaults for messaging vs. large files), §70
+//!   "Own-Device Synchronization Policy"
+//!   ([`destination::SyncTarget`]/[`destination::spec_70_example_target`]
+//!   — a distinct axis from [`fanout::OwnDeviceSyncPolicy`] §44: that
+//!   type gates whether a data class is trusted/synced at all, this
+//!   one picks which devices once trust says yes; see this module's
+//!   own doc comment for why they're kept separate types).
 //! - [`device_keys`] — §21 "New Device Key Generation": the piece
 //!   sitting between [`link_key`]'s ephemeral handshake key and
 //!   [`certificate::DeviceCertificate::issue`]'s signature — before
@@ -320,6 +355,7 @@ pub mod approval;
 pub mod audit_log;
 pub mod capability;
 pub mod certificate;
+pub mod destination;
 pub mod device_classes;
 pub mod device_keys;
 pub mod directory;
@@ -327,6 +363,7 @@ pub mod error;
 pub mod fanout;
 pub mod invite;
 pub mod link_key;
+pub mod linking_authority;
 pub mod namespace;
 pub mod recovery;
 pub mod revocation;
@@ -346,6 +383,10 @@ pub use audit_log::{
 };
 pub use capability::DeviceCapabilitySet;
 pub use certificate::DeviceCertificate;
+pub use destination::{
+    large_file_default_fan_out_policy, messaging_default_fan_out_policy, resolve_destination,
+    spec_70_example_target, Destination, FanOutPolicy, ResolvedDevice, SyncTarget,
+};
 pub use device_classes::{
     headless_device_trust_class, spec_45_example_classification, DeviceTrustClass,
     HeadlessDeviceOwner, OrganizationDeviceRole, ServiceIdentityKind,
@@ -359,6 +400,10 @@ pub use fanout::{
 };
 pub use invite::DeviceLinkInvite;
 pub use link_key::{EphemeralLinkKeyPair, EphemeralLinkPublicKey};
+pub use linking_authority::{
+    default_consumer_policy, default_enterprise_policy, device_can_approve_links,
+    headless_relay_minimum_capabilities, DeviceRole, LinkingAuthorityPolicy,
+};
 pub use namespace::{
     device_membership_is_isolated, is_shared_across_applications_by_default,
     AccountIsolationDomain, ApplicationNamespace, ApplicationScopedResource,
