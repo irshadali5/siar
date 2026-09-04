@@ -467,17 +467,16 @@ impl MessageService {
                         },
                         payload: Vec::new(),
                     };
-                    if let Err(e) = self
-                        .endpoint
-                        .send(peer.endpoint_addr.clone(), &WireMessage::V1(ack))
-                        .await
-                    {
+                    let endpoint = self.endpoint.clone();
+                    let ack_addr = peer.endpoint_addr.clone();
+                    tokio::spawn(async move {
                         // Best-effort: a lost ACK just means the sender's
                         // outbox retries and we idempotently no-op the
-                        // resend (see above) — not a reason to fail the
-                        // receive itself.
-                        tracing::warn!(error = %e, "failed to send delivery ACK");
-                    }
+                        // resend — not a reason to block or fail receive.
+                        if let Err(e) = endpoint.send(ack_addr, &WireMessage::V1(ack)).await {
+                            tracing::debug!(error = %e, "best-effort delivery ACK send failed");
+                        }
+                    });
                     Ok(Some(IncomingEvent::Content(content)))
                 } else {
                     Ok(None)
