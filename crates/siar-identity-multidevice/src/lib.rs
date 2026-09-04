@@ -150,6 +150,52 @@
 //!   ([`namespace::CrossApplicationIdentityMode`], whose literal
 //!   `Default` impl is `IsolatedPerApp` — "the default should favor
 //!   isolation" made structural, not just documented).
+//! - §52 "Device Directory", §53 "Device Directory Entry": already
+//!   built (see [`directory`]'s own top-of-file doc) — this round adds
+//!   the one field that pass was missing,
+//!   [`directory::DeviceDirectoryEntry::transport_endpoints`] (spec's
+//!   own conceptual struct always had it). Kept fully opaque
+//!   ([`directory::DeviceEndpoint`], a `Vec<u8>` newtype) rather than
+//!   typed against any real transport's address format — this crate
+//!   has no transport dependency and shouldn't gain one just to type
+//!   this field.
+//! - §54 "Device Directory Synchronization": no new code — "the
+//!   directory is signed, so transport is not trusted for
+//!   authenticity" is already true of every code path in [`directory`]
+//!   ([`directory::DeviceDirectory::verify_signature`] is the only way
+//!   a directory is ever accepted, regardless of which of spec's six
+//!   listed sync paths carried it here).
+//! - §55 "Stale Device Directory", §56 "Rollback Protection": already
+//!   built (see [`trust_store`]'s own top-of-file doc, written in an
+//!   earlier round).
+//! - §57 "Fork Detection": **a real bug found and fixed this round**,
+//!   not just new coverage — [`trust_store::TrustedAccountStore::accept`]
+//!   used to treat ANY same-generation resend as a harmless no-op,
+//!   regardless of whether the content actually matched. That's
+//!   exactly the "silently choose one" behavior spec §57 explicitly
+//!   forbids for two genuinely different signed directories at the
+//!   same generation. Fixed: same generation + same signature bytes
+//!   (Ed25519 signing is deterministic, so identical content always
+//!   produces identical signatures) is still a harmless resend;
+//!   same generation + different signature now returns
+//!   [`error::IdentityError::IdentityForkDetected`], per spec §57's
+//!   own words, "do not silently choose one... require
+//!   reconciliation/security handling."
+//! - §58 "Concurrent Device Changes": no new code — this crate's
+//!   existing design (one root key signs the entire directory snapshot
+//!   per generation) already IS spec §58's own first listed option,
+//!   "single account authority," which is exactly why forks are a
+//!   `bug`/`compromise` signal here rather than a routine occurrence
+//!   needing its own resolution protocol.
+//! - [`state_chain`] — §59 "Account State Chain"
+//!   ([`state_chain::AccountStateEvent`]/[`state_chain::StateHash`]/[`state_chain::DeviceEvent`],
+//!   spec's own struct shape, bridgeable to a real
+//!   [`directory::DeviceDirectory::state_hash`] — honestly scoped: this
+//!   crate's live data path is still the signed-snapshot model, and
+//!   `siar-event-log` (Part 04) doesn't yet implement hash-chaining
+//!   itself either, so this type is a real, usable primitive toward
+//!   §59, not a claim the chain exists end-to-end anywhere in this
+//!   workspace yet).
 //! - [`device_keys`] — §21 "New Device Key Generation": the piece
 //!   sitting between [`link_key`]'s ephemeral handshake key and
 //!   [`certificate::DeviceCertificate::issue`]'s signature — before
@@ -288,6 +334,7 @@ pub mod root_key;
 pub mod root_rotation;
 pub mod rotation;
 pub mod safety_fingerprint;
+pub mod state_chain;
 pub mod trust_store;
 pub mod verification_code;
 
@@ -304,7 +351,7 @@ pub use device_classes::{
     HeadlessDeviceOwner, OrganizationDeviceRole, ServiceIdentityKind,
 };
 pub use device_keys::{generate_new_device_keys, NewDeviceKeys, NewDevicePublicKeys};
-pub use directory::{DeviceDirectory, DeviceDirectoryEntry, DeviceStatus};
+pub use directory::{DeviceDirectory, DeviceDirectoryEntry, DeviceEndpoint, DeviceStatus};
 pub use error::IdentityError;
 pub use fanout::{
     account_level_display, aggregate_delivered_to_account, fan_out_targets, DeviceReceipt,
@@ -329,5 +376,6 @@ pub use root_rotation::{
 };
 pub use rotation::{rotate_device_key, RotationError, RotationReason};
 pub use safety_fingerprint::SafetyFingerprint;
+pub use state_chain::{AccountStateEvent, DeviceEvent, StateHash};
 pub use trust_store::TrustedAccountStore;
 pub use verification_code::derive_verification_code;
