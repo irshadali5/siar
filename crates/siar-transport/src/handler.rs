@@ -33,6 +33,7 @@ impl MessagingProtocolHandler {
 impl ProtocolHandler for MessagingProtocolHandler {
     async fn accept(&self, connection: Connection) -> Result<(), AcceptError> {
         let remote = connection.remote_id();
+        tracing::info!(remote = %remote, "MessagingProtocolHandler::accept connection accepted");
 
         // iroh calls `accept()` once per *connection*, not once per
         // stream ("[o]nce accept() returns, the connection is
@@ -48,12 +49,18 @@ impl ProtocolHandler for MessagingProtocolHandler {
         // not just inferred from the docs.
         loop {
             let (_send, mut recv) = match connection.accept_bi().await {
-                Ok(streams) => streams,
+                Ok(streams) => {
+                    tracing::info!(remote = %remote, "accept_bi opened stream");
+                    streams
+                }
                 // The peer closed the connection (or it failed) —
                 // that's the normal way a caller signals "no more
                 // messages on this connection," not a protocol error
                 // worth propagating and tearing the task down over.
-                Err(_) => break,
+                Err(e) => {
+                    tracing::info!(remote = %remote, error = %e, "accept_bi closed/break");
+                    break;
+                }
             };
 
             // Phase 1: one frame per stream (plan.md §11's Envelope is small;
@@ -63,8 +70,10 @@ impl ProtocolHandler for MessagingProtocolHandler {
                 .read_to_end(MAX_INBOUND_FRAME_READ)
                 .await
                 .map_err(AcceptError::from_err)?;
+            tracing::info!(remote = %remote, len = bytes.len(), "read_to_end read frame bytes");
 
             let (message, _consumed) = decode_frame(&bytes).map_err(AcceptError::from_err)?;
+            tracing::info!(remote = %remote, "decode_frame succeeded");
 
             // A full channel means the messaging core is backed up (plan.md
             // §56 backpressure) — drop the connection rather than buffer
@@ -81,6 +90,7 @@ impl ProtocolHandler for MessagingProtocolHandler {
                 tracing::warn!("inbound frame channel closed; dropping connection");
                 break;
             }
+            tracing::info!(remote = %remote, "incoming.send succeeded");
         }
 
         Ok(())
