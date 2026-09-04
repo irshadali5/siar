@@ -231,6 +231,34 @@
 //!   type gates whether a data class is trusted/synced at all, this
 //!   one picks which devices once trust says yes; see this module's
 //!   own doc comment for why they're kept separate types).
+//! - [`device_state`] — §71 "Device Presence"
+//!   ([`device_state::AccountPresence`], per-device map preserved,
+//!   never collapsed to derive "account reachable"), §72
+//!   "Reachability vs Trust", §73 "Device State Type"
+//!   ([`device_state::DeviceState`], verbatim three-field struct —
+//!   trust and reachability stay independent fields, never merged
+//!   into one boolean), §74 "Device Lifecycle"
+//!   ([`device_state::DeviceLifecycle`], verbatim five states — **a
+//!   real, documented gap**: this is richer than
+//!   [`directory::DeviceStatus`] (3 variants), which is what's
+//!   actually embedded in the signed directory every function in this
+//!   crate operates on; see that type's own doc comment for why
+//!   retrofitting `DeviceStatus` itself wasn't done this round), §75
+//!   "Suspension vs Revocation"
+//!   ([`device_state::suspend_device`]/[`device_state::reinstate_suspended_device`],
+//!   genuinely separate functions from
+//!   [`revocation::revoke_device`] — reversible, tested doing so).
+//! - [`device_flows`] — §76 "Lost Device Flow"
+//!   ([`device_flows::handle_lost_device`], revokes now, names the
+//!   three steps this crate can't do itself so a caller can't assume
+//!   revocation alone was enough), §77 "Compromised Device Flow"
+//!   ([`device_flows::handle_compromised_device`], one step longer
+//!   than §76's own list — never claims key erasure, matching §77's
+//!   own explicit warning that revocation alone doesn't erase
+//!   anything already obtained), §78 "Device Reinstallation", §79
+//!   "Device Migration" ([`device_flows::migrate_device`], structurally
+//!   cannot copy a private key — its only key parameter is a public
+//!   key — and rejects migrating a device to its own id, tested).
 //! - [`device_keys`] — §21 "New Device Key Generation": the piece
 //!   sitting between [`link_key`]'s ephemeral handshake key and
 //!   [`certificate::DeviceCertificate::issue`]'s signature — before
@@ -357,7 +385,9 @@ pub mod capability;
 pub mod certificate;
 pub mod destination;
 pub mod device_classes;
+pub mod device_flows;
 pub mod device_keys;
+pub mod device_state;
 pub mod directory;
 pub mod error;
 pub mod fanout;
@@ -391,7 +421,16 @@ pub use device_classes::{
     headless_device_trust_class, spec_45_example_classification, DeviceTrustClass,
     HeadlessDeviceOwner, OrganizationDeviceRole, ServiceIdentityKind,
 };
+pub use device_flows::{
+    handle_compromised_device, handle_lost_device, migrate_device, CompromisedDeviceOutcome,
+    CompromisedDeviceStep, LostDeviceOutcome, LostDeviceStep,
+};
 pub use device_keys::{generate_new_device_keys, NewDeviceKeys, NewDevicePublicKeys};
+pub use device_state::DeviceLifecycle;
+pub use device_state::{
+    reinstate_suspended_device, suspend_device, AccountPresence, DevicePresence,
+    DeviceReachability, DeviceState, DeviceTrustState, InvalidLifecycleTransition,
+};
 pub use directory::{DeviceDirectory, DeviceDirectoryEntry, DeviceEndpoint, DeviceStatus};
 pub use error::IdentityError;
 pub use fanout::{
