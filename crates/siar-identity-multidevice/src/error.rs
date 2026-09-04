@@ -30,4 +30,13 @@ pub enum IdentityError {
     /// for a caller matching on this enum.
     #[error("directory does not correctly reflect the claimed revocation")]
     RevocationMismatch,
+    /// §57 "Fork Detection": two different signed directories for the
+    /// same account at the same generation number — a bug, a
+    /// compromise, or a concurrent invalid update, per spec §57's own
+    /// three named causes. §57's own explicit instruction: "do not
+    /// silently choose one... require reconciliation/security
+    /// handling" — this variant, not a silent pick, is that
+    /// requirement.
+    #[error("identity fork detected for this account at generation {generation}: two different signed directories claim the same generation — do not silently choose one, this requires reconciliation/security handling")]
+    IdentityForkDetected { generation: u64 },
 }

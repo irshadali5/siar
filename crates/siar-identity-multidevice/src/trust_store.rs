@@ -32,11 +32,17 @@ impl TrustedAccountStore {
     /// than the highest generation already trusted for this account —
     /// equal or lower is rejected, matching §56's own explicit rule
     /// ("never accept generation 17 after already trusting generation
-    /// 22") without a special case for "the same generation again"
-    /// (§55 only describes accepting-newer/rejecting-older, not
-    /// re-accepting the same one — treating a resend of the current
-    /// generation as a no-op rather than an error is a reasonable
-    /// reading, so it's allowed here explicitly, see the test below).
+    /// 22"). §57 "Fork Detection" governs the equal-generation case
+    /// specifically: a resend of the EXACT SAME signed directory
+    /// (identical signature bytes — Ed25519 signing is deterministic,
+    /// so identical content always produces identical signature bytes)
+    /// is a harmless no-op, but two DIFFERENT signed directories
+    /// claiming the same generation is exactly §57's "two conflicting
+    /// signed account states at the same generation" — this used to be
+    /// silently treated as a no-op regardless of content (a real bug,
+    /// found while implementing §57 properly, not merely a docs gap);
+    /// now it returns [`IdentityError::IdentityForkDetected`], per
+    /// §57's own explicit instruction not to silently choose one.
     pub fn accept(
         &mut self,
         directory: DeviceDirectory,
@@ -54,7 +60,12 @@ impl TrustedAccountStore {
                 });
             }
             if directory.generation == existing.generation {
-                return Ok(());
+                if directory.signature == existing.signature {
+                    return Ok(()); // genuinely the same directory, resent
+                }
+                return Err(IdentityError::IdentityForkDetected {
+                    generation: directory.generation,
+                });
             }
         }
 
@@ -101,6 +112,7 @@ mod tests {
             device_id: device,
             certificate: cert,
             status,
+            transport_endpoints: vec![],
         }
     }
 
@@ -192,6 +204,7 @@ mod tests {
                 device_id: device,
                 certificate: cert1.clone(),
                 status: DeviceStatus::Active,
+                transport_endpoints: vec![],
             }],
         );
         let revoking = DeviceDirectory::sign(
@@ -202,6 +215,7 @@ mod tests {
                 device_id: device,
                 certificate: cert1,
                 status: DeviceStatus::Revoked,
+                transport_endpoints: vec![],
             }],
         );
 
@@ -226,6 +240,41 @@ mod tests {
         );
         store.accept(gen1.clone(), &root.root_public_key()).unwrap();
         assert!(store.accept(gen1, &root.root_public_key()).is_ok());
+        assert_eq!(store.highest_generation_for(account), Some(1));
+    }
+
+    #[test]
+    fn spec_57_two_different_signed_directories_at_the_same_generation_is_a_fork_not_a_silent_pick()
+    {
+        let root = RootIdentityKey::generate();
+        let account = AccountId::new();
+        let mut store = TrustedAccountStore::new();
+
+        let gen1_a = DeviceDirectory::sign(
+            &root,
+            account,
+            1,
+            vec![entry(&root, account, 1, DeviceStatus::Active)],
+        );
+        // A DIFFERENT device at the SAME generation 1 — same root key,
+        // genuinely different content, e.g. two devices concurrently
+        // believing they're issuing "the" generation-1 directory.
+        let gen1_b = DeviceDirectory::sign(
+            &root,
+            account,
+            1,
+            vec![entry(&root, account, 2, DeviceStatus::Active)],
+        );
+        assert_ne!(gen1_a.signature, gen1_b.signature);
+
+        store.accept(gen1_a, &root.root_public_key()).unwrap();
+        let result = store.accept(gen1_b, &root.root_public_key());
+        assert_eq!(
+            result,
+            Err(IdentityError::IdentityForkDetected { generation: 1 })
+        );
+        // The store must keep the FIRST directory it trusted — a fork
+        // must not silently overwrite what's already trusted either.
         assert_eq!(store.highest_generation_for(account), Some(1));
     }
 
