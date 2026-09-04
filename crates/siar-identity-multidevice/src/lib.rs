@@ -112,6 +112,44 @@
 //!   both the `RecoverySecret` and `TrustedDeviceQuorum` policies,
 //!   including a revoked device's signature correctly not counting
 //!   toward quorum).
+//! - [`fanout`] — §40 "Multi-Device Messaging Fan-Out"
+//!   ([`fanout::fan_out_targets`], recipient's active devices plus the
+//!   sender's OTHER active devices, never the originating one), §41
+//!   "Sender Attribution" ([`fanout::SenderIdentity`], verbatim), §42
+//!   "Account-Level Presentation" ([`fanout::account_level_display`],
+//!   spec's own four device-revealing contexts vs. the one that
+//!   doesn't), §43 "Device-Level Receipts"
+//!   ([`fanout::aggregate_delivered_to_account`], only ever derived
+//!   from real [`fanout::DeviceReceipt`]s, never stored on its own —
+//!   "the core should retain device-level truth" enforced
+//!   structurally), §44 "Sync Between User's Own Devices"
+//!   ([`fanout::OwnDeviceSyncPolicy`], per-[`fanout::SyncDataClass`],
+//!   defaults to NOT synced for anything unconfigured).
+//! - [`device_classes`] — §45 "Device Trust Classes"
+//!   ([`device_classes::DeviceTrustClass`], verbatim four, plus spec's
+//!   own four worked examples reproduced as a test), §46 "Headless
+//!   Devices" ([`device_classes::HeadlessDeviceOwner`], verbatim
+//!   three), §47 "Service Identities"
+//!   ([`device_classes::ServiceIdentityKind`], a label only — tested
+//!   proving a "service identity" uses the exact same
+//!   `RootIdentityKey`/`DeviceDirectory` a normal account does, no
+//!   separate authentication model), §48 "Organization Identity"
+//!   ([`device_classes::OrganizationDeviceRole`], verbatim four —
+//!   "identity proves membership, authorization decides what it may
+//!   do" is already true across this workspace: this crate has zero
+//!   dependency on `siar-protocol-ext::ExtensionAuthorization`, spec
+//!   01 §33's real authorization-decision trait).
+//! - [`namespace`] — §49 "Multiple Accounts on One Device"
+//!   ([`namespace::device_membership_is_isolated`], checking no two
+//!   [`namespace::LocalAccountSession`]s share a `DeviceId` — a real,
+//!   checkable form of "isolated device membership"), §50
+//!   "Application Namespace" ([`namespace::ApplicationNamespace`],
+//!   open string newtype; [`namespace::is_shared_across_applications_by_default`]
+//!   always `false` for all four of spec's named resources), §51
+//!   "Cross-Application Identity Reuse"
+//!   ([`namespace::CrossApplicationIdentityMode`], whose literal
+//!   `Default` impl is `IsolatedPerApp` — "the default should favor
+//!   isolation" made structural, not just documented).
 //! - [`device_keys`] — §21 "New Device Key Generation": the piece
 //!   sitting between [`link_key`]'s ephemeral handshake key and
 //!   [`certificate::DeviceCertificate::issue`]'s signature — before
@@ -236,11 +274,14 @@ pub mod approval;
 pub mod audit_log;
 pub mod capability;
 pub mod certificate;
+pub mod device_classes;
 pub mod device_keys;
 pub mod directory;
 pub mod error;
+pub mod fanout;
 pub mod invite;
 pub mod link_key;
+pub mod namespace;
 pub mod recovery;
 pub mod revocation;
 pub mod root_key;
@@ -258,11 +299,24 @@ pub use audit_log::{
 };
 pub use capability::DeviceCapabilitySet;
 pub use certificate::DeviceCertificate;
+pub use device_classes::{
+    headless_device_trust_class, spec_45_example_classification, DeviceTrustClass,
+    HeadlessDeviceOwner, OrganizationDeviceRole, ServiceIdentityKind,
+};
 pub use device_keys::{generate_new_device_keys, NewDeviceKeys, NewDevicePublicKeys};
 pub use directory::{DeviceDirectory, DeviceDirectoryEntry, DeviceStatus};
 pub use error::IdentityError;
+pub use fanout::{
+    account_level_display, aggregate_delivered_to_account, fan_out_targets, DeviceReceipt,
+    DeviceReceiptStatus, OwnDeviceSyncPolicy, PresentationContext, SenderIdentity, SyncDataClass,
+};
 pub use invite::DeviceLinkInvite;
 pub use link_key::{EphemeralLinkKeyPair, EphemeralLinkPublicKey};
+pub use namespace::{
+    device_membership_is_isolated, is_shared_across_applications_by_default,
+    AccountIsolationDomain, ApplicationNamespace, ApplicationScopedResource,
+    CrossApplicationIdentityMode, LocalAccountSession,
+};
 pub use recovery::{
     add_device_via_recovery, DerivedRecoveryKey, RecoveryError, RecoveryEvidence,
     RecoveryKeyDerivation, RecoveryPolicy, RecoverySecret,
