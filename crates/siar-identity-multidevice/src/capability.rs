@@ -20,6 +20,12 @@ impl DeviceCapabilitySet {
     pub const LINK_NEW_DEVICE: Self = Self(1 << 2);
     pub const REVOKE_DEVICE: Self = Self(1 << 3);
     pub const MANAGE_GROUPS: Self = Self(1 << 4);
+    /// §64's own remaining three named capabilities, added this round
+    /// — extending, not replacing, the original five (this module's
+    /// own doc comment already invited that).
+    pub const ROTATE_ACCOUNT_STATE: Self = Self(1 << 5);
+    pub const SYNC_HISTORY: Self = Self(1 << 6);
+    pub const RELAY: Self = Self(1 << 7);
 
     pub const NONE: Self = Self(0);
     pub const ALL: Self = Self(
@@ -27,7 +33,10 @@ impl DeviceCapabilitySet {
             | Self::RECEIVE_MESSAGE.0
             | Self::LINK_NEW_DEVICE.0
             | Self::REVOKE_DEVICE.0
-            | Self::MANAGE_GROUPS.0,
+            | Self::MANAGE_GROUPS.0
+            | Self::ROTATE_ACCOUNT_STATE.0
+            | Self::SYNC_HISTORY.0
+            | Self::RELAY.0,
     );
 
     pub fn union(self, other: Self) -> Self {
