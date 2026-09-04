@@ -428,6 +428,7 @@ async fn listen(peer_arg: Option<&String>, publish_key_package: bool) -> Result<
     let mut rx = boot.rx;
     let mut stdin_lines = tokio::io::BufReader::new(tokio::io::stdin()).lines();
     while let Some(frame) = rx.recv().await {
+        tracing::info!(from = %frame.from, "listen loop received IncomingFrame from rx");
         let envelope = match frame.message {
             WireMessage::V1(envelope) => envelope,
             WireMessage::Mesh(_mesh_envelope) => {
@@ -581,7 +582,7 @@ async fn listen(peer_arg: Option<&String>, publish_key_package: bool) -> Result<
             Ok(Some(IncomingEvent::CallSignal { from, event })) => {
                 println!("{}: [call signal {:?}]", from.fmt_short(), event);
             }
-            Ok(None) => {} // duplicate delivery, an ACK, or a read receipt — nothing to show
+            Ok(None) => tracing::info!("handle_incoming returned Ok(None) — duplicate, ack, or receipt"),
             Err(e) => tracing::warn!(error = %e, "failed to handle incoming frame"),
         }
     }
@@ -609,6 +610,7 @@ async fn send(peer_ticket: &str, text: &str) -> Result<()> {
 
     let message_id = boot.service.send_text(conversation, &peer, text).await?;
     println!("sent {message_id}");
+    tokio::time::sleep(Duration::from_millis(500)).await;
     Ok(())
 }
 
@@ -626,6 +628,7 @@ async fn send_file(peer_ticket: &str, path: &str) -> Result<()> {
         .send_attachment(conversation, &peer, bytes, media_type)
         .await?;
     println!("sent attachment {message_id}");
+    tokio::time::sleep(Duration::from_millis(500)).await;
     Ok(())
 }
 
@@ -750,6 +753,7 @@ async fn send_anon(peer_ticket: &str, relay_ticket: &str, text: &str) -> Result<
     let text = MessageText::parse(text.to_string()).context("message text")?;
     let message_id = boot.service.send_text_anon(&peer, &relay, text).await?;
     println!("sent {message_id} via the anonymous token-mailbox path");
+    tokio::time::sleep(Duration::from_millis(500)).await;
     Ok(())
 }
 
@@ -874,6 +878,7 @@ async fn group_add_member(
         "group state for the new member's `join-group` (base64): {}",
         base64_encode(&state_bytes)
     );
+    tokio::time::sleep(Duration::from_millis(500)).await;
     Ok(())
 }
 
@@ -886,6 +891,7 @@ async fn group_send(conversation: &str, text: &str) -> Result<()> {
 
     let message_id = boot.group_service.send_text_mls(conversation, text).await?;
     println!("sent {message_id} to group {conversation}");
+    tokio::time::sleep(Duration::from_millis(500)).await;
     Ok(())
 }
 
