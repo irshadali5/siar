@@ -1,0 +1,214 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: siar-alice-phone
+  labels:
+    app: siar
+    user: alice
+    device: phone
+spec:
+  containers:
+    - name: siar-cli
+      image: archlinux:latest
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "infinity"]
+      env:
+        - name: RUST_LOG
+          value: "info"
+        - name: RUST_BACKTRACE
+          value: "1"
+        - name: SIAR_USER
+          value: "alice"
+        - name: SIAR_DEVICE
+          value: "phone"
+      volumeMounts:
+        - name: nix-store
+          mountPath: /nix/store
+          readOnly: true
+        - name: siar-bin
+          mountPath: /usr/local/bin/siar
+          readOnly: true
+        - name: data-volume
+          mountPath: /root/.local/share/siar-cli
+  volumes:
+    - name: nix-store
+      hostPath:
+        path: /nix/store
+    - name: siar-bin
+      hostPath:
+        path: /home/irshad/.local/bin/siar
+    - name: data-volume
+      hostPath:
+        path: /tmp/siar-testbed/alice-phone
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: siar-alice-laptop
+  labels:
+    app: siar
+    user: alice
+    device: laptop
+spec:
+  containers:
+    - name: siar-cli
+      image: archlinux:latest
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "infinity"]
+      env:
+        - name: RUST_LOG
+          value: "info"
+        - name: RUST_BACKTRACE
+          value: "1"
+        - name: SIAR_USER
+          value: "alice"
+        - name: SIAR_DEVICE
+          value: "laptop"
+      volumeMounts:
+        - name: nix-store
+          mountPath: /nix/store
+          readOnly: true
+        - name: siar-bin
+          mountPath: /usr/local/bin/siar
+          readOnly: true
+        - name: data-volume
+          mountPath: /root/.local/share/siar-cli
+  volumes:
+    - name: nix-store
+      hostPath:
+        path: /nix/store
+    - name: siar-bin
+      hostPath:
+        path: /home/irshad/.local/bin/siar
+    - name: data-volume
+      hostPath:
+        path: /tmp/siar-testbed/alice-laptop
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: siar-bob-desktop
+  labels:
+    app: siar
+    user: bob
+    device: desktop
+spec:
+  containers:
+    - name: siar-cli
+      image: archlinux:latest
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "infinity"]
+      env:
+        - name: RUST_LOG
+          value: "info"
+        - name: RUST_BACKTRACE
+          value: "1"
+        - name: SIAR_USER
+          value: "bob"
+        - name: SIAR_DEVICE
+          value: "desktop"
+      volumeMounts:
+        - name: nix-store
+          mountPath: /nix/store
+          readOnly: true
+        - name: siar-bin
+          mountPath: /usr/local/bin/siar
+          readOnly: true
+        - name: data-volume
+          mountPath: /root/.local/share/siar-cli
+  volumes:
+    - name: nix-store
+      hostPath:
+        path: /nix/store
+    - name: siar-bin
+      hostPath:
+        path: /home/irshad/.local/bin/siar
+    - name: data-volume
+      hostPath:
+        path: /tmp/siar-testbed/bob-desktop
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: siar-bob-tablet
+  labels:
+    app: siar
+    user: bob
+    device: tablet
+spec:
+  containers:
+    - name: siar-cli
+      image: archlinux:latest
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "infinity"]
+      env:
+        - name: RUST_LOG
+          value: "info"
+        - name: RUST_BACKTRACE
+          value: "1"
+        - name: SIAR_USER
+          value: "bob"
+        - name: SIAR_DEVICE
+          value: "tablet"
+      volumeMounts:
+        - name: nix-store
+          mountPath: /nix/store
+          readOnly: true
+        - name: siar-bin
+          mountPath: /usr/local/bin/siar
+          readOnly: true
+        - name: data-volume
+          mountPath: /root/.local/share/siar-cli
+  volumes:
+    - name: nix-store
+      hostPath:
+        path: /nix/store
+    - name: siar-bin
+      hostPath:
+        path: /home/irshad/.local/bin/siar
+    - name: data-volume
+      hostPath:
+        path: /tmp/siar-testbed/bob-tablet
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: siar-charlie-mobile
+  labels:
+    app: siar
+    user: charlie
+    device: mobile
+spec:
+  containers:
+    - name: siar-cli
+      image: archlinux:latest
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "infinity"]
+      env:
+        - name: RUST_LOG
+          value: "info"
+        - name: RUST_BACKTRACE
+          value: "1"
+        - name: SIAR_USER
+          value: "charlie"
+        - name: SIAR_DEVICE
+          value: "mobile"
+      volumeMounts:
+        - name: nix-store
+          mountPath: /nix/store
+          readOnly: true
+        - name: siar-bin
+          mountPath: /usr/local/bin/siar
+          readOnly: true
+        - name: data-volume
+          mountPath: /root/.local/share/siar-cli
+  volumes:
+    - name: nix-store
+      hostPath:
+        path: /nix/store
+    - name: siar-bin
+      hostPath:
+        path: /home/irshad/.local/bin/siar
+    - name: data-volume
+      hostPath:
+        path: /tmp/siar-testbed/charlie-mobile
