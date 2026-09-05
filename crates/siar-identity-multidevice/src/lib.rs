@@ -353,6 +353,40 @@
 //!   either: [`audit_log`]'s five existing event constructors already
 //!   cover §110's exact five named items, and its
 //!   [`audit_log::IdentityAuditPayload`] already covers §111.
+//! - [`reconciliation`] — §113 "Cross-Device Consistency"
+//!   ([`reconciliation::ConvergenceStatus`], a real three-way
+//!   comparison rather than a boolean, so "conservative during
+//!   divergence" survives as distinct information), §114
+//!   "Reconciliation" ([`reconciliation::ReconciliationPlan`], a
+//!   decision only — never itself requests, transmits, or applies
+//!   anything), §119 "Idempotency"
+//!   ([`reconciliation::EventDeduplicator`], keyed on an event's own
+//!   BLAKE3 hash), §120 "Replay Protection" (no new mechanism — a
+//!   pointer to the four existing checks that already cover it, plus
+//!   [`reconciliation::ReplayProtectionIndex`] for tracking
+//!   highest-seen-generation before a live directory exists). §112
+//!   "Notifications" and §115 "Merkle / Hash Chain Support" needed no
+//!   new code — see that module's own top note for why both are
+//!   already true.
+//! - [`storage`] — §116 "Identity Storage" / §117 "Storage Interface"
+//!   ([`storage::IdentityStore`], a trait boundary with no
+//!   implementation, matching [`secure_storage::SecureStore`]'s own
+//!   precedent exactly, including its `-> impl Future<...> + Send`
+//!   shape — a real store is backend-specific and out of scope for
+//!   this dependency-minimal crate).
+//! - [`transaction`] — §118 "Transaction Boundaries"
+//!   ([`transaction::CertificateVerified`] →
+//!   [`transaction::EventAppended`] → [`transaction::SnapshotUpdated`]
+//!   → [`transaction::Committed`], a type-state machine where
+//!   `Committed::into_audit_event` is the only way to get a
+//!   `DeviceLinked` audit payload out of this module — "never emit
+//!   before durable persistence" is a compile-time property of this
+//!   path, not a comment).
+//! - [`device_authorization`] — §121 "Device-Specific Authorization"
+//!   ([`device_authorization::DeviceAuthorizationDecision::combine`],
+//!   a pure combinator where the device's own capability set is a
+//!   hard ceiling no user/network policy can override, and the
+//!   tightest of any caller-supplied size limits wins).
 //!
 //! Every one of the above is covered by tests that exercise the actual
 //! cryptographic round trip (real Ed25519/X25519 keys, real signatures,
@@ -456,6 +490,7 @@ pub mod capability;
 pub mod certificate;
 pub mod contact_verification;
 pub mod destination;
+pub mod device_authorization;
 pub mod device_classes;
 pub mod device_flows;
 pub mod device_keys;
@@ -469,6 +504,7 @@ pub mod link_key;
 pub mod linking_authority;
 pub mod namespace;
 pub mod principal_claims;
+pub mod reconciliation;
 pub mod recovery;
 pub mod revocation;
 pub mod root_key;
@@ -478,6 +514,8 @@ pub mod safety_fingerprint;
 pub mod secure_storage;
 pub mod state_chain;
 pub mod state_transport;
+pub mod storage;
+pub mod transaction;
 pub mod trust_store;
 pub mod verification_code;
 
@@ -501,6 +539,7 @@ pub use destination::{
     large_file_default_fan_out_policy, messaging_default_fan_out_policy, resolve_destination,
     spec_70_example_target, Destination, FanOutPolicy, ResolvedDevice, SyncTarget,
 };
+pub use device_authorization::DeviceAuthorizationDecision;
 pub use device_classes::{
     headless_device_trust_class, spec_45_example_classification, DeviceTrustClass,
     HeadlessDeviceOwner, OrganizationDeviceRole, ServiceIdentityKind,
@@ -537,6 +576,9 @@ pub use namespace::{
     CrossApplicationIdentityMode, LocalAccountSession,
 };
 pub use principal_claims::{ClaimType, ClaimValue, IdentityClaim, IssuerId, PrincipalType};
+pub use reconciliation::{
+    state_hash_of, ConvergenceStatus, EventDeduplicator, ReconciliationPlan, ReplayProtectionIndex,
+};
 pub use recovery::{
     add_device_via_recovery, DerivedRecoveryKey, RecoveryError, RecoveryEvidence,
     RecoveryKeyDerivation, RecoveryPolicy, RecoverySecret,
@@ -556,5 +598,7 @@ pub use secure_storage::{
 };
 pub use state_chain::{AccountStateEvent, DeviceEvent, StateHash};
 pub use state_transport::SignedDeviceStateUpdate;
+pub use storage::IdentityStore;
+pub use transaction::{CertificateVerified, Committed, EventAppended, SnapshotUpdated};
 pub use trust_store::TrustedAccountStore;
 pub use verification_code::derive_verification_code;
