@@ -4,35 +4,35 @@ Source spec: `sys-arch/02-multi-device-identity-architecture.md` — 204 numbere
 
 ## Implementation status
 
-**~121/204 (59%) sections.**
+**~130/204 (64%) sections.**
 
-**In progress.** 136/136 tests, clippy clean (`-D warnings`), fmt clean, zero regressions to `siar-routing-policy`/`siar-crypto`. Compiled and tested against the real workspace `Cargo.lock` with rustc 1.91.1.
+**In progress.** 150/150 tests, clippy clean (`-D warnings`), fmt clean, zero regressions to `siar-routing-policy`/`siar-crypto`. Compiled and tested against the real workspace `Cargo.lock` with rustc 1.91.1.
 
-Round 3 (2026-09-05) closed §112-121:
-- §112 Notifications / §115 Merkle-Hash-Chain Support — no new code; already satisfied (§112 by `audit_log` + `contact_verification::IdentityNotification`'s existing split; §115 by `state_chain`'s existing `AccountStateEvent`/`StateHash`).
-- §113 Cross-Device Consistency — `reconciliation::ConvergenceStatus`, a real three-way comparison (converged / local-ahead / local-behind / same-generation-different-state) rather than a boolean, so "conservative during divergence" survives as distinct information.
-- §114 Reconciliation — `reconciliation::ReconciliationPlan`, a decision derived from a `ConvergenceStatus` — never itself requests, transmits, or applies anything ("decide, don't dial").
-- §119 Idempotency — `reconciliation::EventDeduplicator`, keyed on an event's own BLAKE3 hash.
-- §120 Replay Protection — mostly a pointer to four already-existing checks (`RollbackRejected`, the one-signed-snapshot-per-generation design, revocation/certificate-generation checks, prekey/claim expiry); `reconciliation::ReplayProtectionIndex` adds tracking of highest-seen-generation before a live directory exists.
-- §116-117 Identity Storage / Storage Interface — `storage::IdentityStore`, a trait boundary with zero implementation, matching `secure_storage::SecureStore`'s own precedent exactly (including its `-> impl Future<...> + Send` method shape).
-- §118 Transaction Boundaries — `transaction::CertificateVerified → EventAppended → SnapshotUpdated → Committed`, a type-state machine; `Committed::into_audit_event` is the only way to get a `DeviceLinked` audit payload out, so "never emit before durable persistence" is a compile-time property, not a comment.
-- §121 Device-Specific Authorization — `device_authorization::DeviceAuthorizationDecision::combine`, a pure combinator: device capability is a hard ceiling no user/network policy can override; the tightest of any caller-supplied size limits wins.
+Round 4 (2026-09-05) closed §122-130:
+- §122 Enterprise Device Policy — `enterprise_policy::EnterpriseDevicePolicy`, `Default` requires nothing at all ("do not make attestation mandatory for the core protocol" made structural).
+- §123 Platform Attestation — `enterprise_policy::PlatformAttestation`, no field or method resembling identity anywhere on it.
+- §124 Device Health Claims — `enterprise_policy::DeviceHealthClaims`, every field self-reported/unverified.
+- §125 Version Compatibility — **honestly NOT fully closed**: `DeviceCertificate`/`DeviceDirectory` still carry no schema-version field; fixing that now would break already-shipped signed bytes (same category of gap already named for Part 28's `DeviceLinkInvite`). `wire_limits::SchemaVersion` exists so *new* wire types follow the convention going forward.
+- §126 Serialization — no new code; a real audit (run this round) confirmed zero `usize`/`SystemTime` fields anywhere on this crate's wire types.
+- §127/§128 Input Limits / Device Count Policy — `wire_limits::InputLimits`, one configurable value (not scattered constants), checked against real `DeviceDirectory`/`IdentityClaim` data before any of it is retained.
+- §129 Session Cache — `session_cache::SessionCacheEntry::is_invalidated_by`, checked against a live directory rather than trusting the session's own fields.
+- §130 Revocation Cache — `session_cache::RevocationCache::from_directory` is the only constructor; there's no path to insert a device id that didn't come from a real signed directory.
 
-Round 2 closed §100-111, round 1 closed §91-99 — see prior delivered tarballs / git history for that detail (also summarized in project memory).
+Rounds 1-3 closed §91-121 — see prior delivered tarballs / project memory for that detail.
 
 ## Implementing crate(s)
 
-- `siar-identity-multidevice` (this round's new modules: `reconciliation.rs`, `storage.rs`, `transaction.rs`, `device_authorization.rs`)
+- `siar-identity-multidevice` (this round's new modules: `enterprise_policy.rs`, `wire_limits.rs`, `session_cache.rs`)
 
 ## Known gaps / open questions
 
-- §33-51, §52-70, §71-79, §80-90, §91-99, §100-111, §112-121 done (see crate's own `lib.rs` doc comment for the full per-section breakdown and rationale).
-- §122-204 still unmapped in detail — realistic estimate 8-11 more rounds at this project's historical pace.
-- Real follow-up not yet resolved: `DeviceStatus` (3-variant) vs `DeviceLifecycle` (5-variant) mismatch.
-- Three separate "trust state"-shaped types still exist workspace-wide by design (documented, not collided) — `storage::IdentityStore::trust_state` deliberately returns opaque bytes rather than picking one of the three, for the same reason.
-- `storage::IdentityStore` and `transaction`'s type-state machine have zero real call sites yet — nothing in this crate's device-linking flow (`device_flows.rs`) has been rewired to go through `transaction::CertificateVerified` instead of calling `audit_log::device_linked_event` directly. That rewiring is real future work, not done implicitly by this round adding the type.
-- §107/§91's transport-binding gaps (carried over from earlier rounds) remain: no real BLE/Wi-Fi/NFC wiring anywhere in this crate.
+- §33-51, §52-70, §71-79, §80-90, §91-99, §100-111, §112-121, §122-130 done (see crate's own `lib.rs` doc comment for the full per-section breakdown and rationale).
+- §131-204 still unmapped in detail — realistic estimate 7-10 more rounds at this project's historical pace. Next natural chunk: §131-139 (Device Identity API, Example/Revoke/Recovery APIs, State Machines for Linking and Recovery, UI/Kotlin/iOS boundaries).
+- **Real, named, unfixed gap**: §125 schema versioning is absent from `DeviceCertificate`/`DeviceDirectory` — retrofitting is a breaking change to already-shipped signed structs, not done this round or any prior one.
+- `storage::IdentityStore`/`transaction`'s type-state machine still have zero real call sites (carried over from round 3).
+- Three separate "trust state"-shaped types still exist workspace-wide by design (documented, not collided).
+- §107/§91 transport-binding gaps remain (no real BLE/Wi-Fi/NFC wiring).
 
 ## Note
 
-Verified directly against the current source tree and real `cargo test`/`cargo clippy`/`cargo fmt --check`/`cargo doc` runs on 2026-09-05 for all three rounds captured here.
+Verified directly against the current source tree and real `cargo test`/`cargo clippy`/`cargo fmt --check`/`cargo doc` runs on 2026-09-05 for all four rounds captured here.
