@@ -582,7 +582,9 @@ async fn listen(peer_arg: Option<&String>, publish_key_package: bool) -> Result<
             Ok(Some(IncomingEvent::CallSignal { from, event })) => {
                 println!("{}: [call signal {:?}]", from.fmt_short(), event);
             }
-            Ok(None) => tracing::info!("handle_incoming returned Ok(None) — duplicate, ack, or receipt"),
+            Ok(None) => {
+                tracing::info!("handle_incoming returned Ok(None) — duplicate, ack, or receipt")
+            }
             Err(e) => tracing::warn!(error = %e, "failed to handle incoming frame"),
         }
     }
