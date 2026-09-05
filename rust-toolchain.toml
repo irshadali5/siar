@@ -1,3 +1,11 @@
 [toolchain]
-channel = "stable"
+# Pinned to an exact patch version, matching workspace.package.rust-version
+# in Cargo.toml (currently "1.91"). "stable" is a moving target — it
+# silently resolves to whatever is current at build time, which breaks
+# reproducibility even when every other input (nixpkgs, flake.lock,
+# Cargo.lock) is pinned. If the exact patch differs from what's installed
+# on your machine, run `rustup check`/`rustc --version` and update this
+# to match, then bump Cargo.toml's rust-version in the same commit.
+channel = "1.91.0"
 components = ["rustfmt", "clippy"]
+profile = "minimal"
