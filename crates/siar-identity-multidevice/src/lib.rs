@@ -401,15 +401,19 @@ pub mod root_key;
 pub mod root_rotation;
 pub mod rotation;
 pub mod safety_fingerprint;
+pub mod secure_storage;
 pub mod state_chain;
 pub mod trust_store;
 pub mod verification_code;
 
 pub use approval::{LinkMethod, LinkingApprovalPrompt, VerificationStatus};
 pub use audit_log::{
-    decode_audit_payload, device_linked_event, device_revoked_event, identity_stream_id,
-    is_audited_status, revocation_verified_event, IdentityAuditPayload, EVENT_TYPE_DEVICE_LINKED,
-    EVENT_TYPE_DEVICE_REVOKED, EVENT_TYPE_REVOCATION_VERIFIED,
+    decode_audit_payload, device_linked_event, device_revoked_event, device_rotated_event,
+    device_suspended_event, fork_detected_event, identity_stream_id, is_audited_status,
+    recovery_used_event, revocation_verified_event, root_rotated_event, IdentityAuditPayload,
+    EVENT_TYPE_DEVICE_LINKED, EVENT_TYPE_DEVICE_REVOKED, EVENT_TYPE_DEVICE_ROTATED,
+    EVENT_TYPE_DEVICE_SUSPENDED, EVENT_TYPE_FORK_DETECTED, EVENT_TYPE_RECOVERY_USED,
+    EVENT_TYPE_REVOCATION_VERIFIED, EVENT_TYPE_ROOT_ROTATED,
 };
 pub use capability::DeviceCapabilitySet;
 pub use certificate::DeviceCertificate;
@@ -460,6 +464,11 @@ pub use root_rotation::{
 };
 pub use rotation::{rotate_device_key, RotationError, RotationReason};
 pub use safety_fingerprint::SafetyFingerprint;
+pub use secure_storage::{
+    verify_device_session_presentation, DevicePrekeyBundle, DeviceSessionPresentation,
+    KeyDerivationDomain, LocalDatabaseKey, OneTimePrekey, PrekeyPool, SecretBytes, SecretKeyId,
+    SecureStore, SecureStoreError, SessionAuthenticationError, SignedPrekey, StalePeerPolicy,
+};
 pub use state_chain::{AccountStateEvent, DeviceEvent, StateHash};
 pub use trust_store::TrustedAccountStore;
 pub use verification_code::derive_verification_code;
