@@ -42,7 +42,7 @@ not spec-numbered work but real correctness fixes found via testing.
 | # | Crate | State |
 |---|---|---|
 | 01 | siar-protocol-ext | ✅ **108/108 — spec complete** (final round: §91-92 reconciled, §93-95 error codes/health/recovery, §96-99 scheduler contract/storage/metrics/capability isolation, §100-105 reconciled with notes, §106 honest 16-item Definition of Done self-audit — 4 genuine gaps named, §107-108 reconciled) |
-| 02 | siar-identity-multidevice | 🟡 ~90/204 (this round: §111 audit-log gap closed + secure_storage.rs §80-90 — SecureStore trait, secret types, key separation, prekeys, device session auth, stale peer policy) |
+| 02 | siar-identity-multidevice | 🟡 ~99/204 (2026-09-05 round: §91-99 — offline identity verification bound to root identity not transport, contact verification with root-rotation awareness, new-device/identity-change notifications kept as separate types, verification-policy enum, device-transparency-log boundary trait, directory-service response gated through the same signature check every other path already requires. New module `contact_verification.rs`, 10 new tests, 114/114 total, clippy clean, zero regressions to siar-routing-policy/siar-crypto. Compiled and tested against the real uploaded Cargo.lock with rustc 1.91.1.) |
 | 03 | siar-routing-policy | ✅ ~60/200 |
 | 04 | siar-event-log | 🟡 ~10/95 (Phase 2 SQLite blocker below is now STALE — see Tier 3 update) |
 | 05 | siar-blob-manifest | ✅ ~23/210 (+ metadata_encryption.rs) |
@@ -174,8 +174,9 @@ only genuine device/emulator/hardware-codec behavior does.
 
 **Superseded by explicit user instruction (2026-09-01): work through the
 9 Tier 0 core specs first, one by one, before returning to this list.**
-Spec 01 (`siar-protocol-ext`) is now complete (108/108). Next up: spec
-02 (`siar-identity-multidevice`, already furthest along at ~140/204).
+Spec 01 (`siar-protocol-ext`) is now complete (108/108). Spec 02
+(`siar-identity-multidevice`) is at ~99/204 as of 2026-09-05 (§91-99
+just closed) — continue there next, then spec 03.
 
 Original list, resumes once Tier 0 is done:
 
