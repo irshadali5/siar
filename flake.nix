@@ -170,11 +170,31 @@
           TZ = "UTC";
           LC_ALL = "C.UTF-8";
 
-          # Remap absolute build directory path to ensure identical binary hashes
-          RUSTFLAGS = "--remap-path-prefix=${src}=/build/siar";
+          # Belt-and-suspenders network lockdown: cargoExtraArgs' --offline
+          # (below) stops cargo's own registry/index/git calls, but does
+          # nothing about a build.rs that tries to phone home directly, or
+          # about cargo silently rewriting Cargo.lock. --frozen refuses to
+          # touch the lockfile at all; CARGO_NET_OFFLINE covers any cargo
+          # subcommand invoked without --offline explicitly.
+          CARGO_NET_OFFLINE = "true";
 
-          # Enforce strict offline cargo build in sandbox
-          cargoExtraArgs = "--offline";
+          # Enforce strict offline, lockfile-frozen cargo build in sandbox
+          cargoExtraArgs = "--offline --frozen";
+
+          # NOTE on path remapping: this used to set RUSTFLAGS here to
+          # "--remap-path-prefix=${src}=/build/siar", but that was a no-op.
+          # ${src} is the /nix/store/<hash>-source path known at *eval*
+          # time; stdenv's unpackPhase copies a directory src into the
+          # sandbox as ./source under $NIX_BUILD_TOP before anything is
+          # compiled, so rustc only ever sees $NIX_BUILD_TOP/source/... in
+          # file!()/debug-info output — never the literal nix store path.
+          # The remap therefore never matched anything, and no build
+          # actually became more path-independent from it. The real
+          # substitution is done in preBuild below, once $NIX_BUILD_TOP is
+          # actually known.
+          preBuild = ''
+            export RUSTFLAGS="--remap-path-prefix=$NIX_BUILD_TOP/source=/build/siar''${RUSTFLAGS:+ $RUSTFLAGS}"
+          '';
         };
 
         # Pre-built Cargo dependency artifacts (shared cached layer)
