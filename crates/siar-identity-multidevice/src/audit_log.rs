@@ -38,6 +38,17 @@ pub fn identity_stream_id(account: AccountId) -> StreamId {
 pub const EVENT_TYPE_DEVICE_LINKED: EventTypeId = EventTypeId(1);
 pub const EVENT_TYPE_DEVICE_REVOKED: EventTypeId = EventTypeId(2);
 pub const EVENT_TYPE_REVOCATION_VERIFIED: EventTypeId = EventTypeId(3);
+/// §111's own remaining four named event types this round's new
+/// operations (`suspend_device`, `rotate_device_key`,
+/// `rotate_root_key`, `add_device_via_recovery`, the fork-detection
+/// path in `trust_store`) had no audit constructor for until now —
+/// added in the same tag-numbering scheme, new tags appended rather
+/// than renumbering the first three.
+pub const EVENT_TYPE_DEVICE_SUSPENDED: EventTypeId = EventTypeId(4);
+pub const EVENT_TYPE_DEVICE_ROTATED: EventTypeId = EventTypeId(5);
+pub const EVENT_TYPE_ROOT_ROTATED: EventTypeId = EventTypeId(6);
+pub const EVENT_TYPE_RECOVERY_USED: EventTypeId = EventTypeId(7);
+pub const EVENT_TYPE_FORK_DETECTED: EventTypeId = EventTypeId(8);
 
 /// The typed payload behind each of the three event types above —
 /// postcard-serialized into [`NewEvent::payload`], mirroring
@@ -57,6 +68,27 @@ pub enum IdentityAuditPayload {
         device_id: DeviceId,
         generation: u64,
     },
+    DeviceSuspended {
+        device_id: DeviceId,
+        generation: u64,
+    },
+    DeviceRotated {
+        device_id: DeviceId,
+        generation: u64,
+    },
+    RootRotated {
+        generation: u64,
+    },
+    RecoveryUsed {
+        device_id: DeviceId,
+        generation: u64,
+    },
+    /// §57's fork detection, given a real audit trail entry — the
+    /// account has no root-key `device_id` to attach this to, so it's
+    /// the one variant here without one.
+    ForkDetected {
+        generation: u64,
+    },
 }
 
 impl IdentityAuditPayload {
@@ -65,11 +97,17 @@ impl IdentityAuditPayload {
             Self::DeviceLinked { .. } => EVENT_TYPE_DEVICE_LINKED,
             Self::DeviceRevoked { .. } => EVENT_TYPE_DEVICE_REVOKED,
             Self::RevocationVerified { .. } => EVENT_TYPE_REVOCATION_VERIFIED,
+            Self::DeviceSuspended { .. } => EVENT_TYPE_DEVICE_SUSPENDED,
+            Self::DeviceRotated { .. } => EVENT_TYPE_DEVICE_ROTATED,
+            Self::RootRotated { .. } => EVENT_TYPE_ROOT_ROTATED,
+            Self::RecoveryUsed { .. } => EVENT_TYPE_RECOVERY_USED,
+            Self::ForkDetected { .. } => EVENT_TYPE_FORK_DETECTED,
         }
     }
 
     fn into_new_event(self) -> NewEvent {
         let event_type = self.event_type();
+        let origin = self.origin();
         let payload =
             postcard::to_allocvec(&self).expect("IdentityAuditPayload always postcard-serializes");
         NewEvent {
@@ -77,18 +115,26 @@ impl IdentityAuditPayload {
             event_type,
             schema_version: 1,
             created_at: Timestamp::now(),
-            origin: EventOrigin::LocalDevice(self.device_id()),
+            origin,
             correlation_id: None,
             causation_id: None,
             payload,
         }
     }
 
-    fn device_id(&self) -> DeviceId {
+    /// `RootRotated`/`ForkDetected` have no single device to attribute
+    /// origin to (a root rotation is an account-level act; a fork is
+    /// discovered, not performed by any one device) — `EventOrigin::System`
+    /// is the correct fit for both, not a fabricated device id.
+    fn origin(&self) -> EventOrigin {
         match self {
             Self::DeviceLinked { device_id, .. }
             | Self::DeviceRevoked { device_id, .. }
-            | Self::RevocationVerified { device_id, .. } => *device_id,
+            | Self::RevocationVerified { device_id, .. }
+            | Self::DeviceSuspended { device_id, .. }
+            | Self::DeviceRotated { device_id, .. }
+            | Self::RecoveryUsed { device_id, .. } => EventOrigin::LocalDevice(*device_id),
+            Self::RootRotated { .. } | Self::ForkDetected { .. } => EventOrigin::System,
         }
     }
 }
@@ -127,6 +173,50 @@ pub fn revocation_verified_event(device_id: DeviceId, new_generation: u64) -> Ne
         generation: new_generation,
     }
     .into_new_event()
+}
+
+/// [`crate::device_state::suspend_device`] succeeded.
+pub fn device_suspended_event(device_id: DeviceId, new_generation: u64) -> NewEvent {
+    IdentityAuditPayload::DeviceSuspended {
+        device_id,
+        generation: new_generation,
+    }
+    .into_new_event()
+}
+
+/// [`crate::rotation::rotate_device_key`] succeeded.
+pub fn device_rotated_event(device_id: DeviceId, new_generation: u64) -> NewEvent {
+    IdentityAuditPayload::DeviceRotated {
+        device_id,
+        generation: new_generation,
+    }
+    .into_new_event()
+}
+
+/// [`crate::root_rotation::rotate_root_key`] succeeded and its
+/// [`crate::root_rotation::RootRotation`] verified.
+pub fn root_rotated_event(new_generation: u64) -> NewEvent {
+    IdentityAuditPayload::RootRotated {
+        generation: new_generation,
+    }
+    .into_new_event()
+}
+
+/// [`crate::recovery::add_device_via_recovery`] succeeded.
+pub fn recovery_used_event(device_id: DeviceId, new_generation: u64) -> NewEvent {
+    IdentityAuditPayload::RecoveryUsed {
+        device_id,
+        generation: new_generation,
+    }
+    .into_new_event()
+}
+
+/// [`crate::trust_store::TrustedAccountStore::accept`] returned
+/// [`crate::error::IdentityError::IdentityForkDetected`] (§57) — an
+/// account-level event, not attributable to one device (see this
+/// module's own note on `EventOrigin::System`).
+pub fn fork_detected_event(generation: u64) -> NewEvent {
+    IdentityAuditPayload::ForkDetected { generation }.into_new_event()
 }
 
 /// Reconstructs the audit payload from a [`siar_event_log::store::StoredEvent`]'s
@@ -219,6 +309,11 @@ mod tests {
             EVENT_TYPE_DEVICE_LINKED,
             EVENT_TYPE_DEVICE_REVOKED,
             EVENT_TYPE_REVOCATION_VERIFIED,
+            EVENT_TYPE_DEVICE_SUSPENDED,
+            EVENT_TYPE_DEVICE_ROTATED,
+            EVENT_TYPE_ROOT_ROTATED,
+            EVENT_TYPE_RECOVERY_USED,
+            EVENT_TYPE_FORK_DETECTED,
         ];
         for (i, a) in tags.iter().enumerate() {
             for b in &tags[i + 1..] {
@@ -232,5 +327,28 @@ mod tests {
         assert!(is_audited_status(DeviceStatus::Active));
         assert!(is_audited_status(DeviceStatus::Revoked));
         assert!(!is_audited_status(DeviceStatus::Expired));
+    }
+
+    #[test]
+    fn spec_111_root_rotated_and_fork_detected_use_system_origin_not_a_device() {
+        let event = root_rotated_event(5);
+        assert_eq!(event.origin, EventOrigin::System);
+        let event = fork_detected_event(3);
+        assert_eq!(event.origin, EventOrigin::System);
+    }
+
+    #[test]
+    fn spec_111_the_five_new_event_constructors_round_trip_through_postcard() {
+        let device = DeviceId::new();
+        for event in [
+            device_suspended_event(device, 1),
+            device_rotated_event(device, 2),
+            root_rotated_event(3),
+            recovery_used_event(device, 4),
+            fork_detected_event(5),
+        ] {
+            let decoded = decode_audit_payload(&event.payload).unwrap();
+            assert_eq!(decoded.event_type(), event.event_type);
+        }
     }
 }
