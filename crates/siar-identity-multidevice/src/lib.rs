@@ -387,6 +387,43 @@
 //!   a pure combinator where the device's own capability set is a
 //!   hard ceiling no user/network policy can override, and the
 //!   tightest of any caller-supplied size limits wins).
+//! - [`enterprise_policy`] — §122 "Enterprise Device Policy"
+//!   ([`enterprise_policy::EnterpriseDevicePolicy`], `Default` requires
+//!   nothing at all — "do not make attestation mandatory for the core
+//!   protocol" made structural), §123 "Platform Attestation"
+//!   ([`enterprise_policy::PlatformAttestation`], no field or method
+//!   resembling identity anywhere on it — "must not replace
+//!   cryptographic identity" is enforced by absence, not a comment),
+//!   §124 "Device Health Claims"
+//!   ([`enterprise_policy::DeviceHealthClaims`], every field
+//!   self-reported and unverified, matching spec's "claims... not
+//!   identity itself").
+//! - [`wire_limits`] — §127/§128 "Input Limits"/"Device Count Policy"
+//!   ([`wire_limits::InputLimits`], one configurable value rather than
+//!   scattered constants, checked against real
+//!   [`directory::DeviceDirectory`]/[`principal_claims::IdentityClaim`]
+//!   data before any of it is retained). §126 "Serialization" needed
+//!   no new code — a real audit (not an assumption) found zero
+//!   `usize`/`SystemTime` fields on this crate's wire types. §125
+//!   "Version Compatibility" is HONESTLY NOT fully closed: this
+//!   crate's two most load-bearing wire types
+//!   ([`certificate::DeviceCertificate`], [`directory::DeviceDirectory`])
+//!   still carry no explicit schema-version field, and adding one now
+//!   would break their already-shipped, already-tested signed-payload
+//!   bytes — the same category of gap this crate already names openly
+//!   for Part 28's `DeviceLinkInvite`. [`wire_limits::SchemaVersion`]
+//!   exists so new wire types follow §125's convention going forward;
+//!   the two pre-existing types' gap is named, not fixed, here.
+//! - [`session_cache`] — §129 "Session Cache"
+//!   ([`session_cache::SessionCacheEntry::is_invalidated_by`], checked
+//!   against a live [`directory::DeviceDirectory`] rather than trusting
+//!   the session's own fields, since a session invalidated by exactly
+//!   one of §129's three named triggers still looks internally
+//!   consistent on its own), §130 "Revocation Cache"
+//!   ([`session_cache::RevocationCache::from_directory`], the only
+//!   constructor — "must be derived from durable authenticated state"
+//!   means there is no path to insert a device id into this cache that
+//!   didn't come from a real signed directory).
 //!
 //! Every one of the above is covered by tests that exercise the actual
 //! cryptographic round trip (real Ed25519/X25519 keys, real signatures,
@@ -497,6 +534,7 @@ pub mod device_keys;
 pub mod device_state;
 pub mod directory;
 pub mod discovery_privacy;
+pub mod enterprise_policy;
 pub mod error;
 pub mod fanout;
 pub mod invite;
@@ -512,12 +550,14 @@ pub mod root_rotation;
 pub mod rotation;
 pub mod safety_fingerprint;
 pub mod secure_storage;
+pub mod session_cache;
 pub mod state_chain;
 pub mod state_transport;
 pub mod storage;
 pub mod transaction;
 pub mod trust_store;
 pub mod verification_code;
+pub mod wire_limits;
 
 pub use approval::{LinkMethod, LinkingApprovalPrompt, VerificationStatus};
 pub use audit_log::{
@@ -559,6 +599,10 @@ pub use discovery_privacy::{
     DeviceMetadata, DiscoveryTokenEpoch, PrivateDeviceMetadata, RotatingDiscoveryToken,
     TransportDiscoveryIdentity,
 };
+pub use enterprise_policy::{
+    DeviceHealthClaims, EnterpriseDevicePolicy, EnterprisePolicyViolation, Platform,
+    PlatformAttestation,
+};
 pub use error::IdentityError;
 pub use fanout::{
     account_level_display, aggregate_delivered_to_account, fan_out_targets, DeviceReceipt,
@@ -596,9 +640,11 @@ pub use secure_storage::{
     KeyDerivationDomain, LocalDatabaseKey, OneTimePrekey, PrekeyPool, SecretBytes, SecretKeyId,
     SecureStore, SecureStoreError, SessionAuthenticationError, SignedPrekey, StalePeerPolicy,
 };
+pub use session_cache::{RevocationCache, SessionCacheEntry, SessionId};
 pub use state_chain::{AccountStateEvent, DeviceEvent, StateHash};
 pub use state_transport::SignedDeviceStateUpdate;
 pub use storage::IdentityStore;
 pub use transaction::{CertificateVerified, Committed, EventAppended, SnapshotUpdated};
 pub use trust_store::TrustedAccountStore;
 pub use verification_code::derive_verification_code;
+pub use wire_limits::{InputLimitViolation, InputLimits, SchemaVersion};
