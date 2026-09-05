@@ -318,6 +318,41 @@
 //!   weaker acceptance path than any other untrusted source). §98 "No
 //!   Mandatory Central Directory" gets no new code — see that module's
 //!   own top-of-file note for why it's already true structurally.
+//! - [`state_transport`] — §100 "Device State Through DTN"
+//!   ([`state_transport::SignedDeviceStateUpdate`], reusing
+//!   [`audit_log::IdentityAuditPayload`] directly as its wire payload
+//!   rather than a parallel enum, so a relay that only stores and
+//!   forwards opaque bytes can neither read nor forge a device-state
+//!   change — verification needs only the account's root public key,
+//!   never anything from the transport that carried it).
+//! - [`principal_claims`] — §101 "Emergency Identity"
+//!   ([`principal_claims::PrincipalType`], a plain label with no
+//!   emergency business rules attached to any variant, per §101's own
+//!   explicit instruction), §102 "Authority Identity" and §103/§104
+//!   "Identity Claims"/"Claim Type"
+//!   ([`principal_claims::IdentityClaim`], spec's own struct shape
+//!   verbatim; [`principal_claims::IdentityClaim::is_valid`] is §102's
+//!   "UI may display Verified Authority only when cryptographic policy
+//!   validates it" made into one function — signature, expiry, AND a
+//!   caller-supplied trusted-issuer list must all agree, so this crate
+//!   never decides issuer trust on an application's behalf).
+//! - [`discovery_privacy`] — §105/§106 "Privacy"/"Public vs Private
+//!   Device Metadata" ([`discovery_privacy::DeviceMetadata`] vs
+//!   [`discovery_privacy::PrivateDeviceMetadata`], two genuinely
+//!   different types rather than one struct with fields a caller is
+//!   trusted not to read pre-authentication), §107 "Rotating Discovery
+//!   Tokens" ([`discovery_privacy::RotatingDiscoveryToken`], opaque
+//!   BLAKE3-keyed-hash bytes with no embedded `AccountId`/`DeviceId`
+//!   field to accidentally leak), §108 "Device Tracking Resistance"
+//!   ([`discovery_privacy::TransportDiscoveryIdentity`], a marker
+//!   trait seam for a real transport crate to implement, deliberately
+//!   defining zero implementors here). §109 "Address Book Mapping"
+//!   gets no type at all — see that module's own top-of-file note for
+//!   why the absence, not a boundary type, is the correct fix. §110
+//!   "Device Audit Log"/§111 "Audit Event Type" needed no new code
+//!   either: [`audit_log`]'s five existing event constructors already
+//!   cover §110's exact five named items, and its
+//!   [`audit_log::IdentityAuditPayload`] already covers §111.
 //!
 //! Every one of the above is covered by tests that exercise the actual
 //! cryptographic round trip (real Ed25519/X25519 keys, real signatures,
@@ -426,12 +461,14 @@ pub mod device_flows;
 pub mod device_keys;
 pub mod device_state;
 pub mod directory;
+pub mod discovery_privacy;
 pub mod error;
 pub mod fanout;
 pub mod invite;
 pub mod link_key;
 pub mod linking_authority;
 pub mod namespace;
+pub mod principal_claims;
 pub mod recovery;
 pub mod revocation;
 pub mod root_key;
@@ -440,6 +477,7 @@ pub mod rotation;
 pub mod safety_fingerprint;
 pub mod secure_storage;
 pub mod state_chain;
+pub mod state_transport;
 pub mod trust_store;
 pub mod verification_code;
 
@@ -478,6 +516,10 @@ pub use device_state::{
     DeviceReachability, DeviceState, DeviceTrustState, InvalidLifecycleTransition,
 };
 pub use directory::{DeviceDirectory, DeviceDirectoryEntry, DeviceEndpoint, DeviceStatus};
+pub use discovery_privacy::{
+    DeviceMetadata, DiscoveryTokenEpoch, PrivateDeviceMetadata, RotatingDiscoveryToken,
+    TransportDiscoveryIdentity,
+};
 pub use error::IdentityError;
 pub use fanout::{
     account_level_display, aggregate_delivered_to_account, fan_out_targets, DeviceReceipt,
@@ -494,6 +536,7 @@ pub use namespace::{
     AccountIsolationDomain, ApplicationNamespace, ApplicationScopedResource,
     CrossApplicationIdentityMode, LocalAccountSession,
 };
+pub use principal_claims::{ClaimType, ClaimValue, IdentityClaim, IssuerId, PrincipalType};
 pub use recovery::{
     add_device_via_recovery, DerivedRecoveryKey, RecoveryError, RecoveryEvidence,
     RecoveryKeyDerivation, RecoveryPolicy, RecoverySecret,
@@ -512,5 +555,6 @@ pub use secure_storage::{
     SecureStore, SecureStoreError, SessionAuthenticationError, SignedPrekey, StalePeerPolicy,
 };
 pub use state_chain::{AccountStateEvent, DeviceEvent, StateHash};
+pub use state_transport::SignedDeviceStateUpdate;
 pub use trust_store::TrustedAccountStore;
 pub use verification_code::derive_verification_code;
