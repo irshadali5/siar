@@ -38,3 +38,13 @@ jobs:
       - name: Build SIAR Desktop (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: nix build .#siar-desktop --print-build-logs
+
+      - name: Verify bit-for-bit reproducibility of siar-cli
+        # A green build above only proves the derivation succeeds, not that
+        # it's reproducible. --rebuild forces Nix to build a second time in
+        # a fresh sandbox and diff the output against the first result,
+        # failing the job if a single byte differs. This is the actual test
+        # of the "hermetic & bit-for-bit reproducible" claim in flake.nix's
+        # source-filtering comment; without it that claim is unverified.
+        run: nix build .#siar-cli --rebuild --print-build-logs
+
