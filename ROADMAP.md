@@ -42,7 +42,7 @@ not spec-numbered work but real correctness fixes found via testing.
 | # | Crate | State |
 |---|---|---|
 | 01 | siar-protocol-ext | ✅ **108/108 — spec complete** (final round: §91-92 reconciled, §93-95 error codes/health/recovery, §96-99 scheduler contract/storage/metrics/capability isolation, §100-105 reconciled with notes, §106 honest 16-item Definition of Done self-audit — 4 genuine gaps named, §107-108 reconciled) |
-| 02 | siar-identity-multidevice | 🟡 ~109/204 (2026-09-05 round 2: §100-111 — signed device-state updates safe over untrusted DTN relays (reusing the existing audit-log payload enum as the wire format), principal types for emergency/authority/responder identity, a generic signed identity-claims mechanism with the "Verified Authority" display gate requiring signature+expiry+caller-trust all at once, public/private device-metadata tiers, BLAKE3-keyed rotating discovery tokens, a transport-discovery-identity marker seam, and confirmation that §109 (address book) and §110-111 (audit log) needed no new code — the crate already satisfies them. 3 new modules (`state_transport.rs`, `principal_claims.rs`, `discovery_privacy.rs`), 11 new tests, 125/125 total, clippy clean, zero regressions. Compiled and tested against the real uploaded Cargo.lock with rustc 1.91.1.) |
+| 02 | siar-identity-multidevice | 🟡 ~121/204 (2026-09-05 round 3: §112-121 — cross-device convergence/reconciliation-planning as pure decisions (never itself dialing anything), BLAKE3-keyed idempotent event dedup, a `IdentityStore` trait boundary matching `SecureStore`'s own precedent exactly, a type-state device-addition transaction where the compiler — not a comment — enforces "never emit before durable persistence", and a device-authorization combinator where device capability is a hard ceiling no user/network policy can override. §112/§115 needed no new code (already true); §120 mostly a pointer to four existing checks. 4 new modules (`reconciliation.rs`, `storage.rs`, `transaction.rs`, `device_authorization.rs`), 11 new tests, 136/136 total, clippy clean, zero regressions. Compiled and tested against the real uploaded Cargo.lock with rustc 1.91.1.) |
 | 03 | siar-routing-policy | ✅ ~60/200 |
 | 04 | siar-event-log | 🟡 ~10/95 (Phase 2 SQLite blocker below is now STALE — see Tier 3 update) |
 | 05 | siar-blob-manifest | ✅ ~23/210 (+ metadata_encryption.rs) |
@@ -175,9 +175,9 @@ only genuine device/emulator/hardware-codec behavior does.
 **Superseded by explicit user instruction (2026-09-01): work through the
 9 Tier 0 core specs first, one by one, before returning to this list.**
 Spec 01 (`siar-protocol-ext`) is now complete (108/108). Spec 02
-(`siar-identity-multidevice`) is at ~109/204 as of 2026-09-05 (§100-111
-just closed, §91-99 the round before) — continue there next (§112-204
-remain), then spec 03.
+(`siar-identity-multidevice`) is at ~121/204 as of 2026-09-05 (§112-121
+just closed, §100-111 and §91-99 the two rounds before) — continue
+there next (§122-204 remain), then spec 03.
 
 Original list, resumes once Tier 0 is done:
 
