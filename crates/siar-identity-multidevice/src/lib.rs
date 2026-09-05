@@ -282,6 +282,42 @@
 //!   log" half of the gap this crate's own notes used to carry. See
 //!   that module's own doc comment for why it only constructs events
 //!   rather than appending them itself.
+//! - [`contact_verification`] — §91 "Offline Identity Verification"
+//!   ([`contact_verification::OfflineVerification::bind_root_identity`],
+//!   the one constructor, binding a [`root_key::RootPublicKey`] rather
+//!   than any transport/session value — §91's own "prevents
+//!   re-verifying every transport change" only holds if that's true
+//!   structurally), §92 "Contact Verification"
+//!   ([`contact_verification::VerifiedContact`], `verified_root` vs
+//!   `current_root` kept as two separate fields so root-rotation
+//!   awareness — [`contact_verification::VerifiedContact::is_continuous`] —
+//!   is a real comparison, not a claim; trust inheritance
+//!   ([`contact_verification::VerifiedContact::new_device_inherits_trust`])
+//!   requires both continuity AND `TrustAccountRoot`, never one alone),
+//!   §93/§94 "New Device"/"Identity Change Notification"
+//!   ([`contact_verification::IdentityNotification`], two variants, not
+//!   one generic event with a severity field — §94's own "the
+//!   distinction must be explicit"; an identity change is
+//!   security-significant under every [`contact_verification::VerificationPolicy`],
+//!   a new device only under the two non-default ones), §95
+//!   "Verification Modes" ([`contact_verification::VerificationPolicy`],
+//!   verbatim three variants, `TrustAccountRoot` default per spec's own
+//!   words), §96 "Device Transparency Log"
+//!   ([`contact_verification::DeviceTransparencyLog`], a boundary trait
+//!   only — spec calls this "a future enhancement" itself, so nothing
+//!   here calls `append`, matching [`recovery::RecoveryKeyDerivation`]'s
+//!   existing precedent for a real external capability this crate
+//!   doesn't implement), §97 "Self-Hosted Transparency"
+//!   ([`contact_verification::TransparencyDeploymentMode`], a pure
+//!   label — hosting one changes nothing about verification, per §97's
+//!   own words), §99 "Directory Service Role"
+//!   ([`contact_verification::DirectoryServiceResponse::verify_and_accept`],
+//!   the only way to accept one — routes through the exact same
+//!   [`directory::DeviceDirectory::verify_signature`] every other path
+//!   in this crate already requires, so a directory service gets no
+//!   weaker acceptance path than any other untrusted source). §98 "No
+//!   Mandatory Central Directory" gets no new code — see that module's
+//!   own top-of-file note for why it's already true structurally.
 //!
 //! Every one of the above is covered by tests that exercise the actual
 //! cryptographic round trip (real Ed25519/X25519 keys, real signatures,
@@ -383,6 +419,7 @@ pub mod approval;
 pub mod audit_log;
 pub mod capability;
 pub mod certificate;
+pub mod contact_verification;
 pub mod destination;
 pub mod device_classes;
 pub mod device_flows;
@@ -417,6 +454,11 @@ pub use audit_log::{
 };
 pub use capability::DeviceCapabilitySet;
 pub use certificate::DeviceCertificate;
+pub use contact_verification::{
+    DeviceTransparencyChange, DeviceTransparencyEntry, DeviceTransparencyLog,
+    DirectoryServiceResponse, IdentityNotification, OfflineVerification, OfflineVerificationMethod,
+    TransparencyDeploymentMode, VerificationPolicy, VerifiedContact,
+};
 pub use destination::{
     large_file_default_fan_out_policy, messaging_default_fan_out_policy, resolve_destination,
     spec_70_example_target, Destination, FanOutPolicy, ResolvedDevice, SyncTarget,
