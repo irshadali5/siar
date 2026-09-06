@@ -424,6 +424,46 @@
 //!   constructor — "must be derived from durable authenticated state"
 //!   means there is no path to insert a device id into this cache that
 //!   didn't come from a real signed directory).
+//! - [`client_api`] — §131 "Device Identity API"
+//!   ([`client_api::IdentityClient`], [`client_api::DeviceClient`],
+//!   [`client_api::TrustClient`], [`client_api::RecoveryClient`],
+//!   grounded in this crate's real existing functions rather than
+//!   inventing parallel ones — §131's own `LinkPolicy` becomes
+//!   [`linking_authority::LinkingAuthorityPolicy`], the type that
+//!   already fills that role). §132 "Example API" needed no new type
+//!   — its rule ("application should not directly construct signed
+//!   device certificates") is exactly why these traits exist. §133
+//!   "Revoke API" adds [`client_api::RevocationReason`], with an
+//!   honest scope note that it is NOT yet threaded into
+//!   [`audit_log::IdentityAuditPayload::DeviceRevoked`] — that's real
+//!   future work, not silently assumed done. §134 "Recovery API"
+//!   ([`client_api::RecoveryClient::begin_recovery`] returns the
+//!   INITIAL [`recovery_state_machine::RecoveryState`], not a finished
+//!   result — "guided state machine, not one monolithic call" made
+//!   structural).
+//! - [`linking_state_machine`] — §135 "State Machine for Linking"
+//!   ([`linking_state_machine::LinkingState::advance`], guarded enum
+//!   transitions matching [`device_state::DeviceLifecycle::advance`]'s
+//!   own precedent exactly; all 8 success states plus all 4 named
+//!   failure states, each failure reachable only from the states
+//!   where it plausibly occurs, and none reachable once a certificate
+//!   is actually issued).
+//! - [`recovery_state_machine`] — §136 "State Machine for Recovery"
+//!   ([`recovery_state_machine::RecoveryState::advance`], a strictly
+//!   linear six-state chain — spec names no failure states here,
+//!   unlike §135, so none are invented; rejection already happens one
+//!   layer up, before this state machine is ever entered).
+//! - [`platform_boundary`] — §137 "UI Boundary"
+//!   ([`platform_boundary::DeviceListVm`],
+//!   [`platform_boundary::DeviceLinkVm`],
+//!   [`platform_boundary::SecurityIdentityVm`],
+//!   [`platform_boundary::RecoveryVm`] — none of these types can name
+//!   [`root_key::RootIdentityKey`] or any other secret-holding type,
+//!   because none of those types are imported into that file at all;
+//!   "never receives a private key" is enforced by absence, not a
+//!   runtime check). §138 "Android Kotlin Boundary"/§139 "iOS
+//!   Boundary" needed no new code — see that module's own top note for
+//!   why both are already true of this crate's existing scope.
 //!
 //! Every one of the above is covered by tests that exercise the actual
 //! cryptographic round trip (real Ed25519/X25519 keys, real signatures,
@@ -525,6 +565,7 @@ pub mod approval;
 pub mod audit_log;
 pub mod capability;
 pub mod certificate;
+pub mod client_api;
 pub mod contact_verification;
 pub mod destination;
 pub mod device_authorization;
@@ -540,10 +581,13 @@ pub mod fanout;
 pub mod invite;
 pub mod link_key;
 pub mod linking_authority;
+pub mod linking_state_machine;
 pub mod namespace;
+pub mod platform_boundary;
 pub mod principal_claims;
 pub mod reconciliation;
 pub mod recovery;
+pub mod recovery_state_machine;
 pub mod revocation;
 pub mod root_key;
 pub mod root_rotation;
@@ -570,6 +614,7 @@ pub use audit_log::{
 };
 pub use capability::DeviceCapabilitySet;
 pub use certificate::DeviceCertificate;
+pub use client_api::{DeviceClient, IdentityClient, RecoveryClient, RevocationReason, TrustClient};
 pub use contact_verification::{
     DeviceTransparencyChange, DeviceTransparencyEntry, DeviceTransparencyLog,
     DirectoryServiceResponse, IdentityNotification, OfflineVerification, OfflineVerificationMethod,
@@ -614,10 +659,14 @@ pub use linking_authority::{
     default_consumer_policy, default_enterprise_policy, device_can_approve_links,
     headless_relay_minimum_capabilities, DeviceRole, LinkingAuthorityPolicy,
 };
+pub use linking_state_machine::{InvalidLinkingTransition, LinkingState};
 pub use namespace::{
     device_membership_is_isolated, is_shared_across_applications_by_default,
     AccountIsolationDomain, ApplicationNamespace, ApplicationScopedResource,
     CrossApplicationIdentityMode, LocalAccountSession,
+};
+pub use platform_boundary::{
+    DeviceLinkVm, DeviceListVm, DeviceSummaryVm, RecoveryVm, SecurityIdentityVm,
 };
 pub use principal_claims::{ClaimType, ClaimValue, IdentityClaim, IssuerId, PrincipalType};
 pub use reconciliation::{
@@ -627,6 +676,7 @@ pub use recovery::{
     add_device_via_recovery, DerivedRecoveryKey, RecoveryError, RecoveryEvidence,
     RecoveryKeyDerivation, RecoveryPolicy, RecoverySecret,
 };
+pub use recovery_state_machine::{InvalidRecoveryTransition, RecoveryState};
 pub use revocation::{revoke_device, verify_revocation, RevocationError};
 pub use root_key::{RootIdentityKey, RootPublicKey};
 pub use root_rotation::{
