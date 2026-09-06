@@ -42,7 +42,7 @@ not spec-numbered work but real correctness fixes found via testing.
 | # | Crate | State |
 |---|---|---|
 | 01 | siar-protocol-ext | ✅ **108/108 — spec complete** (final round: §91-92 reconciled, §93-95 error codes/health/recovery, §96-99 scheduler contract/storage/metrics/capability isolation, §100-105 reconciled with notes, §106 honest 16-item Definition of Done self-audit — 4 genuine gaps named, §107-108 reconciled) |
-| 02 | siar-identity-multidevice | 🟡 ~149/204 (2026-09-05 round 6: §140-149 — five reuse-pattern claims (headless linking, file-only/ERP/emergency/service-to-service reuse) proved with real composition tests using only this crate's public API rather than new runtime types, plus one genuine addition (a MapsToAccount trait an application's own id type implements, keeping "the SDK should not know what an employee is" true); generic capability-based device descriptors as the remote-facing default, with a friendly name revealed only through one explicit-opt-in function; two presentations ("Remove device" vs "Revoke compromised device") over the identical underlying revocation call; bounded four-field device history records with real retention trimming; a root trust cache kept as a deliberately separate type from the already-shipped VerifiedContact, with the overlap named rather than hidden; and a revoked-device authentication check returning a real outcome instead of a bare bool. 3 new modules (`reuse_patterns.rs`, `device_privacy_presentation.rs`, `local_records.rs`) plus extensions to `client_api.rs` and `session_cache.rs`, 17 new tests, 180/180 total, clippy clean, zero regressions. Compiled and tested against the real uploaded Cargo.lock with rustc 1.91.1.) |
+| 02 | siar-identity-multidevice | 🟡 ~159/204 (2026-09-05 round 7: §150-159 — two more verification methods added to the existing enum; a linking-channel type recorded alongside (not replacing) the bootstrap-proof method, with real tests proving certificate/directory signing has zero network dependency regardless of internet availability; an identity backup type with spec's exact three named contents and nothing else — using the one derived key allowed to leave the device, never the raw recovery secret; reconciliation notes tying "device authorized to participate" and "history/sync is a layered-above policy problem" directly to an existing function's return value; a required backup-caveat field on the removal presentation so a UI can no longer omit the "this doesn't erase your backups" disclaimer even by accident; and a full eleven-threat traceability map, two of the eleven backed by end-to-end tests exercising the real mitigating code rather than just asserting a pointer string. 3 new modules (`linking_channel.rs`, `identity_backup.rs`, `threat_model.rs`) plus extensions to `contact_verification.rs`, `recovery.rs`, `directory.rs`, `client_api.rs`, 8 new tests, 188/188 total, clippy clean, zero regressions. One self-caught bug: a scripted edit briefly dropped the `pub struct IdentityBackup {` line, caught immediately by cargo check's syntax error before moving on. Compiled and tested against the real uploaded Cargo.lock with rustc 1.91.1.) |
 | 03 | siar-routing-policy | ✅ ~60/200 |
 | 04 | siar-event-log | 🟡 ~10/95 (Phase 2 SQLite blocker below is now STALE — see Tier 3 update) |
 | 05 | siar-blob-manifest | ✅ ~23/210 (+ metadata_encryption.rs) |
@@ -175,13 +175,16 @@ only genuine device/emulator/hardware-codec behavior does.
 **Superseded by explicit user instruction (2026-09-01): work through the
 9 Tier 0 core specs first, one by one, before returning to this list.**
 Spec 01 (`siar-protocol-ext`) is now complete (108/108). Spec 02
-(`siar-identity-multidevice`) is at ~149/204 as of 2026-09-05 (§140-149
-just closed) — continue there next (§150-204 remain, next natural
-chunk is §150-159: Verification Methods, Device Linking Over Existing
-Secure Session, Device Linking Without/With Internet, Recovery
-Without Internet, Backup Relationship, New Device History Bootstrap,
-History Authorization, Device Removal and Backups, Threat Model),
-then spec 03.
+(`siar-identity-multidevice`) is at ~159/204 as of 2026-09-05 (§150-159
+just closed) — continue there next (§160-204 remain, next natural
+chunk is §160-169: Trust Assumptions, Security Invariants, Testing
+Strategy, Property Tests, Fuzz Targets, Simulated Multi-Device Tests,
+Disaster Test, Performance Goals, Cache Strategy, Device Directory
+Size), then spec 03. Remaining after that: §170-179 (integration with
+other Parts), §180-189 (rate limits/UX/audit/API surface), §190-199
+(error types/migration/algorithm agility/account lifecycle), §200-204
+(recommended implementation, phases, definition of done, final
+principle) — roughly 4 more rounds to finish spec 02 entirely.
 
 Original list, resumes once Tier 0 is done:
 
