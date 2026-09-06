@@ -464,6 +464,45 @@
 //!   runtime check). §138 "Android Kotlin Boundary"/§139 "iOS
 //!   Boundary" needed no new code — see that module's own top note for
 //!   why both are already true of this crate's existing scope.
+//! - [`reuse_patterns`] — §140 "Headless Linking" through §144
+//!   "Service-to-Service Reuse", proved by real composition tests
+//!   using only this crate's public API
+//!   (`spec_140_`/`spec_141_`/`spec_143_`/`spec_144_`-prefixed, same
+//!   convention as [`destination::spec_70_example_target`]) rather
+//!   than new runtime types — these five sections are claims about
+//!   existing primitives composing, not requests for new mechanism.
+//!   §142's one genuine addition: [`reuse_patterns::MapsToAccount`], a
+//!   trait an application's OWN id type implements (never a type this
+//!   crate defines) — "the communication SDK should not know what an
+//!   employee is" stays true because there is still no `EmployeeId`
+//!   type anywhere in this crate.
+//! - [`device_privacy_presentation`] — §145 "Privacy-Preserving Device
+//!   Names" ([`device_privacy_presentation::remote_device_label`], the
+//!   ONLY function that can produce a value carrying a real friendly
+//!   name, and only when called with an explicit `true` — the default
+//!   path computes [`device_privacy_presentation::GenericDeviceDescriptor`]
+//!   from capabilities alone, never from a friendly name at all).
+//! - [`client_api`] gained §146 "Device Removal UX Semantics"
+//!   ([`client_api::RevocationReason::presentation`] — the identical
+//!   [`revocation::revoke_device`] call underneath every reason, with
+//!   exactly two distinct presentations on top, not one screen per
+//!   reason).
+//! - [`local_records`] — §147 "Device History Retention"
+//!   ([`local_records::DeviceHistoryRecord`], spec's own four fields
+//!   verbatim and no others; [`local_records::DeviceHistoryLog::retain_since`]
+//!   makes "without retaining... forever" a real operation, not a
+//!   policy statement), §149 "Root Trust Cache"
+//!   ([`local_records::RootTrustCacheEntry`], deliberately a SEPARATE
+//!   type from [`contact_verification::VerifiedContact`] rather than a
+//!   field bolted onto that already-shipped type — the overlap is
+//!   named, not hidden; "root changes require explicit policy" reuses
+//!   `VerifiedContact::re_anchor`'s exact same explicit-reconstruction
+//!   shape).
+//! - [`session_cache`] gained §148 "Key Compromise Warnings"
+//!   ([`session_cache::RevocationCache::authentication_attempt`],
+//!   returning a real [`session_cache::AuthenticationOutcome`] rather
+//!   than a bare `bool` so "revoked" can never collapse into the same
+//!   value as "unknown device").
 //!
 //! Every one of the above is covered by tests that exercise the actual
 //! cryptographic round trip (real Ed25519/X25519 keys, real signatures,
@@ -572,6 +611,7 @@ pub mod device_authorization;
 pub mod device_classes;
 pub mod device_flows;
 pub mod device_keys;
+pub mod device_privacy_presentation;
 pub mod device_state;
 pub mod directory;
 pub mod discovery_privacy;
@@ -582,12 +622,14 @@ pub mod invite;
 pub mod link_key;
 pub mod linking_authority;
 pub mod linking_state_machine;
+pub mod local_records;
 pub mod namespace;
 pub mod platform_boundary;
 pub mod principal_claims;
 pub mod reconciliation;
 pub mod recovery;
 pub mod recovery_state_machine;
+pub mod reuse_patterns;
 pub mod revocation;
 pub mod root_key;
 pub mod root_rotation;
@@ -614,7 +656,10 @@ pub use audit_log::{
 };
 pub use capability::DeviceCapabilitySet;
 pub use certificate::DeviceCertificate;
-pub use client_api::{DeviceClient, IdentityClient, RecoveryClient, RevocationReason, TrustClient};
+pub use client_api::{
+    DeviceClient, IdentityClient, RecoveryClient, RemovalPresentation, RevocationReason,
+    TrustClient,
+};
 pub use contact_verification::{
     DeviceTransparencyChange, DeviceTransparencyEntry, DeviceTransparencyLog,
     DirectoryServiceResponse, IdentityNotification, OfflineVerification, OfflineVerificationMethod,
@@ -634,6 +679,9 @@ pub use device_flows::{
     CompromisedDeviceStep, LostDeviceOutcome, LostDeviceStep,
 };
 pub use device_keys::{generate_new_device_keys, NewDeviceKeys, NewDevicePublicKeys};
+pub use device_privacy_presentation::{
+    remote_device_label, GenericDeviceDescriptor, RemoteDeviceLabel,
+};
 pub use device_state::DeviceLifecycle;
 pub use device_state::{
     reinstate_suspended_device, suspend_device, AccountPresence, DevicePresence,
@@ -660,6 +708,9 @@ pub use linking_authority::{
     headless_relay_minimum_capabilities, DeviceRole, LinkingAuthorityPolicy,
 };
 pub use linking_state_machine::{InvalidLinkingTransition, LinkingState};
+pub use local_records::{
+    certificate_fingerprint, DeviceHistoryLog, DeviceHistoryRecord, RootTrustCacheEntry,
+};
 pub use namespace::{
     device_membership_is_isolated, is_shared_across_applications_by_default,
     AccountIsolationDomain, ApplicationNamespace, ApplicationScopedResource,
@@ -677,6 +728,7 @@ pub use recovery::{
     RecoveryKeyDerivation, RecoveryPolicy, RecoverySecret,
 };
 pub use recovery_state_machine::{InvalidRecoveryTransition, RecoveryState};
+pub use reuse_patterns::MapsToAccount;
 pub use revocation::{revoke_device, verify_revocation, RevocationError};
 pub use root_key::{RootIdentityKey, RootPublicKey};
 pub use root_rotation::{
@@ -690,7 +742,7 @@ pub use secure_storage::{
     KeyDerivationDomain, LocalDatabaseKey, OneTimePrekey, PrekeyPool, SecretBytes, SecretKeyId,
     SecureStore, SecureStoreError, SessionAuthenticationError, SignedPrekey, StalePeerPolicy,
 };
-pub use session_cache::{RevocationCache, SessionCacheEntry, SessionId};
+pub use session_cache::{AuthenticationOutcome, RevocationCache, SessionCacheEntry, SessionId};
 pub use state_chain::{AccountStateEvent, DeviceEvent, StateHash};
 pub use state_transport::SignedDeviceStateUpdate;
 pub use storage::IdentityStore;

@@ -1,4 +1,5 @@
-//! §129 "Session Cache", §130 "Revocation Cache".
+//! §129 "Session Cache", §130 "Revocation Cache", §148 "Key Compromise
+//! Warnings".
 
 use std::collections::HashSet;
 
@@ -87,6 +88,40 @@ impl RevocationCache {
     pub fn is_revoked(&self, device_id: DeviceId) -> bool {
         self.revoked.contains(&device_id)
     }
+
+    /// §148: "if a formerly revoked device appears: reject
+    /// authentication, log security event, optional user warning. Do
+    /// not silently reconnect." One function combining all three —
+    /// `AuthenticationOutcome::Reject` is returned instead of a plain
+    /// `bool` specifically so a caller cannot accidentally treat
+    /// "revoked" the same as "unknown device" (an unknown device isn't
+    /// this function's concern at all; it only ever answers "was this
+    /// SPECIFIC device revoked").
+    pub fn authentication_attempt(&self, device_id: DeviceId) -> AuthenticationOutcome {
+        if self.is_revoked(device_id) {
+            AuthenticationOutcome::Reject {
+                device_id,
+                warrants_user_warning: true,
+            }
+        } else {
+            AuthenticationOutcome::Allow
+        }
+    }
+}
+
+/// §148's own three-item response, minus the logging step (that's the
+/// caller's [`crate::audit_log`]/[`crate::storage::IdentityStore`]
+/// integration — this type only decides, it doesn't log). The
+/// rejection carries `device_id` and `warrants_user_warning` rather
+/// than being a bare unit variant, since a caller building the actual
+/// warning UI needs both.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthenticationOutcome {
+    Allow,
+    Reject {
+        device_id: DeviceId,
+        warrants_user_warning: bool,
+    },
 }
 
 #[cfg(test)]
@@ -229,6 +264,61 @@ mod tests {
         assert!(
             !cache.is_revoked(DeviceId::new()),
             "an unrelated device id must never read as revoked"
+        );
+    }
+
+    #[test]
+    fn a_revoked_device_attempting_authentication_is_rejected_with_a_warning() {
+        let root = RootIdentityKey::generate();
+        let account = AccountId::new();
+        let revoked_device = DeviceId::new();
+        let directory = DeviceDirectory::sign(
+            &root,
+            account,
+            1,
+            vec![entry(
+                &root,
+                account,
+                revoked_device,
+                DeviceStatus::Revoked,
+                1,
+            )],
+        );
+        let cache = RevocationCache::from_directory(&directory);
+
+        match cache.authentication_attempt(revoked_device) {
+            AuthenticationOutcome::Reject {
+                device_id,
+                warrants_user_warning,
+            } => {
+                assert_eq!(device_id, revoked_device);
+                assert!(warrants_user_warning);
+            }
+            AuthenticationOutcome::Allow => panic!("a revoked device must never be allowed"),
+        }
+    }
+
+    #[test]
+    fn an_active_devices_authentication_attempt_is_allowed() {
+        let root = RootIdentityKey::generate();
+        let account = AccountId::new();
+        let active_device = DeviceId::new();
+        let directory = DeviceDirectory::sign(
+            &root,
+            account,
+            1,
+            vec![entry(
+                &root,
+                account,
+                active_device,
+                DeviceStatus::Active,
+                1,
+            )],
+        );
+        let cache = RevocationCache::from_directory(&directory);
+        assert_eq!(
+            cache.authentication_attempt(active_device),
+            AuthenticationOutcome::Allow
         );
     }
 }

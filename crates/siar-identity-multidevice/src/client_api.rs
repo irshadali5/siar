@@ -94,6 +94,39 @@ pub enum RevocationReason {
     Other(String),
 }
 
+/// §146 "Device Removal UX Semantics": "UI should distinguish 'Remove
+/// device' from 'Revoke compromised device'... if both map to
+/// revocation technically, presentation should explain consequences."
+/// The technical operation behind every [`RevocationReason`] variant
+/// is the identical [`crate::revocation::revoke_device`] call — this
+/// type is where the two presentations actually diverge, so that
+/// divergence lives in exactly one place instead of every UI screen
+/// that shows a revocation reimplementing its own copy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RemovalPresentation {
+    pub title: &'static str,
+    pub explanation: &'static str,
+}
+
+impl RevocationReason {
+    pub fn presentation(&self) -> RemovalPresentation {
+        match self {
+            RevocationReason::Lost | RevocationReason::Replaced => RemovalPresentation {
+                title: "Remove device",
+                explanation: "This device will no longer have access to your account.",
+            },
+            RevocationReason::Compromised => RemovalPresentation {
+                title: "Revoke compromised device",
+                explanation: "This device may be under someone else's control. It will be immediately blocked, and other devices should re-verify recent activity.",
+            },
+            RevocationReason::Other(_) => RemovalPresentation {
+                title: "Remove device",
+                explanation: "This device will no longer have access to your account.",
+            },
+        }
+    }
+}
+
 /// §131/§133's trust client.
 pub trait TrustClient {
     /// §133's own five-item list of what "the library handles" —
@@ -130,4 +163,40 @@ pub trait RecoveryClient {
         &mut self,
         evidence: RecoveryEvidence,
     ) -> impl Future<Output = Result<RecoveryState, RecoveryError>> + Send;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn compromised_gets_the_stronger_warning_copy() {
+        let presentation = RevocationReason::Compromised.presentation();
+        assert_eq!(presentation.title, "Revoke compromised device");
+    }
+
+    #[test]
+    fn lost_and_replaced_share_the_routine_removal_copy() {
+        assert_eq!(
+            RevocationReason::Lost.presentation(),
+            RevocationReason::Replaced.presentation()
+        );
+    }
+
+    #[test]
+    fn every_reason_produces_a_distinct_technical_operation_but_two_presentations() {
+        let reasons = [
+            RevocationReason::Lost,
+            RevocationReason::Compromised,
+            RevocationReason::Replaced,
+            RevocationReason::Other("warranty exchange".to_string()),
+        ];
+        let titles: std::collections::HashSet<_> =
+            reasons.iter().map(|r| r.presentation().title).collect();
+        // Exactly two distinct presentations exist ("Remove device" /
+        // "Revoke compromised device") even though there are four
+        // reasons — §146's own point, that presentation is a
+        // two-way split, not one screen per reason.
+        assert_eq!(titles.len(), 2);
+    }
 }
