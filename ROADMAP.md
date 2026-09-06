@@ -42,7 +42,7 @@ not spec-numbered work but real correctness fixes found via testing.
 | # | Crate | State |
 |---|---|---|
 | 01 | siar-protocol-ext | ✅ **108/108 — spec complete** (final round: §91-92 reconciled, §93-95 error codes/health/recovery, §96-99 scheduler contract/storage/metrics/capability isolation, §100-105 reconciled with notes, §106 honest 16-item Definition of Done self-audit — 4 genuine gaps named, §107-108 reconciled) |
-| 02 | siar-identity-multidevice | 🟡 ~159/204 (2026-09-05 round 7: §150-159 — two more verification methods added to the existing enum; a linking-channel type recorded alongside (not replacing) the bootstrap-proof method, with real tests proving certificate/directory signing has zero network dependency regardless of internet availability; an identity backup type with spec's exact three named contents and nothing else — using the one derived key allowed to leave the device, never the raw recovery secret; reconciliation notes tying "device authorized to participate" and "history/sync is a layered-above policy problem" directly to an existing function's return value; a required backup-caveat field on the removal presentation so a UI can no longer omit the "this doesn't erase your backups" disclaimer even by accident; and a full eleven-threat traceability map, two of the eleven backed by end-to-end tests exercising the real mitigating code rather than just asserting a pointer string. 3 new modules (`linking_channel.rs`, `identity_backup.rs`, `threat_model.rs`) plus extensions to `contact_verification.rs`, `recovery.rs`, `directory.rs`, `client_api.rs`, 8 new tests, 188/188 total, clippy clean, zero regressions. One self-caught bug: a scripted edit briefly dropped the `pub struct IdentityBackup {` line, caught immediately by cargo check's syntax error before moving on. Compiled and tested against the real uploaded Cargo.lock with rustc 1.91.1.) |
+| 02 | siar-identity-multidevice | 🟡 ~169/204 (2026-09-05 round 8: §160-169 — a full trust-boundary traceability map (three trusted foundations, six untrusted inputs, each pointed at real enforcing code); all ten numbered security invariants and five example properties tested directly, two with genuinely new multi-generation coverage rather than duplicating existing tests; a real end-to-end integration test walking spec's own exact Alice/Bob topology and eight-step scenario (link, sync, revoke, reconnect-rejected), with "process death during linking" honestly named as a real, uncovered fault-test gap rather than assumed fine; a disaster-propagation test round-tripping a signed update through three simulated untrusted store-and-forward hops; a unified directory-derived cache aggregating all five named cache categories with no incremental mutator at all (a new directory means a whole new cache, never a patch); and a compact four-field handshake summary paired with the existing reconciliation-plan machinery for "request missing state only if needed." One honest gap named, not fixed: §164's fuzz targets have real input-bounding (InputLimits) but no actual cargo-fuzz harness anywhere in this workspace yet. 4 new modules (`trust_boundary.rs`, `security_invariants.rs`, `integration_tests.rs`, `directory_cache.rs`) plus extensions to `state_transport.rs` and `wire_limits.rs`, 15 new tests, 203/203 total, clippy clean, zero regressions. Compiled and tested against the real uploaded Cargo.lock with rustc 1.91.1.) |
 | 03 | siar-routing-policy | ✅ ~60/200 |
 | 04 | siar-event-log | 🟡 ~10/95 (Phase 2 SQLite blocker below is now STALE — see Tier 3 update) |
 | 05 | siar-blob-manifest | ✅ ~23/210 (+ metadata_encryption.rs) |
@@ -175,16 +175,15 @@ only genuine device/emulator/hardware-codec behavior does.
 **Superseded by explicit user instruction (2026-09-01): work through the
 9 Tier 0 core specs first, one by one, before returning to this list.**
 Spec 01 (`siar-protocol-ext`) is now complete (108/108). Spec 02
-(`siar-identity-multidevice`) is at ~159/204 as of 2026-09-05 (§150-159
-just closed) — continue there next (§160-204 remain, next natural
-chunk is §160-169: Trust Assumptions, Security Invariants, Testing
-Strategy, Property Tests, Fuzz Targets, Simulated Multi-Device Tests,
-Disaster Test, Performance Goals, Cache Strategy, Device Directory
-Size), then spec 03. Remaining after that: §170-179 (integration with
-other Parts), §180-189 (rate limits/UX/audit/API surface), §190-199
-(error types/migration/algorithm agility/account lifecycle), §200-204
-(recommended implementation, phases, definition of done, final
-principle) — roughly 4 more rounds to finish spec 02 entirely.
+(`siar-identity-multidevice`) is at ~169/204 as of 2026-09-05 (§160-169
+just closed) — continue there next (§170-204 remain, next natural
+chunk is §170-179: Protocol Extension/Capability Negotiation/Routing/
+DTN/File/Messaging/Call Integration, Call Ring Arbitration,
+Notification Integration, Device Endpoint Privacy), then spec 03.
+Remaining after that: §180-189 (rate limits/UX/audit/API surface),
+§190-199 (error types/migration/algorithm agility/account lifecycle),
+§200-204 (recommended implementation, phases, definition of done,
+final principle) — roughly 3 more rounds to finish spec 02 entirely.
 
 Original list, resumes once Tier 0 is done:
 
