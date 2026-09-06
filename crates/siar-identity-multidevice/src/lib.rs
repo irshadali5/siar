@@ -539,6 +539,44 @@
 //!   with two of the eleven (`StolenDevice`, `IdentityFork`) backed by
 //!   tests that exercise the real mitigating code end-to-end rather
 //!   than only asserting a pointer string is non-empty.
+//! - [`trust_boundary`] — §160 "Trust Assumptions", spec's own three
+//!   trusted foundations and six untrusted inputs, each pointed at the
+//!   real code that draws that exact line — same traceability approach
+//!   as [`threat_model`].
+//! - [`security_invariants`] — §161's ten numbered invariants and
+//!   §163's five example properties, each tested directly against real
+//!   crate functions; invariants 2 and 3 get genuinely new multi-case
+//!   coverage (several generation values in one test, in the spirit of
+//!   a property test without adding a property-testing dependency this
+//!   crate has never had), while invariants already thoroughly covered
+//!   elsewhere (9, 10) are cited rather than duplicated.
+//! - [`integration_tests`] — §162's integration-test category and
+//!   §165's own named Alice/Bob topology and eight-step scenario, run
+//!   for real end-to-end (link, sync, revoke, reconnect-rejected)
+//!   rather than only described. §162's "process death during linking"
+//!   fault-test case is named as a real, NOT-covered gap rather than
+//!   assumed fine — this crate's linking functions are all pure with
+//!   no partial-completion state, so the property probably already
+//!   holds, but nothing here actually tests a crash-and-resume.
+//! - [`wire_limits`] gained a §164 "Fuzz Targets" honest gap note: the
+//!   bounding half is real ([`wire_limits::InputLimits`]), but no
+//!   actual `cargo-fuzz` harness exists in this workspace yet.
+//! - [`state_transport`] gained a §166 "Disaster Test"
+//!   (`spec_166_disaster_propagation_survives_three_untrusted_hops`,
+//!   round-tripping a signed update through three simulated
+//!   store-and-forward hops with none of them touching the signature).
+//! - [`directory_cache`] — §167 "Performance Goals" needed no new
+//!   type (already true of [`directory_cache::DirectoryCache`] and
+//!   [`session_cache::RevocationCache`] alike: validate once, consult
+//!   cheaply, never re-walk). §168 "Cache Strategy"
+//!   ([`directory_cache::DirectoryCache::from_directory`], the only
+//!   constructor, aggregating all five named cache categories from one
+//!   directory — "invalidate on signed state update" enforced by there
+//!   being no incremental mutator at all). §169 "Device Directory
+//!   Size" ([`directory_cache::HandshakeSummary`], spec's exact four
+//!   fields, deliberately not the whole directory — paired with
+//!   [`reconciliation::ConvergenceStatus::compare`] for the "request
+//!   missing state only if needed" half).
 //!
 //! Every one of the above is covered by tests that exercise the actual
 //! cryptographic round trip (real Ed25519/X25519 keys, real signatures,
@@ -650,11 +688,13 @@ pub mod device_keys;
 pub mod device_privacy_presentation;
 pub mod device_state;
 pub mod directory;
+pub mod directory_cache;
 pub mod discovery_privacy;
 pub mod enterprise_policy;
 pub mod error;
 pub mod fanout;
 pub mod identity_backup;
+pub mod integration_tests;
 pub mod invite;
 pub mod link_key;
 pub mod linking_authority;
@@ -674,12 +714,14 @@ pub mod root_rotation;
 pub mod rotation;
 pub mod safety_fingerprint;
 pub mod secure_storage;
+pub mod security_invariants;
 pub mod session_cache;
 pub mod state_chain;
 pub mod state_transport;
 pub mod storage;
 pub mod threat_model;
 pub mod transaction;
+pub mod trust_boundary;
 pub mod trust_store;
 pub mod verification_code;
 pub mod wire_limits;
@@ -727,6 +769,7 @@ pub use device_state::{
     DeviceReachability, DeviceState, DeviceTrustState, InvalidLifecycleTransition,
 };
 pub use directory::{DeviceDirectory, DeviceDirectoryEntry, DeviceEndpoint, DeviceStatus};
+pub use directory_cache::{DirectoryCache, HandshakeSummary};
 pub use discovery_privacy::{
     DeviceMetadata, DiscoveryTokenEpoch, PrivateDeviceMetadata, RotatingDiscoveryToken,
     TransportDiscoveryIdentity,
@@ -789,6 +832,7 @@ pub use state_transport::SignedDeviceStateUpdate;
 pub use storage::IdentityStore;
 pub use threat_model::ThreatCategory;
 pub use transaction::{CertificateVerified, Committed, EventAppended, SnapshotUpdated};
+pub use trust_boundary::{TrustedInput, UntrustedInput};
 pub use trust_store::TrustedAccountStore;
 pub use verification_code::derive_verification_code;
 pub use wire_limits::{InputLimitViolation, InputLimits, SchemaVersion};

@@ -137,4 +137,44 @@ mod tests {
 
         assert!(update.verify(&root.root_public_key()).is_err());
     }
+
+    /// §166 "Disaster Test": "A1 no Internet, A2 nearby via BLE, A3
+    /// reachable through DTN... A1 revokes A3... must eventually
+    /// propagate through A2, DTN, gateway, and remain cryptographically
+    /// valid." Simulated here by round-tripping a
+    /// `SignedDeviceStateUpdate` through postcard serialize/deserialize
+    /// three times in a row (standing in for A2 → DTN → gateway as
+    /// three opaque store-and-forward hops), none of which touch the
+    /// signature — proving validity survives however many untrusted
+    /// hops the bytes pass through, which is the actual content of
+    /// "remain cryptographically valid" here.
+    #[test]
+    fn spec_166_disaster_propagation_survives_three_untrusted_hops() {
+        let root = RootIdentityKey::generate();
+        let account = AccountId::new();
+        let a3_tablet = DeviceId::new();
+        let update = SignedDeviceStateUpdate::sign(
+            &root,
+            account,
+            IdentityAuditPayload::DeviceRevoked {
+                device_id: a3_tablet,
+                generation: 2,
+            },
+        );
+
+        // A2 (BLE) -> DTN -> gateway: three opaque store-and-forward
+        // hops, each of which only ever sees serialized bytes, never
+        // the typed value.
+        let mut bytes = postcard::to_allocvec(&update).expect("serialize for hop 1 (A2)");
+        for _hop in ["A2", "DTN", "gateway"] {
+            let hop_value: SignedDeviceStateUpdate =
+                postcard::from_bytes(&bytes).expect("deserialize at this hop");
+            bytes = postcard::to_allocvec(&hop_value).expect("re-serialize for the next hop");
+        }
+        let arrived: SignedDeviceStateUpdate =
+            postcard::from_bytes(&bytes).expect("final deserialize");
+
+        assert_eq!(arrived, update);
+        assert!(arrived.verify(&root.root_public_key()).is_ok());
+    }
 }

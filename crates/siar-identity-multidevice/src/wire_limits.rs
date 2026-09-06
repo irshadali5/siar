@@ -1,5 +1,5 @@
 //! §125 "Version Compatibility", §126 "Serialization", §127 "Input
-//! Limits", §128 "Device Count Policy".
+//! Limits", §128 "Device Count Policy", §164 "Fuzz Targets".
 //!
 //! §126 gets no new type: an audit of every `Serialize`-deriving
 //! struct in this crate (run 2026-09-05, alongside writing this
@@ -26,6 +26,16 @@
 //! in this crate follow §125's convention from the start, and the gap
 //! for the two pre-existing types is named here for whoever picks up
 //! a coordinated versioning pass later.
+//!
+//! §164 "Fuzz Targets" is honestly NOT built this round either: spec
+//! names six real fuzz targets (certificate parser, event parser,
+//! directory snapshot, link invite, recovery record, identity claim)
+//! plus "all input sizes must be bounded." The bounding half is real —
+//! [`InputLimits`] enforces exactly that for directories, claims,
+//! device names, and event batches — but an actual `cargo-fuzz`
+//! harness is a separate workspace member (`fuzz/`, outside this
+//! crate) that doesn't exist yet. Naming this gap here rather than
+//! letting [`InputLimits`] existing look like §164 is finished.
 
 use siar_domain::DeviceId;
 
