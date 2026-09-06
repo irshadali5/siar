@@ -42,7 +42,7 @@ not spec-numbered work but real correctness fixes found via testing.
 | # | Crate | State |
 |---|---|---|
 | 01 | siar-protocol-ext | ✅ **108/108 — spec complete** (final round: §91-92 reconciled, §93-95 error codes/health/recovery, §96-99 scheduler contract/storage/metrics/capability isolation, §100-105 reconciled with notes, §106 honest 16-item Definition of Done self-audit — 4 genuine gaps named, §107-108 reconciled) |
-| 02 | siar-identity-multidevice | 🟡 ~139/204 (2026-09-05 round 5: §131-139 — four small client traits (Identity/Device/Trust/Recovery) grounded in this crate's real existing functions rather than a parallel API surface, with an honest note that the new RevocationReason type isn't yet threaded into the durable audit event; a linking state machine with guarded transitions (8 success + 4 failure states, matching DeviceLifecycle's own precedent) where cancellation stops being reachable the moment a certificate is issued; a strictly linear 6-state recovery machine with no invented failure states, since spec names none and rejection already happens one layer up; UI view models that structurally cannot carry a private key because the key types are never even imported into that file. §132/§138/§139 needed no new code — already true by design. 4 new modules (`client_api.rs`, `linking_state_machine.rs`, `recovery_state_machine.rs`, `platform_boundary.rs`), 13 new tests, 163/163 total, clippy clean, zero regressions. Compiled and tested against the real uploaded Cargo.lock with rustc 1.91.1.) |
+| 02 | siar-identity-multidevice | 🟡 ~149/204 (2026-09-05 round 6: §140-149 — five reuse-pattern claims (headless linking, file-only/ERP/emergency/service-to-service reuse) proved with real composition tests using only this crate's public API rather than new runtime types, plus one genuine addition (a MapsToAccount trait an application's own id type implements, keeping "the SDK should not know what an employee is" true); generic capability-based device descriptors as the remote-facing default, with a friendly name revealed only through one explicit-opt-in function; two presentations ("Remove device" vs "Revoke compromised device") over the identical underlying revocation call; bounded four-field device history records with real retention trimming; a root trust cache kept as a deliberately separate type from the already-shipped VerifiedContact, with the overlap named rather than hidden; and a revoked-device authentication check returning a real outcome instead of a bare bool. 3 new modules (`reuse_patterns.rs`, `device_privacy_presentation.rs`, `local_records.rs`) plus extensions to `client_api.rs` and `session_cache.rs`, 17 new tests, 180/180 total, clippy clean, zero regressions. Compiled and tested against the real uploaded Cargo.lock with rustc 1.91.1.) |
 | 03 | siar-routing-policy | ✅ ~60/200 |
 | 04 | siar-event-log | 🟡 ~10/95 (Phase 2 SQLite blocker below is now STALE — see Tier 3 update) |
 | 05 | siar-blob-manifest | ✅ ~23/210 (+ metadata_encryption.rs) |
@@ -175,12 +175,13 @@ only genuine device/emulator/hardware-codec behavior does.
 **Superseded by explicit user instruction (2026-09-01): work through the
 9 Tier 0 core specs first, one by one, before returning to this list.**
 Spec 01 (`siar-protocol-ext`) is now complete (108/108). Spec 02
-(`siar-identity-multidevice`) is at ~139/204 as of 2026-09-05 (§131-139
-just closed) — continue there next (§140-204 remain, next natural
-chunk is §140-149: Headless Linking, File-Only/ERP/Emergency/
-Service-to-Service Reuse, Privacy-Preserving Device Names, Device
-Removal UX Semantics, Device History Retention, Key Compromise
-Warnings, Root Trust Cache), then spec 03.
+(`siar-identity-multidevice`) is at ~149/204 as of 2026-09-05 (§140-149
+just closed) — continue there next (§150-204 remain, next natural
+chunk is §150-159: Verification Methods, Device Linking Over Existing
+Secure Session, Device Linking Without/With Internet, Recovery
+Without Internet, Backup Relationship, New Device History Bootstrap,
+History Authorization, Device Removal and Backups, Threat Model),
+then spec 03.
 
 Original list, resumes once Tier 0 is done:
 
