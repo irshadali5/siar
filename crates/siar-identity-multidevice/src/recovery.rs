@@ -1,5 +1,18 @@
 //! §36 "Recovery Architecture", §37 "Recovery Policy Type", §38
 //! "Recovery Secret", §39 "Recovery Device Addition".
+//!
+//! §154 "Recovery Without Internet" needed no new code when picked up
+//! in a later round: every function in this file —
+//! [`add_device_via_recovery`], `recovery_evidence_satisfies_policy`
+//! — is a pure, local computation over already-in-hand data (a
+//! [`RecoveryEvidence`], a [`RecoveryPolicy`], a candidate
+//! [`RootIdentityKey`]/quorum of signatures). None of it makes a
+//! network call, so "must not require a cloud server" was already
+//! true of this module before §154 was ever read; the property is
+//! inherited from this crate's whole "decide, don't dial" posture
+//! ([`crate::reconciliation`], [`crate::linking_channel`]'s own note
+//! for the same claim about linking), not something recovery needed
+//! separately.
 
 use crate::capability::DeviceCapabilitySet;
 use crate::certificate::DeviceCertificate;

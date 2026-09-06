@@ -503,6 +503,42 @@
 //!   returning a real [`session_cache::AuthenticationOutcome`] rather
 //!   than a bare `bool` so "revoked" can never collapse into the same
 //!   value as "unknown device").
+//! - [`contact_verification::OfflineVerificationMethod`] gained §150's
+//!   remaining two named methods (`OrganizationCertificate`,
+//!   `TrustedDirectory`) — "record method for audit" needed no new
+//!   code, already true of every type that carries this field.
+//! - [`linking_channel`] — §151 "Device Linking Over Existing Secure
+//!   Session" ([`linking_channel::LinkingChannel`], recorded alongside
+//!   but orthogonal to the bootstrap-proof method). §152/§153
+//!   ("Without"/"With Internet") needed no new code — both are already
+//!   true of [`certificate::DeviceCertificate::issue`]/
+//!   [`directory::DeviceDirectory::sign`] having no network dependency
+//!   at all, proved by this module's own tests rather than asserted.
+//! - [`recovery`] gained a §154 "Recovery Without Internet"
+//!   reconciliation note — every recovery function was already a pure
+//!   local computation before §154 was ever read.
+//! - [`identity_backup`] — §155 "Backup Relationship"
+//!   ([`identity_backup::IdentityBackup`], spec's own three named
+//!   contents and nothing else; `recovery_material` is
+//!   [`recovery::DerivedRecoveryKey`] — the one thing
+//!   [`recovery::RecoverySecret`]'s own doc comment says is allowed to
+//!   leave the device — never the secret itself; no session-key or
+//!   root-private-key type is even imported into that file).
+//! - [`directory::DeviceDirectory::is_device_trusted`] gained §156/§157
+//!   reconciliation notes: "this device is authorized to participate"
+//!   IS this function's return value, and history/sync policy stops
+//!   exactly there, on purpose, with no `HistoryPolicy` type anywhere
+//!   in this crate.
+//! - [`client_api::RemovalPresentation`] gained a required
+//!   `backup_caveat` field for §158 "Device Removal and Backups" — "the
+//!   system must not claim otherwise" (that removal erases backups)
+//!   enforced by there being no way to construct a presentation without
+//!   this field.
+//! - [`threat_model`] — §159 "Threat Model", all eleven named threats
+//!   mapped to the module/function that actually mitigates each one,
+//!   with two of the eleven (`StolenDevice`, `IdentityFork`) backed by
+//!   tests that exercise the real mitigating code end-to-end rather
+//!   than only asserting a pointer string is non-empty.
 //!
 //! Every one of the above is covered by tests that exercise the actual
 //! cryptographic round trip (real Ed25519/X25519 keys, real signatures,
@@ -618,9 +654,11 @@ pub mod discovery_privacy;
 pub mod enterprise_policy;
 pub mod error;
 pub mod fanout;
+pub mod identity_backup;
 pub mod invite;
 pub mod link_key;
 pub mod linking_authority;
+pub mod linking_channel;
 pub mod linking_state_machine;
 pub mod local_records;
 pub mod namespace;
@@ -640,6 +678,7 @@ pub mod session_cache;
 pub mod state_chain;
 pub mod state_transport;
 pub mod storage;
+pub mod threat_model;
 pub mod transaction;
 pub mod trust_store;
 pub mod verification_code;
@@ -701,12 +740,14 @@ pub use fanout::{
     account_level_display, aggregate_delivered_to_account, fan_out_targets, DeviceReceipt,
     DeviceReceiptStatus, OwnDeviceSyncPolicy, PresentationContext, SenderIdentity, SyncDataClass,
 };
+pub use identity_backup::IdentityBackup;
 pub use invite::DeviceLinkInvite;
 pub use link_key::{EphemeralLinkKeyPair, EphemeralLinkPublicKey};
 pub use linking_authority::{
     default_consumer_policy, default_enterprise_policy, device_can_approve_links,
     headless_relay_minimum_capabilities, DeviceRole, LinkingAuthorityPolicy,
 };
+pub use linking_channel::LinkingChannel;
 pub use linking_state_machine::{InvalidLinkingTransition, LinkingState};
 pub use local_records::{
     certificate_fingerprint, DeviceHistoryLog, DeviceHistoryRecord, RootTrustCacheEntry,
@@ -746,6 +787,7 @@ pub use session_cache::{AuthenticationOutcome, RevocationCache, SessionCacheEntr
 pub use state_chain::{AccountStateEvent, DeviceEvent, StateHash};
 pub use state_transport::SignedDeviceStateUpdate;
 pub use storage::IdentityStore;
+pub use threat_model::ThreatCategory;
 pub use transaction::{CertificateVerified, Committed, EventAppended, SnapshotUpdated};
 pub use trust_store::TrustedAccountStore;
 pub use verification_code::derive_verification_code;

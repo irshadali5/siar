@@ -28,12 +28,28 @@ use siar_domain::{AccountId, DeviceId};
 /// endpoint" variant of any kind — §91's actual point is that
 /// whichever of these is used, what gets bound is the account's
 /// [`RootPublicKey`], never "the address we happened to see them at."
+///
+/// §150 "Verification Methods" lists five possible methods; §91 named
+/// four of them (`Qr`/`NumericCode`/`Nfc`/`ManualFingerprint`) and this
+/// round adds the fifth pair §150 names that §91 didn't:
+/// `OrganizationCertificate` and `TrustedDirectory` — verification via
+/// an org's own signing authority, or via a directory service response
+/// already gated through
+/// [`crate::contact_verification::DirectoryServiceResponse::verify_and_accept`].
+/// §150's own "record method for audit" is already true structurally:
+/// every [`OfflineVerification`]/[`VerifiedContact`]/
+/// [`crate::local_records::RootTrustCacheEntry`] already carries its
+/// `method` field — there is no verification path in this crate that
+/// produces a result without recording which of these five methods was
+/// used.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OfflineVerificationMethod {
     Qr,
     NumericCode,
     Nfc,
     ManualFingerprint,
+    OrganizationCertificate,
+    TrustedDirectory,
 }
 
 /// §91: the record that "verification bound the account root identity,

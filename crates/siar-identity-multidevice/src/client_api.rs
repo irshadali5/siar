@@ -102,11 +102,24 @@ pub enum RevocationReason {
 /// type is where the two presentations actually diverge, so that
 /// divergence lives in exactly one place instead of every UI screen
 /// that shows a revocation reimplementing its own copy.
+///
+/// `backup_caveat` is §158 "Device Removal and Backups" made a
+/// required field rather than a comment a UI author might not read:
+/// "the system must not claim otherwise" (that revoking a device
+/// erases backups/exports/screenshots/copied files) is enforced by
+/// there being no way to construct a `RemovalPresentation` without
+/// this field, so a UI built on this type physically cannot show a
+/// removal screen with no backup caveat at all — it can only choose
+/// to display or hide the text, never omit it from the data.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RemovalPresentation {
     pub title: &'static str,
     pub explanation: &'static str,
+    pub backup_caveat: &'static str,
 }
+
+const BACKUP_CAVEAT: &str =
+    "This does not delete backups, exports, screenshots, or files already copied elsewhere.";
 
 impl RevocationReason {
     pub fn presentation(&self) -> RemovalPresentation {
@@ -114,14 +127,17 @@ impl RevocationReason {
             RevocationReason::Lost | RevocationReason::Replaced => RemovalPresentation {
                 title: "Remove device",
                 explanation: "This device will no longer have access to your account.",
+                backup_caveat: BACKUP_CAVEAT,
             },
             RevocationReason::Compromised => RemovalPresentation {
                 title: "Revoke compromised device",
                 explanation: "This device may be under someone else's control. It will be immediately blocked, and other devices should re-verify recent activity.",
+                backup_caveat: BACKUP_CAVEAT,
             },
             RevocationReason::Other(_) => RemovalPresentation {
                 title: "Remove device",
                 explanation: "This device will no longer have access to your account.",
+                backup_caveat: BACKUP_CAVEAT,
             },
         }
     }
@@ -198,5 +214,17 @@ mod tests {
         // reasons — §146's own point, that presentation is a
         // two-way split, not one screen per reason.
         assert_eq!(titles.len(), 2);
+    }
+
+    #[test]
+    fn every_presentation_carries_the_backup_caveat() {
+        for reason in [
+            RevocationReason::Lost,
+            RevocationReason::Compromised,
+            RevocationReason::Replaced,
+            RevocationReason::Other("test".to_string()),
+        ] {
+            assert!(!reason.presentation().backup_caveat.is_empty());
+        }
     }
 }

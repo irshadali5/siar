@@ -123,6 +123,21 @@ impl DeviceDirectory {
     /// revocation *is*, not something any function here could close —
     /// it belongs in documentation and UI copy, per §26's own words,
     /// not in code.
+    /// §156 "New Device History Bootstrap": "identity only
+    /// establishes: this device is authorized to participate" —
+    /// conversation history/files/contacts/settings sync is
+    /// explicitly named as "a synchronization problem layered above
+    /// identity," and this function IS that one narrow fact identity
+    /// establishes. There is no conversation/file/contact/settings
+    /// type anywhere in this crate for the same reason §109's address
+    /// book and §141's file-only reuse test both make: the absence is
+    /// correct, not a gap. §157 "History Authorization" draws the same
+    /// line one layer up — which of "full history / future messages
+    /// only / selected history" a newly linked device gets is named
+    /// spec's own example of something that "belongs to product/data
+    /// policy," so there is no `HistoryPolicy` type here either; this
+    /// function answers "is this device authorized to participate" and
+    /// stops there, on purpose.
     pub fn is_device_trusted(&self, device_id: DeviceId) -> bool {
         self.devices
             .iter()
