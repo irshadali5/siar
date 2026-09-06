@@ -1,6 +1,20 @@
 //! §66 "Multi-Device File Transfer", §67 "Account Address vs Device
 //! Address", §68 "Device Resolution", §69 "Fan-Out Policy", §70
 //! "Own-Device Synchronization Policy".
+//!
+//! §174 "File Integration" and §175 "Messaging Integration" needed no
+//! new code when picked up in a later round: §174's own three targets
+//! ("account / device / selected devices") are exactly this module's
+//! existing `Destination::Account`/`Device`/`Devices` variants, and
+//! "send to laptop only... without creating a fake conversation" is
+//! [`Destination::Device`] resolved through [`resolve_destination`] —
+//! there is no conversation/message type anywhere in this crate for a
+//! fake one to be created in (see [`crate::reuse_patterns`]'s §141
+//! test for the same absence, proven independently). §175's "fan out
+//! to recipient devices, sender's other devices... using authenticated
+//! device membership" is [`FanOutPolicy::AllActiveDevices`] resolved
+//! against a real, signature-verified [`DeviceDirectory`] — membership
+//! was never self-reported to begin with.
 
 use crate::capability::DeviceCapabilitySet;
 use crate::directory::{DeviceDirectory, DeviceEndpoint};

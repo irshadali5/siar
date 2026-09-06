@@ -577,6 +577,43 @@
 //!   fields, deliberately not the whole directory — paired with
 //!   [`reconciliation::ConvergenceStatus::compare`] for the "request
 //!   missing state only if needed" half).
+//! - [`handshake_integration`] — §170 "Protocol Extension Integration"
+//!   ([`handshake_integration::HandshakePhase`], a guarded five-phase
+//!   state machine matching spec's own diagram exactly — extension
+//!   negotiation is structurally unreachable before identity
+//!   verification, not merely documented as coming first), §171
+//!   "Capability Negotiation Integration"
+//!   ([`handshake_integration::AuthenticatedCapabilityAdvertisement`],
+//!   the only constructor pulls capabilities from an actual signed
+//!   certificate — there is no path to build one from a bare,
+//!   wire-claimed capability set).
+//! - [`routing_integration`] — §172 "Routing Integration"
+//!   ([`routing_integration::resolve_account_endpoints`], filtered to
+//!   `Active` devices only, so a router can never be handed a revoked
+//!   device's stale endpoint by accident), §173 "DTN Integration"
+//!   ([`routing_integration::dtn_opaque_identifier`], a one-way
+//!   BLAKE3 hash matching
+//!   [`discovery_privacy::RotatingDiscoveryToken`]'s own derivation
+//!   style — a relay holding only this value learns nothing about the
+//!   account or device it names).
+//! - [`destination`] gained §174/§175 reconciliation notes: "account /
+//!   device / selected devices" and "fan out to recipient + sender's
+//!   own devices" are exactly its existing `Destination`/`FanOutPolicy`
+//!   variants — no new code needed.
+//! - [`call_integration`] — §176/§177 "Call Integration"/"Call Ring
+//!   Arbitration" ([`call_integration::CallRingState`], spec's four
+//!   named states; only `Ringing` can transition anywhere, so a second
+//!   `AcceptedBy` after the first is a compile-checked-shape runtime
+//!   rejection, not a race a caller has to lock against itself).
+//! - [`notification_integration`] — §178 "Notification Integration"
+//!   ([`notification_integration::PushToken`]/`PushEndpointRegistry`,
+//!   an opaque, unsigned, locally-held mapping with no function
+//!   anywhere that lets a push token authenticate or authorize
+//!   anything — "push token is not identity" enforced by absence of
+//!   capability, not a comment), §179 "Device Endpoint Privacy"
+//!   ([`notification_integration::ScopedEndpoint`], `Ephemeral` as the
+//!   no-action-needed default, `is_visible_in_public_profile` false
+//!   for every scope except `PublicProfile` and only while unexpired).
 //!
 //! Every one of the above is covered by tests that exercise the actual
 //! cryptographic round trip (real Ed25519/X25519 keys, real signatures,
@@ -676,6 +713,7 @@
 
 pub mod approval;
 pub mod audit_log;
+pub mod call_integration;
 pub mod capability;
 pub mod certificate;
 pub mod client_api;
@@ -693,6 +731,7 @@ pub mod discovery_privacy;
 pub mod enterprise_policy;
 pub mod error;
 pub mod fanout;
+pub mod handshake_integration;
 pub mod identity_backup;
 pub mod integration_tests;
 pub mod invite;
@@ -702,6 +741,7 @@ pub mod linking_channel;
 pub mod linking_state_machine;
 pub mod local_records;
 pub mod namespace;
+pub mod notification_integration;
 pub mod platform_boundary;
 pub mod principal_claims;
 pub mod reconciliation;
@@ -712,6 +752,7 @@ pub mod revocation;
 pub mod root_key;
 pub mod root_rotation;
 pub mod rotation;
+pub mod routing_integration;
 pub mod safety_fingerprint;
 pub mod secure_storage;
 pub mod security_invariants;
@@ -735,6 +776,7 @@ pub use audit_log::{
     EVENT_TYPE_DEVICE_SUSPENDED, EVENT_TYPE_FORK_DETECTED, EVENT_TYPE_RECOVERY_USED,
     EVENT_TYPE_REVOCATION_VERIFIED, EVENT_TYPE_ROOT_ROTATED,
 };
+pub use call_integration::{CallRingState, InvalidCallRingTransition};
 pub use capability::DeviceCapabilitySet;
 pub use certificate::DeviceCertificate;
 pub use client_api::{
@@ -783,6 +825,9 @@ pub use fanout::{
     account_level_display, aggregate_delivered_to_account, fan_out_targets, DeviceReceipt,
     DeviceReceiptStatus, OwnDeviceSyncPolicy, PresentationContext, SenderIdentity, SyncDataClass,
 };
+pub use handshake_integration::{
+    AuthenticatedCapabilityAdvertisement, HandshakePhase, InvalidHandshakeTransition,
+};
 pub use identity_backup::IdentityBackup;
 pub use invite::DeviceLinkInvite;
 pub use link_key::{EphemeralLinkKeyPair, EphemeralLinkPublicKey};
@@ -799,6 +844,9 @@ pub use namespace::{
     device_membership_is_isolated, is_shared_across_applications_by_default,
     AccountIsolationDomain, ApplicationNamespace, ApplicationScopedResource,
     CrossApplicationIdentityMode, LocalAccountSession,
+};
+pub use notification_integration::{
+    EndpointScope, PushEndpointRegistry, PushToken, ScopedEndpoint,
 };
 pub use platform_boundary::{
     DeviceLinkVm, DeviceListVm, DeviceSummaryVm, RecoveryVm, SecurityIdentityVm,
@@ -820,6 +868,7 @@ pub use root_rotation::{
     RootRotationError,
 };
 pub use rotation::{rotate_device_key, RotationError, RotationReason};
+pub use routing_integration::{dtn_opaque_identifier, resolve_account_endpoints};
 pub use safety_fingerprint::SafetyFingerprint;
 pub use secure_storage::{
     verify_device_session_presentation, DevicePrekeyBundle, DeviceSessionPresentation,
