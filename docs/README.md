@@ -7,7 +7,7 @@ Generated 2026-09-01 from ROADMAP.md + project notes. Files marked ⚪ below are
 | Spec file | Sections | Status |
 |---|---|---|
 | [01-protocol-extension-system-architecture.md](01-protocol-extension-system-architecture.md) | 108/108 | 108/108 (100%) |
-| [02-multi-device-identity-architecture.md](02-multi-device-identity-architecture.md) | 130/204 | 130/204 (64%) |
+| [02-multi-device-identity-architecture.md](02-multi-device-identity-architecture.md) | 139/204 | 139/204 (68%) |
 | [03-transport-routing-policy-engine-architecture.md](03-transport-routing-policy-engine-architecture.md) | 60/200 | 60/200 (30%) |
 | [04-offline-event-log-architecture.md](04-offline-event-log-architecture.md) | 10/95 | 10/95 (11%) |
 | [05-robust-file-blob-subsystem-architecture.md](05-robust-file-blob-subsystem-architecture.md) | 23/210 | 23/210 (11%) |
