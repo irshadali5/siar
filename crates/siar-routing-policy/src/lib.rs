@@ -52,6 +52,20 @@
 //!   §51/§54/§56 are accounted for in that module's own doc comment
 //!   without needing new functions; §55 "Mesh Forwarding" is named
 //!   there as a real, un-implemented gap rather than papered over.
+//! - [`descriptor`] — §57 "Delivery Semantics" (closed via two new
+//!   [`requirements::DeliveryRequirements`] constructors,
+//!   `typing_indicator`/`file_chunk`, alongside the two constructors
+//!   that already existed), §58 "Operation Descriptor", §59 "Content
+//!   Class" — named exactly as the spec lists them.
+//! - [`estimate`] — §60 "Size-Aware Routing" (a real, labeled-as-
+//!   coarse `completion_time ≈ setup + bytes / bandwidth` estimate)
+//!   and §61 "Deadline-Aware Routing" (hard elimination of candidates
+//!   whose estimated completion exceeds `max_latency_millis`, rather
+//!   than queuing them indefinitely).
+//! - §62 "Expiry-Aware Routing" — [`requirements::DeliveryRequirements::has_expired`]
+//!   plus [`retry::RetryPolicy::allows_attempt_at`], which combines it
+//!   with the existing attempt-count cap. Not its own module — both
+//!   pieces extend types that already existed.
 //! - [`resolve`] — §16/§17 "Destination Resolution"/"Account-Level
 //!   Routing", the one piece of this crate that reaches into another
 //!   real crate (`siar-identity-multidevice`) rather than staying
@@ -91,17 +105,18 @@
 //!   collection/privacy), §124-127 (simulated routing/property/chaos/
 //!   failover tests beyond this crate's own unit tests) — not
 //!   attempted.
-//! - **Everything from roughly §57 onward that isn't listed above** —
-//!   the security/privacy layering that follows §48-56 more deeply
-//!   (§108-116), size/deadline/expiry-aware routing beyond
-//!   §56's fields (§60-62), traffic-type-specific route planning
-//!   (§69-79), battery/thermal/platform integration (§82-90),
-//!   multi-device route aggregation and group/broadcast routing
-//!   (§171-175), storage-cost awareness (§176-178), and the remainder
-//!   of this 200-section document not named above. §55 "Mesh
-//!   Forwarding"'s richer candidate representation (next hop, route
-//!   utility, hop budget, relay trust policy) also remains
-//!   unimplemented — see [`privacy`]'s own doc comment. This is a
+//! - **Everything from roughly §63 onward that isn't listed above** —
+//!   queue architecture/weighted fair scheduling/backpressure beyond
+//!   [`dispatch`]'s priority-tier coverage (§63-68), traffic-type-
+//!   specific route planning (§69-79), battery/thermal/platform
+//!   integration (§82-90), multi-device route aggregation and
+//!   group/broadcast routing (§171-175), storage-cost awareness
+//!   (§176-178), and the remainder of this 200-section document not
+//!   named above. §55 "Mesh Forwarding"'s richer candidate
+//!   representation (next hop, route utility, hop budget, relay trust
+//!   policy) also remains unimplemented — see [`privacy`]'s own doc
+//!   comment; §108-116's deeper security/privacy layering beyond §48/
+//!   §49's basic version here is likewise untouched. This is a
 //!   genuinely small slice of a very large spec — see §198 "Definition
 //!   of Done" in the source document for the full bar this crate does
 //!   not yet clear.
@@ -121,8 +136,10 @@
 
 pub mod cache;
 pub mod candidate;
+pub mod descriptor;
 pub mod dispatch;
 pub mod error;
+pub mod estimate;
 pub mod failure;
 pub mod metrics;
 pub mod plan;
@@ -138,7 +155,11 @@ pub mod types;
 
 pub use cache::RouteCache;
 pub use candidate::{PathCandidate, TransportEndpoint};
+pub use descriptor::{ByteCount, ContentClass, OperationDescriptor, OperationId};
 pub use error::RoutingError;
+pub use estimate::{
+    completion_time_millis, eliminate_deadline_exceeding_candidates, exceeds_deadline,
+};
 pub use failure::RouteFailureClass;
 pub use metrics::{
     Bitrate, Confidence, EnergyCost, MeasuredValue, NetworkCost, PathMetrics, Ratio, SignalQuality,
