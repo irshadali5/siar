@@ -614,6 +614,64 @@
 //!   ([`notification_integration::ScopedEndpoint`], `Ephemeral` as the
 //!   no-action-needed default, `is_visible_in_public_profile` false
 //!   for every scope except `PublicProfile` and only while unexpired).
+//! - [`link_rate_limits`] — §180 "Device Link Rate Limits"
+//!   ([`link_rate_limits::LinkRateLimiter`], three independently
+//!   tracked counters per spec's own three named categories — a slow
+//!   legitimate device doesn't share a budget with one presenting
+//!   wrong verification codes; "require user confirmation" is
+//!   deliberately NOT modeled, since that's a UI action outside this
+//!   crate's scope). §181 "Recovery Rate Limits"
+//!   ([`link_rate_limits::RecoveryRateLimiter`] for the
+//!   infrastructure-side half; the "offline recovery uses
+//!   cryptographic proof, not rate limits" half needed no new code —
+//!   already [`recovery::add_device_via_recovery`]'s existing design).
+//! - [`platform_boundary`] gained §182 "UX States"
+//!   ([`platform_boundary::DeviceManagementUiState`], four separate
+//!   fields rather than one tagged list, since the categories come
+//!   from genuinely different data sources) and §183 "New Device UX"
+//!   ([`platform_boundary::NewDeviceUxStep`], its three bootstrap steps
+//!   mapped onto real [`linking_state_machine::LinkingState`]
+//!   variants via `corresponding_linking_state`, the purely
+//!   navigational steps and the final sync step left unmapped since
+//!   nothing in `LinkingState` models them).
+//! - [`pairing_vs_linking`] — §184 "Contact Pairing vs Device Linking",
+//!   a proof module (no new type) confirming
+//!   [`contact_verification`]'s and
+//!   [`linking_state_machine`]'s/[`platform_boundary::NewDeviceUxStep`]'s
+//!   type families share nothing at all, using spec's own Alice/Bob
+//!   vs. Alice-Phone/Alice-Laptop example directly.
+//! - [`wire_limits`] gained §185 "Device Name Validation"
+//!   (`sanitize_device_name`, strips control characters and truncates
+//!   to the byte limit on a real char boundary; "non-authoritative"
+//!   needed no code — `is_device_trusted` never looks at a name at
+//!   all).
+//! - [`audit_export`] — §186 "Audit Export"
+//!   ([`audit_export::AuditExport`], spec's exact four named contents
+//!   and nothing else — no secret-holding type is even imported into
+//!   that file).
+//! - §187 "API Surface" and §188 "Crate Split" needed no new code:
+//!   this crate's real module set already covers spec's suggested
+//!   `identity/{account,device,certificate,directory,event,trust,
+//!   linking,recovery,claims,audit,error}.rs` sketch several times
+//!   over (this file's own module list is the actual answer), and
+//!   §188's own recommendation — "keep split only if complexity
+//!   justifies it... initially one crate with internal modules may be
+//!   sufficient" — is exactly the single-crate, many-internal-modules
+//!   structure this crate has used for all ten rounds so far.
+//! - [`error_taxonomy`] — §189 "Error Types": this crate's real
+//!   [`error::IdentityError`] has a different, smaller shape than
+//!   spec's suggested twelve-variant enum because error handling here
+//!   is deliberately split across several already-shipped types
+//!   ([`error::IdentityError`], [`recovery::RecoveryError`],
+//!   [`secure_storage::SecureStoreError`]) plus state-machine variants
+//!   and plain booleans for outcomes that aren't really failures
+//!   (`DeviceCertificate::is_expired`, `DeviceLinkInvite::is_expired`).
+//!   [`error_taxonomy::SuggestedErrorCategory::where_this_lives`] maps
+//!   every one of spec's twelve categories to where it actually lives
+//!   rather than silently ignoring the mismatch — renaming this
+//!   crate's real, already-tested `IdentityError` to match spec's
+//!   literal suggestion now would break every existing call site, the
+//!   same caution already applied to §125's schema-versioning gap.
 //!
 //! Every one of the above is covered by tests that exercise the actual
 //! cryptographic round trip (real Ed25519/X25519 keys, real signatures,
@@ -712,6 +770,7 @@
 //!   opening paragraph).
 
 pub mod approval;
+pub mod audit_export;
 pub mod audit_log;
 pub mod call_integration;
 pub mod capability;
@@ -730,18 +789,21 @@ pub mod directory_cache;
 pub mod discovery_privacy;
 pub mod enterprise_policy;
 pub mod error;
+pub mod error_taxonomy;
 pub mod fanout;
 pub mod handshake_integration;
 pub mod identity_backup;
 pub mod integration_tests;
 pub mod invite;
 pub mod link_key;
+pub mod link_rate_limits;
 pub mod linking_authority;
 pub mod linking_channel;
 pub mod linking_state_machine;
 pub mod local_records;
 pub mod namespace;
 pub mod notification_integration;
+pub mod pairing_vs_linking;
 pub mod platform_boundary;
 pub mod principal_claims;
 pub mod reconciliation;
@@ -768,6 +830,7 @@ pub mod verification_code;
 pub mod wire_limits;
 
 pub use approval::{LinkMethod, LinkingApprovalPrompt, VerificationStatus};
+pub use audit_export::{AuditDeviceRow, AuditExport};
 pub use audit_log::{
     decode_audit_payload, device_linked_event, device_revoked_event, device_rotated_event,
     device_suspended_event, fork_detected_event, identity_stream_id, is_audited_status,
@@ -821,6 +884,7 @@ pub use enterprise_policy::{
     PlatformAttestation,
 };
 pub use error::IdentityError;
+pub use error_taxonomy::SuggestedErrorCategory;
 pub use fanout::{
     account_level_display, aggregate_delivered_to_account, fan_out_targets, DeviceReceipt,
     DeviceReceiptStatus, OwnDeviceSyncPolicy, PresentationContext, SenderIdentity, SyncDataClass,
@@ -831,6 +895,9 @@ pub use handshake_integration::{
 pub use identity_backup::IdentityBackup;
 pub use invite::DeviceLinkInvite;
 pub use link_key::{EphemeralLinkKeyPair, EphemeralLinkPublicKey};
+pub use link_rate_limits::{
+    LinkRateLimitViolation, LinkRateLimiter, LinkRateLimits, RecoveryRateLimiter,
+};
 pub use linking_authority::{
     default_consumer_policy, default_enterprise_policy, device_can_approve_links,
     headless_relay_minimum_capabilities, DeviceRole, LinkingAuthorityPolicy,
@@ -849,7 +916,8 @@ pub use notification_integration::{
     EndpointScope, PushEndpointRegistry, PushToken, ScopedEndpoint,
 };
 pub use platform_boundary::{
-    DeviceLinkVm, DeviceListVm, DeviceSummaryVm, RecoveryVm, SecurityIdentityVm,
+    DeviceLinkVm, DeviceListVm, DeviceManagementUiState, DeviceRowVm, DeviceSummaryVm,
+    NewDeviceUxStep, RecoveryVm, SecurityIdentityVm,
 };
 pub use principal_claims::{ClaimType, ClaimValue, IdentityClaim, IssuerId, PrincipalType};
 pub use reconciliation::{

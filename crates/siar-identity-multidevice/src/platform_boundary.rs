@@ -18,9 +18,11 @@
 //! themselves.
 
 use crate::directory::DeviceStatus;
+use crate::linking_authority::DeviceRole;
 use crate::linking_state_machine::LinkingState;
 use crate::recovery_state_machine::RecoveryState;
 use siar_domain::DeviceId;
+use siar_event_log::ids::Timestamp;
 
 /// §137's own four named view models, verbatim. Every field on every
 /// type in this module is something already safe to hand to a UI
@@ -69,6 +71,79 @@ pub struct RecoveryVm {
     pub state: RecoveryState,
 }
 
+/// §182 "UX States": each row's five named fields, verbatim. Same
+/// "enforced by absence" guarantee as every other view model in this
+/// module — no secret-holding type is imported here either.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeviceRowVm {
+    pub name: Option<String>,
+    pub platform: Option<String>,
+    pub last_active: Option<Timestamp>,
+    pub trust_status: DeviceStatus,
+    pub role: DeviceRole,
+}
+
+/// §182's own four named categories. A plain struct of four `Vec`s
+/// rather than one flat list with a category tag on each row — the
+/// four categories aren't just a display grouping of the same kind of
+/// row; "Recently revoked" and "Security alerts" are populated from
+/// genuinely different sources ([`crate::local_records::DeviceHistoryLog`],
+/// [`crate::contact_verification::IdentityNotification`]) than "This
+/// device"/"Other devices" (a live [`crate::directory::DeviceDirectory`]),
+/// so keeping them as separate fields matches where the data actually
+/// comes from.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct DeviceManagementUiState {
+    pub this_device: Option<DeviceRowVm>,
+    pub other_devices: Vec<DeviceRowVm>,
+    pub recently_revoked: Vec<DeviceRowVm>,
+    pub security_alerts: Vec<String>,
+}
+
+/// §183's own seven-step flow. The middle three steps
+/// (`ShowOrScanQr`/`Verify`/`Approve`) correspond to real
+/// [`LinkingState`] transitions (`Created`/`Verified`/`Approved`) —
+/// this type exists for the two purely-navigational steps
+/// (`Settings`, `LinkedDevices`) and the final `Sync` step that
+/// [`LinkingState`] itself doesn't model (linking ends at `Completed`;
+/// syncing conversation history afterward is
+/// [`crate::directory::DeviceDirectory::is_device_trusted`]'s own §156
+/// note — "a synchronization problem layered above identity" — so
+/// `Sync` here is a UI-flow marker, not backed by any
+/// `LinkingState`/`RecoveryState` variant).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NewDeviceUxStep {
+    Settings,
+    LinkedDevices,
+    LinkNewDevice,
+    ShowOrScanQr,
+    Verify,
+    Approve,
+    Sync,
+}
+
+impl NewDeviceUxStep {
+    /// §183: "do not mix this with ordinary contact pairing." Made
+    /// checkable rather than only a UI-copy guideline: every step here
+    /// is a `NewDeviceUxStep` variant, never a
+    /// [`crate::contact_verification::OfflineVerificationMethod`] or
+    /// [`crate::contact_verification::VerifiedContact`] — the two flows
+    /// have no shared type at all (see
+    /// [`crate::pairing_vs_linking`] for the test proving this
+    /// directly).
+    pub fn corresponding_linking_state(&self) -> Option<LinkingState> {
+        match self {
+            NewDeviceUxStep::ShowOrScanQr => Some(LinkingState::Created),
+            NewDeviceUxStep::Verify => Some(LinkingState::Verified),
+            NewDeviceUxStep::Approve => Some(LinkingState::Approved),
+            NewDeviceUxStep::Settings
+            | NewDeviceUxStep::LinkedDevices
+            | NewDeviceUxStep::LinkNewDevice
+            | NewDeviceUxStep::Sync => None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -108,5 +183,46 @@ mod tests {
             state: RecoveryState::new(),
         };
         assert_eq!(vm.state, RecoveryState::Started);
+    }
+
+    #[test]
+    fn device_management_ui_state_keeps_its_four_categories_separate() {
+        let row = DeviceRowVm {
+            name: Some("Bedroom PC".to_string()),
+            platform: Some("linux".to_string()),
+            last_active: Some(Timestamp(100)),
+            trust_status: DeviceStatus::Active,
+            role: DeviceRole::Primary,
+        };
+        let mut state = DeviceManagementUiState {
+            this_device: Some(row.clone()),
+            ..Default::default()
+        };
+        state.other_devices.push(row);
+        assert!(state.this_device.is_some());
+        assert_eq!(state.other_devices.len(), 1);
+        assert!(state.recently_revoked.is_empty());
+        assert!(state.security_alerts.is_empty());
+    }
+
+    #[test]
+    fn only_the_three_bootstrap_steps_correspond_to_a_linking_state() {
+        assert_eq!(
+            NewDeviceUxStep::ShowOrScanQr.corresponding_linking_state(),
+            Some(LinkingState::Created)
+        );
+        assert_eq!(
+            NewDeviceUxStep::Verify.corresponding_linking_state(),
+            Some(LinkingState::Verified)
+        );
+        assert_eq!(
+            NewDeviceUxStep::Approve.corresponding_linking_state(),
+            Some(LinkingState::Approved)
+        );
+        assert_eq!(
+            NewDeviceUxStep::Settings.corresponding_linking_state(),
+            None
+        );
+        assert_eq!(NewDeviceUxStep::Sync.corresponding_linking_state(), None);
     }
 }

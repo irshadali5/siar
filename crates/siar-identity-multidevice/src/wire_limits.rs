@@ -166,6 +166,37 @@ impl InputLimits {
         })
     }
 
+    /// §185 "Device Name Validation": "bounded, sanitized, localizable,
+    /// non-authoritative." Bounded is
+    /// [`InputLimits::validate_device_name`] above; sanitized is this
+    /// function — strips control characters (which have no legitimate
+    /// place in a display name and could otherwise be used to spoof UI
+    /// rendering) and truncates to this instance's own
+    /// `max_device_name_length` BYTES (matching
+    /// `validate_device_name`'s own byte-based measure), cutting only
+    /// at a real `char` boundary so the result is never invalid UTF-8.
+    /// "Localizable" needs no code here — it's a property of NOT
+    /// transforming the string beyond safety (no case-folding, no
+    /// ASCII-only restriction), which this function already doesn't
+    /// do. "Non-authoritative" needs no code either: this function's
+    /// output is a `String` with no path anywhere in this crate from a
+    /// device name into a trust or verification decision — see
+    /// [`crate::directory::DeviceDirectory::is_device_trusted`], which
+    /// never looks at a name at all.
+    pub fn sanitize_device_name(&self, raw: &str) -> String {
+        let stripped: String = raw.chars().filter(|c| !c.is_control()).collect();
+        let limit = self.max_device_name_length as usize;
+        if stripped.len() <= limit {
+            return stripped;
+        }
+        // Find the last char boundary at or before `limit` bytes.
+        let mut cut = limit;
+        while cut > 0 && !stripped.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        stripped[..cut].to_string()
+    }
+
     /// §127's "max event chain batch" — a caller processing a batch of
     /// [`crate::state_chain::AccountStateEvent`]s (e.g. from
     /// [`crate::reconciliation::ReconciliationPlan::RequestGenerationsFrom`]'s
@@ -284,6 +315,34 @@ mod tests {
         };
         assert!(limits.validate_device_name("ok").is_none());
         assert!(limits.validate_device_name("toolong").is_some());
+    }
+
+    #[test]
+    fn sanitize_strips_control_characters() {
+        let limits = InputLimits::default();
+        assert_eq!(
+            limits.sanitize_device_name("Al\u{0007}ice's PC\u{0000}"),
+            "Alice's PC"
+        );
+    }
+
+    #[test]
+    fn sanitize_truncates_to_the_byte_limit_on_a_char_boundary() {
+        let limits = InputLimits {
+            max_device_name_length: 5,
+            ..InputLimits::default()
+        };
+        // Truncating "héllo" (h=1 byte, é=2 bytes) to 5 bytes must not
+        // land mid-character.
+        let sanitized = limits.sanitize_device_name("héllo world");
+        assert!(sanitized.len() <= 5);
+        assert!(std::str::from_utf8(sanitized.as_bytes()).is_ok());
+    }
+
+    #[test]
+    fn sanitize_leaves_short_names_completely_unchanged() {
+        let limits = InputLimits::default();
+        assert_eq!(limits.sanitize_device_name("Café"), "Café");
     }
 
     #[test]
