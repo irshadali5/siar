@@ -4,32 +4,33 @@ Source spec: `sys-arch/02-multi-device-identity-architecture.md` — 204 numbere
 
 ## Implementation status
 
-**~179/204 (88%) sections.**
+**~189/204 (93%) sections.**
 
-**In progress.** 216/216 tests, clippy clean (`-D warnings`), fmt clean, zero regressions to `siar-routing-policy`/`siar-crypto`. Compiled and tested against the real workspace `Cargo.lock` with rustc 1.91.1.
+**In progress.** 231/231 tests, clippy clean (`-D warnings`), fmt clean, zero regressions to `siar-routing-policy`/`siar-crypto`. Compiled and tested against the real workspace `Cargo.lock` with rustc 1.91.1.
 
-Round 9 (2026-09-05) closed §170-179:
-- §170 Protocol Extension Integration — `handshake_integration::HandshakePhase`, a guarded five-phase state machine matching spec's own diagram; extension negotiation is structurally unreachable before identity verification.
-- §171 Capability Negotiation Integration — `handshake_integration::AuthenticatedCapabilityAdvertisement`, the only constructor pulls capabilities from an actual signed certificate.
-- §172 Routing Integration — `routing_integration::resolve_account_endpoints`, filtered to `Active` devices only.
-- §173 DTN Integration — `routing_integration::dtn_opaque_identifier`, a one-way BLAKE3 hash a relay can't reverse.
-- §174/§175 File/Messaging Integration — no new code; reconciliation notes on `destination.rs` showing these are already exactly its existing `Destination`/`FanOutPolicy` variants.
-- §176/§177 Call Integration / Call Ring Arbitration — `call_integration::CallRingState`, spec's four named states; a second `AcceptedBy` is refused by the type itself.
-- §178 Notification Integration — `notification_integration::PushToken`/`PushEndpointRegistry`, no function anywhere lets a push token substitute for identity.
-- §179 Device Endpoint Privacy — `notification_integration::ScopedEndpoint`, `Ephemeral` as the no-action-needed default, visible in a public profile only when explicitly scoped that way and unexpired.
+Round 10 (2026-09-05) closed §180-189:
+- §180 Device Link Rate Limits — `link_rate_limits::LinkRateLimiter`, three independently tracked counters (active invites / attempts-per-window / failed verifications).
+- §181 Recovery Rate Limits — `link_rate_limits::RecoveryRateLimiter` for the infrastructure-side half; offline recovery already uses cryptographic proof, not rate limits (no new code needed there).
+- §182 UX States — `platform_boundary::DeviceManagementUiState`, four separately-sourced categories rather than one tagged list.
+- §183 New Device UX — `platform_boundary::NewDeviceUxStep`, its three bootstrap steps mapped onto real `LinkingState` variants.
+- §184 Contact Pairing vs Device Linking — `pairing_vs_linking.rs`, a proof module (no new type) confirming the two flows share no type at all.
+- §185 Device Name Validation — `wire_limits::sanitize_device_name`, strips control characters and truncates on a byte-safe char boundary.
+- §186 Audit Export — `audit_export::AuditExport`, spec's exact four named contents and nothing else.
+- §187/§188 API Surface / Crate Split — no new code; this crate's real module set already exceeds the suggested sketch, and the single-crate-many-modules structure already matches the recommendation.
+- §189 Error Types — `error_taxonomy::SuggestedErrorCategory`, mapping spec's twelve suggested variants onto this crate's real, more granular error types, with an honest explanation of why a wholesale rename isn't being made now.
 
-Rounds 1-8 closed §91-169 — see prior delivered tarballs / project memory for that detail.
+Rounds 1-9 closed §91-179 — see prior delivered tarballs / project memory for that detail.
 
 ## Implementing crate(s)
 
-- `siar-identity-multidevice` (this round's new modules: `handshake_integration.rs`, `routing_integration.rs`, `call_integration.rs`, `notification_integration.rs`; extended `destination.rs`)
+- `siar-identity-multidevice` (this round's new modules: `link_rate_limits.rs`, `pairing_vs_linking.rs`, `audit_export.rs`, `error_taxonomy.rs`; extended `platform_boundary.rs`, `wire_limits.rs`)
 
 ## Known gaps / open questions
 
-- §33-51, §52-70, §71-79, §80-90, §91-99, §100-111, §112-121, §122-130, §131-139, §140-149, §150-159, §160-169, §170-179 done (see crate's own `lib.rs` doc comment for the full per-section breakdown and rationale).
-- §180-204 still unmapped in detail — realistic estimate 2 more rounds to finish this spec entirely. Next natural chunk: §180-189 (Device Link/Recovery Rate Limits, UX States, New Device UX, Contact Pairing vs Device Linking, Device Name Validation, Audit Export, API Surface, Crate Split, Error Types). After that: §190-204 (No-anyhow-in-public-API, Migration Strategy, Algorithm Agility/Downgrade Protection, Root Key Backup, Backup Import, Identity Reset, Account Deletion, Organization Offboarding, Multi-Tenant Safety, Recommended Initial Implementation, Implementation Phases, Definition of Done, Relationship to Other Parts, Final Principle).
-- **Real, named, unfixed gaps carried forward**: §125 schema versioning; §164 no real fuzz harness; "process death during linking" untested; `RevocationReason` not wired into the durable audit event; `storage::IdentityStore`/`transaction`/the four §131 client traits have zero real call sites anywhere in this workspace; `RootTrustCacheEntry`/`VerifiedContact` overlap not consolidated; three separate "trust state"-shaped types exist by design; §107/§91 transport-binding gaps (no real BLE/Wi-Fi/NFC wiring).
+- §33-51, §52-70, §71-79, §80-90, §91-99, §100-111, §112-121, §122-130, §131-139, §140-149, §150-159, §160-169, §170-179, §180-189 done (see crate's own `lib.rs` doc comment for the full per-section breakdown and rationale).
+- §190-204 is the LAST chunk for this spec — realistic estimate 1 more round. Covers: No `anyhow` in Public Domain API, Migration Strategy, Algorithm Agility, Algorithm Downgrade Protection, Root Key Backup, Backup Import, Identity Reset, Account Deletion, Organization Offboarding, Multi-Tenant Safety, Recommended Initial Implementation, Implementation Phases, Definition of Done, Relationship to Other Architecture Parts, Final Principle.
+- **Real, named, unfixed gaps carried forward**: §125 schema versioning; §164 no real fuzz harness; "process death during linking" untested; `RevocationReason` not wired into the durable audit event; §189's `IdentityError` deliberately not renamed to match spec's suggested enum (mapped instead); `storage::IdentityStore`/`transaction`/the four §131 client traits have zero real call sites anywhere in this workspace; `RootTrustCacheEntry`/`VerifiedContact` overlap not consolidated; three separate "trust state"-shaped types exist by design; §107/§91 transport-binding gaps (no real BLE/Wi-Fi/NFC wiring).
 
 ## Note
 
-Verified directly against the current source tree and real `cargo test`/`cargo clippy`/`cargo fmt --check`/`cargo doc` runs on 2026-09-05 for all nine rounds captured here.
+Verified directly against the current source tree and real `cargo test`/`cargo clippy`/`cargo fmt --check`/`cargo doc` runs on 2026-09-05 for all ten rounds captured here.
