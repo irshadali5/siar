@@ -46,13 +46,38 @@ nine Tier 0 crates are now fully spec-complete (01 and 02); the
 remaining ~1,110-section estimate above is now overstated by roughly
 114 sections (204 − 90) — a precise updated total across all nine
 hasn't been recomputed, but 03-09 remain the actual "~1,110 minus 114"
-scope. Next: spec 03 (`siar-routing-policy`).
+scope.
+
+**2026-09-08 update:** spec 03 (`siar-routing-policy`) round 2 done —
+§43-56 (~14 sections), bringing it to ~74/200. Real new code: §43
+targeted per-transport cache invalidation; §44/§46 a `setup.rs` module
+(`SetupCost`/`ConnectionPoolState`) now folded into
+`DefaultScorer` as two new `PolicyWeights` terms
+(`setup_cost`/`existing_connection`, tuned per profile) — closing a gap
+this crate's own doc comments had named but not filled; §47/§48 a new
+`security.rs` with an `AuthenticatedSession` smart-constructor that
+re-verifies a candidate's peer against Part 02's `TrustedAccountStore`
+(defense-in-depth on top of `resolve.rs`'s existing device-list-stage
+filtering); §49/§50/§52 a new `privacy.rs` (`PrivacyPolicy` hard
+constraints, a direct-preference soft bonus, and §52's Wi-Fi
+Direct/Aware setup-threshold elimination). §51/§53/§54/§56 accounted
+for via existing/new fields without new functions (documented in
+`privacy.rs`'s own doc comment); §55 "Mesh Forwarding" named as a real,
+unimplemented gap (no distinct next-hop/hop-budget candidate shape
+exists). Two new `DeliveryRequirements` fields
+(`nearby_session_explicit`, `dtn_replication_budget`) — required a
+downstream fix in `siar-dtn-bundle`'s own test helper (missing-fields
+compile error caught by a full-workspace check, not just this crate's
+own `cargo check`). 49/49 tests (up from 35), clippy clean, fmt clean,
+doc-warning-free, zero regressions verified in `siar-dtn-bundle`
+(37/37), `siar-identity-multidevice` (251/251), and `siar-protocol-ext`
+(115/115). Next for spec 03: §57 onward.
 
 | # | Crate | State |
 |---|---|---|
 | 01 | siar-protocol-ext | ✅ **108/108 — spec complete** (final round: §91-92 reconciled, §93-95 error codes/health/recovery, §96-99 scheduler contract/storage/metrics/capability isolation, §100-105 reconciled with notes, §106 honest 16-item Definition of Done self-audit — 4 genuine gaps named, §107-108 reconciled) |
 | 02 | siar-identity-multidevice | ✅ **204/204 — spec complete** (final round, 2026-09-05: §190-204 — algorithm agility/downgrade protection utilities kept deliberately minimal per spec's own "avoid needless abstraction" caution; a root-key backup envelope that structurally cannot carry plaintext key material; backup-import validation run before any local state is touched; identity-reset/account-deletion presentations with required disclaimer fields; a guarded organization-offboarding state machine that operates only on organization-scoped device ids, never a personal AccountId; multi-tenant-safe composite keys; migration-fixture round-trip tests (honestly incomplete pending §125); and an itemized 21-item Definition-of-Done self-audit — **19/21 fully done, 2 honestly `PartiallyDone`** (no-UI-shipped confirmation prompt; property/integration tests exist but no real fuzz harness). Also fixed a genuinely broken intra-doc link left over from an earlier round, dropping this crate's doc-warning count from 4 to 3. 6 new modules (`algorithm_agility.rs`, `root_key_backup.rs`, `identity_lifecycle.rs`, `migration_fixtures.rs`, `definition_of_done.rs`) plus a `namespace.rs` extension, 20 new tests, 251/251 total, clippy clean, zero regressions. Across all 11 rounds this session: 137 new tests written, zero regressions in siar-routing-policy/siar-crypto at any point, every round compiled+tested+clippy+fmt+doc-checked for real against the actual uploaded Cargo.lock with rustc 1.91.1. Real, named, still-open gaps carried forward into future work: §125 schema versioning absent from DeviceCertificate/DeviceDirectory; §164 no cargo-fuzz harness; §191 full cross-version migration tests blocked on §125; `storage::IdentityStore`/`transaction`/all four `client_api` traits have zero real call sites anywhere in this workspace yet; `RootTrustCacheEntry`/`VerifiedContact` overlap not consolidated; §107/§91 have no real BLE/Wi-Fi/NFC transport wiring.) |
-| 03 | siar-routing-policy | ✅ ~60/200 |
+| 03 | siar-routing-policy | ✅ ~74/200 (round 2, 2026-09-08: §43-56 — targeted cache invalidation, transport setup cost/connection-pool scoring, an `AuthenticatedSession` smart-constructor closing §48's hard trust constraint, a composable `PrivacyPolicy`, and §52's Wi-Fi Direct/Aware setup threshold; see this crate's own lib.rs/round notes for what's genuinely covered vs merely accounted-for) |
 | 04 | siar-event-log | 🟡 ~10/95 (Phase 2 SQLite blocker below is now STALE — see Tier 3 update) |
 | 05 | siar-blob-manifest | ✅ ~23/210 (+ metadata_encryption.rs) |
 | 06 | siar-dtn-bundle | ✅ ~50/192 |
@@ -185,10 +210,10 @@ only genuine device/emulator/hardware-codec behavior does.
 9 Tier 0 core specs first, one by one, before returning to this list.**
 Spec 01 (`siar-protocol-ext`) is complete (108/108). Spec 02
 (`siar-identity-multidevice`) is now ALSO complete (204/204) as of
-2026-09-05. Next up: spec 03 (`siar-routing-policy`), currently at
-~60/200 per the Tier 0 table above — the next crate in this project's
+2026-09-05. Spec 03 (`siar-routing-policy`) is in progress, ~74/200 as
+of 2026-09-08 (round 2, §43-56) — the next crate in this project's
 explicit priority order ("work through the 9 Tier 0 core specs first,
-one by one"). Note there is a real, documented unresolved
+one by one"), continuing with §57 onward. Note there is a real, documented unresolved
 reconciliation question between `siar-routing` (pre-existing,
 next.md-era) and `siar-routing-policy` (this spec's own crate) — see
 that crate's own `lib.rs` for the current state of that question
