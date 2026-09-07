@@ -1,6 +1,7 @@
 //! §38 "Retry Policy", §39 "Retry on Connectivity Change".
 
 use crate::metrics::Ratio;
+use crate::requirements::DeliveryRequirements;
 
 /// §38.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -72,6 +73,23 @@ impl RetryPolicy {
         let offset = spread * (2.0 * random_unit - 1.0);
         (base_millis as f64 + offset).max(0.0).round() as u64
     }
+
+    /// §62 "Expiry-Aware Routing": "\[Routing\] should stop retrying
+    /// after expiry" — [`Self::allows_attempt`] alone only ever knew
+    /// about attempt *count*; an operation can just as easily run out
+    /// of *time* first (§62's own example: "SOS expires after 24h,
+    /// typing after 5s" — neither is phrased as a count). This is the
+    /// combined check: both the count-based and expiry-based limits
+    /// have to allow the attempt, via [`DeliveryRequirements::has_expired`].
+    pub fn allows_attempt_at(
+        &self,
+        attempt: u32,
+        req: &DeliveryRequirements,
+        created_at_millis: u64,
+        now_millis: u64,
+    ) -> bool {
+        self.allows_attempt(attempt) && !req.has_expired(created_at_millis, now_millis)
+    }
 }
 
 #[cfg(test)]
@@ -110,5 +128,22 @@ mod tests {
         assert_eq!(low, 8_000);
         assert_eq!(mid, 10_000);
         assert_eq!(high, 12_000);
+    }
+
+    #[test]
+    fn an_expired_operation_is_not_allowed_to_retry_even_under_its_attempt_cap() {
+        use crate::requirements::DeliveryRequirements;
+        let policy = RetryPolicy::durable_message(); // unlimited attempts
+        let req = DeliveryRequirements::typing_indicator(); // 5_000ms expiry
+        assert!(policy.allows_attempt_at(1, &req, 0, 1_000));
+        assert!(!policy.allows_attempt_at(1, &req, 0, 6_000));
+    }
+
+    #[test]
+    fn attempt_cap_still_applies_even_when_not_yet_expired() {
+        use crate::requirements::DeliveryRequirements;
+        let policy = RetryPolicy::no_retry();
+        let req = DeliveryRequirements::interactive_message(); // no expiry
+        assert!(!policy.allows_attempt_at(1, &req, 0, 0));
     }
 }
