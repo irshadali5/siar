@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 
 use crate::plan::RoutePlan;
-use crate::types::Destination;
+use crate::types::{Destination, TransportKind};
 
 struct CachedRoute {
     plan: RoutePlan,
@@ -76,6 +76,22 @@ impl RouteCache {
     pub fn invalidate_all(&mut self) {
         self.entries.clear();
     }
+
+    /// §43 "Route Re-Evaluation": "Do not recompute all routes on
+    /// every small event. Use targeted invalidation: Wi-Fi changed →
+    /// reevaluate Wi-Fi-related candidates." [`Self::invalidate_all`]
+    /// is the blunt tool §42 sometimes calls for; this is the targeted
+    /// one §43 asks for instead — only entries whose *primary* path
+    /// uses `transport` are dropped. A cached route whose primary uses
+    /// a different transport is left untouched even if one of its
+    /// fallbacks happens to use `transport`, since that fallback isn't
+    /// the path actually carrying traffic right now — re-evaluating it
+    /// can wait for its own turn as primary rather than paying the
+    /// recompute cost §43 says to avoid.
+    pub fn invalidate_transport(&mut self, transport: TransportKind) {
+        self.entries
+            .retain(|_, cached| cached.plan.primary.transport != transport);
+    }
 }
 
 #[cfg(test)]
@@ -139,5 +155,22 @@ mod tests {
         cache.invalidate_all();
         assert!(cache.get(dest_a, 1_000).is_none());
         assert!(cache.get(dest_b, 1_000).is_none());
+    }
+
+    #[test]
+    fn invalidate_transport_only_drops_entries_whose_primary_uses_that_transport() {
+        let mut cache = RouteCache::new();
+        let wifi_dest = Destination::Account(AccountId::new());
+        let iroh_dest = Destination::Account(AccountId::new());
+
+        let mut wifi_plan = dummy_plan();
+        wifi_plan.primary.transport = TransportKind::WifiDirect;
+        cache.put(wifi_dest, wifi_plan, 1_000, 5_000);
+        cache.put(iroh_dest, dummy_plan(), 1_000, 5_000); // primary is IrohDirect
+
+        cache.invalidate_transport(TransportKind::WifiDirect);
+
+        assert!(cache.get(wifi_dest, 1_000).is_none());
+        assert!(cache.get(iroh_dest, 1_000).is_some());
     }
 }
