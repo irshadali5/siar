@@ -4,10 +4,21 @@ use crate::scoring::RouteScoreDelta;
 
 /// The tunable inputs to [`crate::scoring::DefaultScorer`] — §24's
 /// formula terms this crate actually models (see that module's own doc
-/// comment for the two it doesn't: congestion, failure penalty). Not
-/// required to sum to 1.0 — [`crate::scoring::RouteScore`] is a
+/// comment for the two it still doesn't: congestion, failure penalty).
+/// Not required to sum to 1.0 — [`crate::scoring::RouteScore`] is a
 /// relative ranking value, not a probability, so un-normalized weights
 /// are fine as long as they're consistent within one comparison.
+///
+/// `setup_cost` and `existing_connection` are new this round, closing
+/// two gaps this doc comment used to leave unnamed: §44 "Route scoring
+/// should include setup latency/cost" had no term at all before now
+/// (see [`crate::setup`]); `existing_connection` makes §45's
+/// preference a real scored term rather than leaving it to §34
+/// stickiness alone to express — stickiness only helps a path that's
+/// *already primary*, but §45 applies just as much when scoring a
+/// brand-new plan with no current path pinned yet (e.g. the very first
+/// route to a destination, where several candidates happen to already
+/// have pooled connections from other traffic).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PolicyWeights {
     pub reachability: f64,
@@ -17,6 +28,8 @@ pub struct PolicyWeights {
     pub energy: f64,
     pub cost: f64,
     pub recent_success: f64,
+    pub setup_cost: f64,
+    pub existing_connection: f64,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -65,6 +78,8 @@ impl RoutingPolicyProfile {
                     energy: 0.6,
                     cost: 0.4,
                     recent_success: 0.5,
+                    setup_cost: 0.5,
+                    existing_connection: 0.5,
                 },
                 hysteresis: HysteresisPolicy {
                     switch_threshold: RouteScoreDelta(0.3),
@@ -86,6 +101,12 @@ impl RoutingPolicyProfile {
                     energy: 0.1,
                     cost: 0.1,
                     recent_success: 0.4,
+                    // Low, not zero — a call already accepted a
+                    // one-time setup cost to start; mid-call it
+                    // shouldn't dominate over jitter/loss the way it
+                    // would for a one-off tiny message.
+                    setup_cost: 0.3,
+                    existing_connection: 0.4,
                 },
                 hysteresis: HysteresisPolicy {
                     switch_threshold: RouteScoreDelta(0.6),
@@ -95,7 +116,9 @@ impl RoutingPolicyProfile {
             },
             // §30: "prefer existing connection, avoid active discovery,
             // avoid Wi-Fi Direct setup" — energy dominates; latency and
-            // bandwidth matter far less.
+            // bandwidth matter far less. `setup_cost`/`existing_connection`
+            // are this profile's whole point per §30's own words, so
+            // both get this policy's highest weights of any term.
             Self::LowPower => RoutingPolicy {
                 weights: PolicyWeights {
                     reachability: 1.0,
@@ -105,6 +128,8 @@ impl RoutingPolicyProfile {
                     energy: 1.5,
                     cost: 0.4,
                     recent_success: 0.8, // "prefer existing connection"
+                    setup_cost: 1.3,
+                    existing_connection: 1.2,
                 },
                 hysteresis: HysteresisPolicy {
                     switch_threshold: RouteScoreDelta(0.5),
@@ -123,6 +148,11 @@ impl RoutingPolicyProfile {
                     energy: 0.3,
                     cost: 1.5,
                     recent_success: 0.4,
+                    // §51's "LAN direct... no Internet dependency" is
+                    // this profile's territory too — a moderate lean
+                    // toward already-cheap-to-reach paths.
+                    setup_cost: 0.6,
+                    existing_connection: 0.5,
                 },
                 hysteresis: HysteresisPolicy {
                     switch_threshold: RouteScoreDelta(0.3),
@@ -131,7 +161,9 @@ impl RoutingPolicyProfile {
                 },
             },
             // §32: "prefer proven paths, allow retry" — stability and
-            // recent success dominate over raw latency/energy.
+            // recent success dominate over raw latency/energy;
+            // existing_connection joins them for the same reason (a
+            // connection already proven to work IS a proven path).
             Self::HighReliability => RoutingPolicy {
                 weights: PolicyWeights {
                     reachability: 1.2,
@@ -141,6 +173,8 @@ impl RoutingPolicyProfile {
                     energy: 0.3,
                     cost: 0.3,
                     recent_success: 1.2,
+                    setup_cost: 0.4,
+                    existing_connection: 0.9,
                 },
                 hysteresis: HysteresisPolicy {
                     switch_threshold: RouteScoreDelta(0.4),
@@ -163,6 +197,14 @@ impl RoutingPolicyProfile {
                     energy: 0.3,
                     cost: 0.05,
                     recent_success: 0.5,
+                    // "increase discovery" means this profile should
+                    // be willing to pay Wi-Fi Direct/Bluetooth pairing
+                    // cost when reachability needs it — the lowest
+                    // setup_cost weight of any profile, deliberately,
+                    // matching §52's own "emergency policy" as one of
+                    // its named exceptions to the normal threshold.
+                    setup_cost: 0.1,
+                    existing_connection: 0.3,
                 },
                 hysteresis: HysteresisPolicy {
                     switch_threshold: RouteScoreDelta(0.2), // switch readily — reachability matters more than stability here
@@ -182,6 +224,12 @@ impl RoutingPolicyProfile {
                     energy: 0.5,
                     cost: 0.9,
                     recent_success: 0.5,
+                    // A one-time transfer can amortize setup cost
+                    // over a large payload — low weight, same
+                    // reasoning as Emergency but for throughput
+                    // instead of reachability.
+                    setup_cost: 0.2,
+                    existing_connection: 0.3,
                 },
                 hysteresis: HysteresisPolicy {
                     switch_threshold: RouteScoreDelta(0.3),
