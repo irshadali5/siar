@@ -4,9 +4,17 @@ Source spec: `sys-arch/03-transport-routing-policy-engine-architecture.md` — 2
 
 ## Implementation status
 
-**74/200 (37%) sections.**
+**80/200 (40%) sections.**
 
-Partial — Round 1 (§1–§42) and Round 2 (§43–§56) complete (49/49 unit tests).
+Partial — Round 1 (§1–§42), Round 2 (§43–§56), and Round 3 (§57–§62) complete (63/63 unit tests).
+
+### Round 3 (§57–§62) Summary (2026-09-08)
+- **§57 (Delivery Semantics)**: `typing_indicator()` (non-durable, 5s expiry, no DTN) and `file_chunk()` (durable, bulk, DTN/multipath allowed) constructors on `DeliveryRequirements`.
+- **§58 (Operation Descriptor)**: `OperationDescriptor` struct carrying `OperationId`, `Destination`, `DeliveryRequirements`, `ByteCount`, and `ContentClass`.
+- **§59 (Content Class)**: 10-variant `ContentClass` enum (Control, Text, Metadata, Thumbnail, Voice, Image, File, RealtimeAudio, RealtimeVideo, Emergency).
+- **§60 (Size-Aware Routing)**: `completion_time_millis` combining static transport setup latency with payload byte count and estimated bandwidth (`setup + bytes / bandwidth`).
+- **§61 (Deadline-Aware Routing)**: `exceeds_deadline` and `eliminate_deadline_exceeding_candidates` pruning paths that cannot deliver before `max_latency_millis`.
+- **§62 (Expiry-Aware Routing)**: `DeliveryRequirements::has_expired` and `RetryPolicy::allows_attempt_at` enforcing clock-based operation expiration during retry attempts.
 
 ### Round 2 (§43–§56) Summary (2026-09-08)
 - **§43 (Route Re-Evaluation)**: Targeted per-transport cache invalidation (`RouteCache::invalidate_transport`).
@@ -32,4 +40,4 @@ Partial — Round 1 (§1–§42) and Round 2 (§43–§56) complete (49/49 unit 
 
 
 ## Note
-Detail above reflects implementation through Round 2 (§43–§56) completed on 2026-09-08. Next target: §57 onward.
+Detail above reflects implementation through Round 3 (§57–§62) completed on 2026-09-08. Next target: §63 onward.
