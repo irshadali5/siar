@@ -73,11 +73,34 @@ doc-warning-free, zero regressions verified in `siar-dtn-bundle`
 (37/37), `siar-identity-multidevice` (251/251), and `siar-protocol-ext`
 (115/115). Next for spec 03: §57 onward.
 
+**2026-09-08 update (round 3):** §57-62 done, ~74→~80/200. New
+`descriptor.rs` — `OperationId`/`ByteCount`/`ContentClass`/
+`OperationDescriptor`, named exactly per §58/§59; two new
+`DeliveryRequirements` constructors (`typing_indicator`, `file_chunk`)
+close out §57's own four worked examples (message/call-frame already
+had constructors from Phase 1). New `estimate.rs` — §60's own
+`completion_time ≈ setup + bytes / bandwidth` formula as a real
+function (`completion_time_millis`, `None` for "with uncertainty"
+rather than a fabricated confidence interval), plus §61's hard
+"exceeds deadline → drop" elimination
+(`eliminate_deadline_exceeding_candidates`). §62 closed without a new
+module: `DeliveryRequirements::has_expired` and
+`RetryPolicy::allows_attempt_at` finally give the `expiry_millis` field
+(present since Phase 1) an actual enforcement path — it had sat unused
+until this round. 63/63 tests (up from 49), clippy clean, fmt clean,
+doc-warning-free (one broken intra-doc link from `[Routing]` in a doc
+comment caught and escaped), zero regressions in `siar-dtn-bundle`
+(37/37), `siar-identity-multidevice` (251/251), `siar-protocol-ext`
+(115/115) — this round added no new `DeliveryRequirements` fields, so
+no downstream literal-construction fix was needed this time. Next for
+spec 03: §63 onward (queue architecture/weighted fair scheduling
+beyond what `dispatch.rs` already covers).
+
 | # | Crate | State |
 |---|---|---|
 | 01 | siar-protocol-ext | ✅ **108/108 — spec complete** (final round: §91-92 reconciled, §93-95 error codes/health/recovery, §96-99 scheduler contract/storage/metrics/capability isolation, §100-105 reconciled with notes, §106 honest 16-item Definition of Done self-audit — 4 genuine gaps named, §107-108 reconciled) |
 | 02 | siar-identity-multidevice | ✅ **204/204 — spec complete** (final round, 2026-09-05: §190-204 — algorithm agility/downgrade protection utilities kept deliberately minimal per spec's own "avoid needless abstraction" caution; a root-key backup envelope that structurally cannot carry plaintext key material; backup-import validation run before any local state is touched; identity-reset/account-deletion presentations with required disclaimer fields; a guarded organization-offboarding state machine that operates only on organization-scoped device ids, never a personal AccountId; multi-tenant-safe composite keys; migration-fixture round-trip tests (honestly incomplete pending §125); and an itemized 21-item Definition-of-Done self-audit — **19/21 fully done, 2 honestly `PartiallyDone`** (no-UI-shipped confirmation prompt; property/integration tests exist but no real fuzz harness). Also fixed a genuinely broken intra-doc link left over from an earlier round, dropping this crate's doc-warning count from 4 to 3. 6 new modules (`algorithm_agility.rs`, `root_key_backup.rs`, `identity_lifecycle.rs`, `migration_fixtures.rs`, `definition_of_done.rs`) plus a `namespace.rs` extension, 20 new tests, 251/251 total, clippy clean, zero regressions. Across all 11 rounds this session: 137 new tests written, zero regressions in siar-routing-policy/siar-crypto at any point, every round compiled+tested+clippy+fmt+doc-checked for real against the actual uploaded Cargo.lock with rustc 1.91.1. Real, named, still-open gaps carried forward into future work: §125 schema versioning absent from DeviceCertificate/DeviceDirectory; §164 no cargo-fuzz harness; §191 full cross-version migration tests blocked on §125; `storage::IdentityStore`/`transaction`/all four `client_api` traits have zero real call sites anywhere in this workspace yet; `RootTrustCacheEntry`/`VerifiedContact` overlap not consolidated; §107/§91 have no real BLE/Wi-Fi/NFC transport wiring.) |
-| 03 | siar-routing-policy | ✅ ~74/200 (round 2, 2026-09-08: §43-56 — targeted cache invalidation, transport setup cost/connection-pool scoring, an `AuthenticatedSession` smart-constructor closing §48's hard trust constraint, a composable `PrivacyPolicy`, and §52's Wi-Fi Direct/Aware setup threshold; see this crate's own lib.rs/round notes for what's genuinely covered vs merely accounted-for) |
+| 03 | siar-routing-policy | ✅ ~80/200 (round 3, 2026-09-08: §57-62 — `OperationDescriptor`/`ContentClass` named exactly per spec, two new `DeliveryRequirements` constructors closing §57's remaining worked examples (`typing_indicator`/`file_chunk`), a real `completion_time ≈ setup + bytes/bandwidth` estimate (§60) feeding a hard deadline-drop elimination (§61), and `has_expired`/`allows_attempt_at` finally putting the long-unused `expiry_millis` field to work (§62); round 2 covered §43-56 — see this crate's own lib.rs/round notes for what's genuinely covered vs merely accounted-for) |
 | 04 | siar-event-log | 🟡 ~10/95 (Phase 2 SQLite blocker below is now STALE — see Tier 3 update) |
 | 05 | siar-blob-manifest | ✅ ~23/210 (+ metadata_encryption.rs) |
 | 06 | siar-dtn-bundle | ✅ ~50/192 |
@@ -210,10 +233,10 @@ only genuine device/emulator/hardware-codec behavior does.
 9 Tier 0 core specs first, one by one, before returning to this list.**
 Spec 01 (`siar-protocol-ext`) is complete (108/108). Spec 02
 (`siar-identity-multidevice`) is now ALSO complete (204/204) as of
-2026-09-05. Spec 03 (`siar-routing-policy`) is in progress, ~74/200 as
-of 2026-09-08 (round 2, §43-56) — the next crate in this project's
+2026-09-05. Spec 03 (`siar-routing-policy`) is in progress, ~80/200 as
+of 2026-09-08 (round 3, §57-62) — the next crate in this project's
 explicit priority order ("work through the 9 Tier 0 core specs first,
-one by one"), continuing with §57 onward. Note there is a real, documented unresolved
+one by one"), continuing with §63 onward. Note there is a real, documented unresolved
 reconciliation question between `siar-routing` (pre-existing,
 next.md-era) and `siar-routing-policy` (this spec's own crate) — see
 that crate's own `lib.rs` for the current state of that question
