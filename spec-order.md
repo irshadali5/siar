@@ -71,7 +71,7 @@ SIAR cannot be written in strictly numerical order (`01 → 33` followed by `ui-
 |:---:|:---|:---:|:---:|:---|:---|
 | **1.1** | [`01-protocol-extension-system-architecture.md`](sys-arch/01-protocol-extension-system-architecture.md) | **108** | **108/108 (100%)** | [`siar-protocol-ext`](crates/siar-protocol-ext), [`siar-protocol`](crates/siar-protocol) | Envelope framing, version negotiation, capability headers |
 | **1.2** | [`02-multi-device-identity-architecture.md`](sys-arch/02-multi-device-identity-architecture.md) | **204** | **204/204 (100%)** | [`siar-identity-multidevice`](crates/siar-identity-multidevice), [`siar-crypto`](crates/siar-crypto) | Ed25519 root key, device certs, revocation, algorithm agility (§190–§204 complete) |
-| **1.3** | [`03-transport-routing-policy-engine-architecture.md`](sys-arch/03-transport-routing-policy-engine-architecture.md) | **200** | **74/200 (37%)** | [`siar-routing-policy`](crates/siar-routing-policy), [`siar-connectivity`](crates/siar-connectivity) | **ACTIVE FOCUS**: Dynamic link scoring, route selection, transport setup costs, privacy policy. Next: §57+ |
+| **1.3** | [`03-transport-routing-policy-engine-architecture.md`](sys-arch/03-transport-routing-policy-engine-architecture.md) | **200** | **80/200 (40%)** | [`siar-routing-policy`](crates/siar-routing-policy), [`siar-connectivity`](crates/siar-connectivity) | **ACTIVE FOCUS**: Dynamic link scoring, setup costs, size/deadline/expiry-aware routing. Next: §63+ |
 | **1.4** | [`04-offline-event-log-architecture.md`](sys-arch/04-offline-event-log-architecture.md) | **95** | 10/95 (11%) | [`siar-event-log`](crates/siar-event-log), [`siar-storage`](crates/siar-storage) | Crash-resilient transactional outbox, append-only log |
 | **1.5** | [`05-robust-file-blob-subsystem-architecture.md`](sys-arch/05-robust-file-blob-subsystem-architecture.md) | **210** | 23/210 (11%) | [`siar-blob-manifest`](crates/siar-blob-manifest), [`siar-storage`](crates/siar-storage) | BLAKE3 chunking, deduplication, resumable blob transfers |
 | **1.6** | [`06-dtn-store-carry-forward-architecture.md`](sys-arch/06-dtn-store-carry-forward-architecture.md) | **192** | 50/192 (26%) | [`siar-dtn-bundle`](crates/siar-dtn-bundle), [`siar-dtn`](crates/siar-dtn) | Delay-tolerant bundle store, epidemic forwarding, anti-entropy |
@@ -183,7 +183,7 @@ SIAR cannot be written in strictly numerical order (`01 → 33` followed by `ui-
 |:---:|:---|:---:|:---:|:---:|
 | 01 | [Protocol Extension System](sys-arch/01-protocol-extension-system-architecture.md) | 108 | 108/108 (100%) | Milestone 1 |
 | 02 | [Multi-Device Identity](sys-arch/02-multi-device-identity-architecture.md) | 204 | 204/204 (100%) | Milestone 1 |
-| 03 | [Transport & Routing Policy](sys-arch/03-transport-routing-policy-engine-architecture.md) | 200 | 74/200 (37%) | Milestone 1 (Active) |
+| 03 | [Transport & Routing Policy](sys-arch/03-transport-routing-policy-engine-architecture.md) | 200 | 80/200 (40%) | Milestone 1 (Active) |
 | 04 | [Offline Event Log](sys-arch/04-offline-event-log-architecture.md) | 95 | 10/95 (11%) | Milestone 1 |
 | 05 | [Robust File Blob Subsystem](sys-arch/05-robust-file-blob-subsystem-architecture.md) | 210 | 23/210 (11%) | Milestone 1 |
 | 06 | [DTN Store-Carry-Forward](sys-arch/06-dtn-store-carry-forward-architecture.md) | 192 | 50/192 (26%) | Milestone 1 |
@@ -257,7 +257,7 @@ SIAR cannot be written in strictly numerical order (`01 → 33` followed by `ui-
 Current Milestone: MILESTONE 1 (Tier 0: Headless Core Engine)
 Current Document : Spec 03 (03-transport-routing-policy-engine-architecture.md)
 Target Crate     : crates/siar-routing-policy
-Current Status   : 74 / 200 Sections (37% Reconciled, 49/49 Tests Passing)
+Current Status   : 80 / 200 Sections (40% Reconciled, 63/63 Tests Passing)
 ```
 
 1. **Completed Batches**:
@@ -265,8 +265,10 @@ Current Status   : 74 / 200 Sections (37% Reconciled, 49/49 Tests Passing)
    * Spec 02: 204/204 (100%) — complete
    * Spec 03 Round 1: §1–§42 (30%)
    * Spec 03 Round 2: §43–§56 (37%)
-2. **Next Batch (Round 3)**: Implement sections **§57 onward** of Spec 03:
-   * Delivery Semantics (§57)
-   * Operation Descriptor (§58)
-   * Content Class (§59)
-   * Size/Deadline/Expiry Aware Routing (§60–§62)
+   * Spec 03 Round 3: §57–§62 (40%)
+2. **Next Batch (Round 4)**: Implement sections **§63 onward** of Spec 03:
+   * Queue Architecture (§63)
+   * Weighted Fair Scheduling (§64)
+   * Backpressure (§65)
+   * Per-Transport Queues (§66)
+   * Per-Peer & Per-Extension Fairness (§67–§68)
