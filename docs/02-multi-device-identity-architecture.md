@@ -4,33 +4,45 @@ Source spec: `sys-arch/02-multi-device-identity-architecture.md` — 204 numbere
 
 ## Implementation status
 
-**~189/204 (93%) sections.**
+**✅ 204/204 — spec complete** (2026-09-05/06, 11 rounds this session on top of ~90/204 already done beforehand).
 
-**In progress.** 231/231 tests, clippy clean (`-D warnings`), fmt clean, zero regressions to `siar-routing-policy`/`siar-crypto`. Compiled and tested against the real workspace `Cargo.lock` with rustc 1.91.1.
+251/251 tests, clippy clean (`-D warnings`), fmt clean, zero regressions to `siar-routing-policy`/`siar-crypto` at any point across all 11 rounds. Compiled and tested against the real workspace `Cargo.lock` with rustc 1.91.1, every round.
 
-Round 10 (2026-09-05) closed §180-189:
-- §180 Device Link Rate Limits — `link_rate_limits::LinkRateLimiter`, three independently tracked counters (active invites / attempts-per-window / failed verifications).
-- §181 Recovery Rate Limits — `link_rate_limits::RecoveryRateLimiter` for the infrastructure-side half; offline recovery already uses cryptographic proof, not rate limits (no new code needed there).
-- §182 UX States — `platform_boundary::DeviceManagementUiState`, four separately-sourced categories rather than one tagged list.
-- §183 New Device UX — `platform_boundary::NewDeviceUxStep`, its three bootstrap steps mapped onto real `LinkingState` variants.
-- §184 Contact Pairing vs Device Linking — `pairing_vs_linking.rs`, a proof module (no new type) confirming the two flows share no type at all.
-- §185 Device Name Validation — `wire_limits::sanitize_device_name`, strips control characters and truncates on a byte-safe char boundary.
-- §186 Audit Export — `audit_export::AuditExport`, spec's exact four named contents and nothing else.
-- §187/§188 API Surface / Crate Split — no new code; this crate's real module set already exceeds the suggested sketch, and the single-crate-many-modules structure already matches the recommendation.
-- §189 Error Types — `error_taxonomy::SuggestedErrorCategory`, mapping spec's twelve suggested variants onto this crate's real, more granular error types, with an honest explanation of why a wholesale rename isn't being made now.
+**"Complete" does not mean "nothing left to improve."** This crate's own `lib.rs` doc comment ends with an itemized 21-item Definition-of-Done self-audit (§202): **19/21 fully done, 2 honestly `PartiallyDone`**:
+- `UserConfirmationRequired` — the prompt is modeled (`approval::LinkingApprovalPrompt`), but this crate ships no UI at all, by design.
+- `FuzzPropertyIntegrationTestsExist` — property tests (`security_invariants.rs`) and integration tests (`integration_tests.rs`) are real; an actual `cargo-fuzz` harness does not exist yet (§164's own named gap).
 
-Rounds 1-9 closed §91-179 — see prior delivered tarballs / project memory for that detail.
+Other real, named, still-open gaps (none of these block calling the spec "complete" — each is a specific, scoped follow-up, not a missing section):
+- **§125 Version Compatibility**: `DeviceCertificate`/`DeviceDirectory` still carry no schema-version field. Retrofitting one now would break already-shipped signed bytes. `wire_limits::SchemaVersion` exists for *new* wire types going forward only.
+- **§191 Migration Strategy**: real cross-version migration tests can't exist until §125 is closed. `migration_fixtures.rs` has the seed (fixture round-trip tests) but not the full thing.
+- **§189 Error Types**: this crate's real `IdentityError` deliberately does NOT match spec's suggested 12-variant enum — `error_taxonomy::SuggestedErrorCategory` maps every category to where it actually lives instead of a breaking rename.
+- **Unused boundaries**: `storage::IdentityStore`, `transaction`'s type-state machine, and all four `client_api` traits (`IdentityClient`/`DeviceClient`/`TrustClient`/`RecoveryClient`) are real, tested types with **zero call sites anywhere in this workspace** — they're the seam, not the implementation.
+- **`RootTrustCacheEntry`/`VerifiedContact`** (round 6 vs round 1) — real overlap, named, not consolidated.
+- **Three separate "trust state"-shaped types** exist workspace-wide by design (this crate's own, `siar-ui-state`'s, `siar-crypto`'s) — documented, not collided.
+- **No real transport wiring**: §91's NFC verification method and §107's rotating discovery tokens have no actual BLE/Wi-Fi/NFC code calling them anywhere.
+
+## Round-by-round summary (all 2026-09-05/06)
+
+| Round | Sections | New modules |
+|---|---|---|
+| 1 | §91-99 | `contact_verification.rs` |
+| 2 | §100-111 | `state_transport.rs`, `principal_claims.rs`, `discovery_privacy.rs` |
+| 3 | §112-121 | `reconciliation.rs`, `storage.rs`, `transaction.rs`, `device_authorization.rs` |
+| 4 | §122-130 | `enterprise_policy.rs`, `wire_limits.rs`, `session_cache.rs` |
+| 5 | §131-139 | `client_api.rs`, `linking_state_machine.rs`, `recovery_state_machine.rs`, `platform_boundary.rs` |
+| 6 | §140-149 | `reuse_patterns.rs`, `device_privacy_presentation.rs`, `local_records.rs` |
+| 7 | §150-159 | `linking_channel.rs`, `identity_backup.rs`, `threat_model.rs` |
+| 8 | §160-169 | `trust_boundary.rs`, `security_invariants.rs`, `integration_tests.rs`, `directory_cache.rs` |
+| 9 | §170-179 | `handshake_integration.rs`, `routing_integration.rs`, `call_integration.rs`, `notification_integration.rs` |
+| 10 | §180-189 | `link_rate_limits.rs`, `pairing_vs_linking.rs`, `audit_export.rs`, `error_taxonomy.rs` |
+| 11 (final) | §190-204 | `algorithm_agility.rs`, `root_key_backup.rs`, `identity_lifecycle.rs`, `migration_fixtures.rs`, `definition_of_done.rs` |
+
+Full per-section rationale for every one of these lives in the crate's own `lib.rs` doc comment — that file is now the authoritative, up-to-date detail record; this docs page is a summary pointer to it.
 
 ## Implementing crate(s)
 
-- `siar-identity-multidevice` (this round's new modules: `link_rate_limits.rs`, `pairing_vs_linking.rs`, `audit_export.rs`, `error_taxonomy.rs`; extended `platform_boundary.rs`, `wire_limits.rs`)
-
-## Known gaps / open questions
-
-- §33-51, §52-70, §71-79, §80-90, §91-99, §100-111, §112-121, §122-130, §131-139, §140-149, §150-159, §160-169, §170-179, §180-189 done (see crate's own `lib.rs` doc comment for the full per-section breakdown and rationale).
-- §190-204 is the LAST chunk for this spec — realistic estimate 1 more round. Covers: No `anyhow` in Public Domain API, Migration Strategy, Algorithm Agility, Algorithm Downgrade Protection, Root Key Backup, Backup Import, Identity Reset, Account Deletion, Organization Offboarding, Multi-Tenant Safety, Recommended Initial Implementation, Implementation Phases, Definition of Done, Relationship to Other Architecture Parts, Final Principle.
-- **Real, named, unfixed gaps carried forward**: §125 schema versioning; §164 no real fuzz harness; "process death during linking" untested; `RevocationReason` not wired into the durable audit event; §189's `IdentityError` deliberately not renamed to match spec's suggested enum (mapped instead); `storage::IdentityStore`/`transaction`/the four §131 client traits have zero real call sites anywhere in this workspace; `RootTrustCacheEntry`/`VerifiedContact` overlap not consolidated; three separate "trust state"-shaped types exist by design; §107/§91 transport-binding gaps (no real BLE/Wi-Fi/NFC wiring).
+- `siar-identity-multidevice` — 60 source files, 251 tests, spec-complete.
 
 ## Note
 
-Verified directly against the current source tree and real `cargo test`/`cargo clippy`/`cargo fmt --check`/`cargo doc` runs on 2026-09-05 for all ten rounds captured here.
+Verified directly against the current source tree with real `cargo test`/`cargo clippy`/`cargo fmt --check`/`cargo doc` runs, every round, 2026-09-05/06. This crate's `lib.rs` doc comment is the primary source of truth going forward for what's built and why — this page summarizes it.

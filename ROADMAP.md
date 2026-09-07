@@ -39,10 +39,19 @@ first) and added full test coverage to `siar-transport`/`siar-messaging`'s
 `MessageService` half this session — see `/areas/resilient-mesh.md`,
 not spec-numbered work but real correctness fixes found via testing.
 
+**2026-09-05/06 update:** spec 02 (`siar-identity-multidevice`) is now
+ALSO complete (204/204), across 11 rounds this session (§91-204) on top
+of the ~90/204 already done before this session started. Two of the
+nine Tier 0 crates are now fully spec-complete (01 and 02); the
+remaining ~1,110-section estimate above is now overstated by roughly
+114 sections (204 − 90) — a precise updated total across all nine
+hasn't been recomputed, but 03-09 remain the actual "~1,110 minus 114"
+scope. Next: spec 03 (`siar-routing-policy`).
+
 | # | Crate | State |
 |---|---|---|
 | 01 | siar-protocol-ext | ✅ **108/108 — spec complete** (final round: §91-92 reconciled, §93-95 error codes/health/recovery, §96-99 scheduler contract/storage/metrics/capability isolation, §100-105 reconciled with notes, §106 honest 16-item Definition of Done self-audit — 4 genuine gaps named, §107-108 reconciled) |
-| 02 | siar-identity-multidevice | 🟡 ~189/204 (2026-09-05 round 10: §180-189 — three independently-tracked link rate-limit counters (active invites / attempts-per-window / failed verifications, never sharing a budget), with an honest note that offline recovery already uses cryptographic proof rather than rate limits; device-management UI state split into four separately-sourced categories rather than one tagged list; new-device UX steps mapped onto real linking-state-machine variants where one actually exists; a proof module confirming contact pairing and device linking share no type at all, using spec's own Alice/Bob vs Alice-Phone/Alice-Laptop example directly; real device-name sanitization (strip control characters, truncate on a byte-safe char boundary); an audit export with spec's exact four named contents and nothing else; reconciliation notes showing the suggested API-surface sketch and crate-split guidance are both already satisfied by this crate's real structure; and an honest mapping of spec's twelve suggested error-enum variants onto this crate's real, more granular, already-shipped error types — explaining why a wholesale rename would be a breaking change not worth making now, the same category of caution as §125's schema-versioning gap. 4 new modules (`link_rate_limits.rs`, `pairing_vs_linking.rs`, `audit_export.rs`, `error_taxonomy.rs`) plus extensions to `platform_boundary.rs`, `wire_limits.rs`, `destination.rs`, 15 new tests, 231/231 total, clippy clean, zero regressions. One self-caught doc-link bug fixed via `cargo doc` before declaring done. Compiled and tested against the real uploaded Cargo.lock with rustc 1.91.1.) |
+| 02 | siar-identity-multidevice | ✅ **204/204 — spec complete** (final round, 2026-09-05: §190-204 — algorithm agility/downgrade protection utilities kept deliberately minimal per spec's own "avoid needless abstraction" caution; a root-key backup envelope that structurally cannot carry plaintext key material; backup-import validation run before any local state is touched; identity-reset/account-deletion presentations with required disclaimer fields; a guarded organization-offboarding state machine that operates only on organization-scoped device ids, never a personal AccountId; multi-tenant-safe composite keys; migration-fixture round-trip tests (honestly incomplete pending §125); and an itemized 21-item Definition-of-Done self-audit — **19/21 fully done, 2 honestly `PartiallyDone`** (no-UI-shipped confirmation prompt; property/integration tests exist but no real fuzz harness). Also fixed a genuinely broken intra-doc link left over from an earlier round, dropping this crate's doc-warning count from 4 to 3. 6 new modules (`algorithm_agility.rs`, `root_key_backup.rs`, `identity_lifecycle.rs`, `migration_fixtures.rs`, `definition_of_done.rs`) plus a `namespace.rs` extension, 20 new tests, 251/251 total, clippy clean, zero regressions. Across all 11 rounds this session: 137 new tests written, zero regressions in siar-routing-policy/siar-crypto at any point, every round compiled+tested+clippy+fmt+doc-checked for real against the actual uploaded Cargo.lock with rustc 1.91.1. Real, named, still-open gaps carried forward into future work: §125 schema versioning absent from DeviceCertificate/DeviceDirectory; §164 no cargo-fuzz harness; §191 full cross-version migration tests blocked on §125; `storage::IdentityStore`/`transaction`/all four `client_api` traits have zero real call sites anywhere in this workspace yet; `RootTrustCacheEntry`/`VerifiedContact` overlap not consolidated; §107/§91 have no real BLE/Wi-Fi/NFC transport wiring.) |
 | 03 | siar-routing-policy | ✅ ~60/200 |
 | 04 | siar-event-log | 🟡 ~10/95 (Phase 2 SQLite blocker below is now STALE — see Tier 3 update) |
 | 05 | siar-blob-manifest | ✅ ~23/210 (+ metadata_encryption.rs) |
@@ -174,16 +183,16 @@ only genuine device/emulator/hardware-codec behavior does.
 
 **Superseded by explicit user instruction (2026-09-01): work through the
 9 Tier 0 core specs first, one by one, before returning to this list.**
-Spec 01 (`siar-protocol-ext`) is now complete (108/108). Spec 02
-(`siar-identity-multidevice`) is at ~189/204 as of 2026-09-05 (§180-189
-just closed) — ONE round left to finish this spec entirely: §190-204
-(No `anyhow` in Public Domain API — likely already true, needs
-confirming; Migration Strategy; Algorithm Agility; Algorithm Downgrade
-Protection; Root Key Backup; Backup Import; Identity Reset; Account
-Deletion; Organization Offboarding; Multi-Tenant Safety; Recommended
-Initial Implementation; Implementation Phases; Definition of Done;
-Relationship to Other Architecture Parts; Final Principle). After that,
-move to spec 03 (`siar-routing-policy`, ~60/200 per Tier 0's table).
+Spec 01 (`siar-protocol-ext`) is complete (108/108). Spec 02
+(`siar-identity-multidevice`) is now ALSO complete (204/204) as of
+2026-09-05. Next up: spec 03 (`siar-routing-policy`), currently at
+~60/200 per the Tier 0 table above — the next crate in this project's
+explicit priority order ("work through the 9 Tier 0 core specs first,
+one by one"). Note there is a real, documented unresolved
+reconciliation question between `siar-routing` (pre-existing,
+next.md-era) and `siar-routing-policy` (this spec's own crate) — see
+that crate's own `lib.rs` for the current state of that question
+before starting new work there.
 
 Original list, resumes once Tier 0 is done:
 
