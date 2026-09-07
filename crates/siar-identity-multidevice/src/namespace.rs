@@ -1,5 +1,5 @@
 //! §49 "Multiple Accounts on One Device", §50 "Application Namespace",
-//! §51 "Cross-Application Identity Reuse".
+//! §51 "Cross-Application Identity Reuse", §199 "Multi-Tenant Safety".
 
 use siar_domain::{AccountId, DeviceId};
 
@@ -53,10 +53,12 @@ pub enum ApplicationScopedResource {
 }
 
 /// The actual rule behind §50's list: every one of these resources
-/// defaults to NOT shared across application namespaces. A `true`
-/// result requires [`crate::identifier`]... this crate has no sharing
-/// mechanism at all yet — this function exists to make the default
-/// explicit and checkable now, before one does.
+/// defaults to NOT shared across application namespaces. This crate
+/// has no cross-application sharing mechanism at all yet — this
+/// function exists to make the default explicit and checkable now,
+/// before one does, so a future sharing mechanism has to deliberately
+/// override this `false` rather than the absence of a rule leaving the
+/// default undefined.
 pub fn is_shared_across_applications_by_default(_resource: ApplicationScopedResource) -> bool {
     false
 }
@@ -79,6 +81,29 @@ impl Default for CrossApplicationIdentityMode {
     fn default() -> Self {
         CrossApplicationIdentityMode::IsolatedPerApp
     }
+}
+
+/// §199: "if platform is embedded in a multi-tenant app... never key
+/// solely by AccountId if tenant context is required." An opaque
+/// string newtype for the same reason [`ApplicationNamespace`] is one
+/// — which platform hosts which tenants is an open set this crate has
+/// no business enumerating.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub struct TenantId(pub String);
+
+/// §199's own rule made structural: everywhere a multi-tenant caller
+/// would otherwise be tempted to use a bare [`AccountId`] as a lookup
+/// key, this composite type is the one to use instead — a `HashMap<
+/// TenantScopedAccountId, _>` cannot collide two different tenants'
+/// same-valued `AccountId`s onto the same entry the way a
+/// `HashMap<AccountId, _>` could if two tenants' id generators ever
+/// produced the same value (astronomically unlikely for this crate's
+/// UUID-shaped `AccountId`, but §199's rule is "never key solely by
+/// AccountId," not "unless collision is unlikely").
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TenantScopedAccountId {
+    pub tenant: TenantId,
+    pub account_id: AccountId,
 }
 
 #[cfg(test)]
@@ -138,5 +163,28 @@ mod tests {
             CrossApplicationIdentityMode::default(),
             CrossApplicationIdentityMode::IsolatedPerApp
         );
+    }
+
+    #[test]
+    fn spec_199_the_same_account_id_under_two_tenants_is_two_distinct_keys() {
+        let shared_account_id = AccountId::new();
+        let tenant_a = TenantScopedAccountId {
+            tenant: TenantId("tenant-a".to_string()),
+            account_id: shared_account_id,
+        };
+        let tenant_b = TenantScopedAccountId {
+            tenant: TenantId("tenant-b".to_string()),
+            account_id: shared_account_id,
+        };
+        assert_ne!(
+            tenant_a, tenant_b,
+            "the same AccountId under two different tenants must never be treated as the same key"
+        );
+
+        let mut isolated_storage = std::collections::HashMap::new();
+        isolated_storage.insert(tenant_a.clone(), "tenant A's data");
+        isolated_storage.insert(tenant_b.clone(), "tenant B's data");
+        assert_eq!(isolated_storage.len(), 2);
+        assert_ne!(isolated_storage[&tenant_a], isolated_storage[&tenant_b]);
     }
 }

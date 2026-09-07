@@ -672,6 +672,94 @@
 //!   crate's real, already-tested `IdentityError` to match spec's
 //!   literal suggestion now would break every existing call site, the
 //!   same caution already applied to §125's schema-versioning gap.
+//! - §190 "No `anyhow` in Public Domain API" needed no new code — a
+//!   real audit (`grep -rn anyhow Cargo.toml src/`) confirms zero
+//!   usage; this crate has used `thiserror`-based typed errors from
+//!   round 1, and [`error`]'s own top doc comment already cited §190
+//!   by name before this final round ever read it.
+//! - [`algorithm_agility`] — §192 "Algorithm Agility"
+//!   ([`algorithm_agility::AlgorithmId`], deliberately three labels
+//!   only, per spec's own "avoid needless generic abstraction" —
+//!   nothing in this crate's real signing/verification code uses it;
+//!   this crate still calls `ed25519_dalek`/`x25519_dalek`/`blake3`
+//!   directly everywhere, unchanged), §193 "Algorithm Downgrade
+//!   Protection" ([`algorithm_agility::negotiate_algorithm`], trusting
+//!   the caller's own preference ordering rather than inventing a
+//!   cross-category strength ranking that wouldn't mean anything
+//!   between a signature scheme and a hash function).
+//! - [`root_key_backup`] — §194 "Root Key Backup"
+//!   ([`root_key_backup::RootKeyBackupEnvelope`], versioned/salted
+//!   fields required to exist, no
+//!   [`root_key::RootIdentityKey`] type even importable into that
+//!   file so plaintext export has no path to occur; the actual
+//!   AEAD cipher is the caller's job, dependency-minimal by design),
+//!   §195 "Backup Import"
+//!   (`root_key_backup::validate_before_import`, spec's own four
+//!   checks run in order before any local state is touched).
+//! - [`identity_lifecycle`] — §196 "Identity Reset"
+//!   (`identity_lifecycle::is_a_real_identity_reset`,
+//!   [`identity_lifecycle::IdentityResetPresentation`]'s two required
+//!   disclosure fields), §197 "Account Deletion"
+//!   ([`identity_lifecycle::AccountDeletionPresentation`], the
+//!   remote-deletion caveat required to exist, matching
+//!   [`client_api::RemovalPresentation`]'s own established pattern),
+//!   §198 "Organization Offboarding"
+//!   ([`identity_lifecycle::OffboardingStep`], a guarded four-step
+//!   machine operating only on an organization-scoped `DeviceId`,
+//!   never an `AccountId` — "personal identity may remain unaffected"
+//!   is why that type distinction exists).
+//! - [`namespace`] gained §199 "Multi-Tenant Safety"
+//!   ([`namespace::TenantScopedAccountId`], "never key solely by
+//!   AccountId" made structural — a bare `AccountId` key and a
+//!   tenant-scoped one are different Rust types, so using the wrong
+//!   one is a type error, not a runtime bug waiting to happen). Also
+//!   fixed a genuinely broken intra-doc link in this same file left
+//!   over from an earlier round (`[`crate::identifier`]`, a type that
+//!   was never defined) — found and corrected as part of this round's
+//!   own `cargo doc` verification, dropping this crate's long-standing
+//!   doc-warning count from 4 to 3.
+//! - [`migration_fixtures`] — §191 "Migration Strategy," honestly
+//!   incomplete: no version field exists yet to migrate FROM (see
+//!   §125's own gap note), so real cross-version migration tests can't
+//!   exist before that's closed. What exists now is the seed —
+//!   fixture-based round-trip tests that would fail the moment today's
+//!   wire format broke compatibility with itself.
+//! - [`definition_of_done`] — §200/§201 needed no new code (every item
+//!   in spec's recommended-initial-implementation list and all seven
+//!   implementation phases are already built, just not in that exact
+//!   literal order). §202 "Definition of Done": an itemized,
+//!   twenty-one-item self-audit against spec's own checklist, same
+//!   pattern `siar-protocol-ext`'s own §106 self-audit established —
+//!   **19 of 21 fully done**, 2 honestly `PartiallyDone`
+//!   (`UserConfirmationRequired` — this crate models the prompt but
+//!   ships no UI, by design; `FuzzPropertyIntegrationTestsExist` —
+//!   property and integration tests exist, real fuzzing doesn't, per
+//!   §164's own gap). §203 "Relationship to Other Architecture Parts"
+//!   needed no code — a plain list this file's own doc comment already
+//!   is the answer to (this crate feeds `siar-routing-policy`,
+//!   `siar-event-log`, `siar-blob-manifest`, `siar-dtn-bundle`,
+//!   `siar-capability`, and more, exactly as spec's own dependency
+//!   list names). §204 "Final Principle"
+//!   (`spec_204_account_device_transport_session_identity_are_four_separate_types`,
+//!   proving by construction that `AccountId`/`DeviceId`/
+//!   `DeviceEndpoint`/`SessionId` have no conversion or shared
+//!   supertype between any pair of them — the separation spec's final
+//!   principle asks for is a compiler-enforced property here, not a
+//!   convention).
+//!
+//! **Spec 02 (`sys-multi-device-identity-architecture`) is now
+//! 204/204 sections reconciled against this crate**, across eleven
+//! rounds. "Reconciled" does not mean "nothing left to improve" — the
+//! honest gaps named throughout this file (§125's schema versioning,
+//! §164's missing fuzz harness, §189's error-taxonomy divergence from
+//! spec's literal suggestion, §191's deferred cross-version migration
+//! tests, the two `PartiallyDone` items above, and several call sites
+//! this crate defines but nothing yet calls — `storage::IdentityStore`,
+//! `transaction`'s type-state machine, all four `client_api` traits)
+//! are real, current, and worth returning to. What 204/204 means is
+//! that every section of the spec has been read, and for each one
+//! either real code or a real, specific reason no code was needed
+//! exists in this crate today.
 //!
 //! Every one of the above is covered by tests that exercise the actual
 //! cryptographic round trip (real Ed25519/X25519 keys, real signatures,
@@ -769,6 +857,7 @@
 //!   against its specific spec text at all — see this comment's own
 //!   opening paragraph).
 
+pub mod algorithm_agility;
 pub mod approval;
 pub mod audit_export;
 pub mod audit_log;
@@ -777,6 +866,7 @@ pub mod capability;
 pub mod certificate;
 pub mod client_api;
 pub mod contact_verification;
+pub mod definition_of_done;
 pub mod destination;
 pub mod device_authorization;
 pub mod device_classes;
@@ -793,6 +883,7 @@ pub mod error_taxonomy;
 pub mod fanout;
 pub mod handshake_integration;
 pub mod identity_backup;
+pub mod identity_lifecycle;
 pub mod integration_tests;
 pub mod invite;
 pub mod link_key;
@@ -801,6 +892,7 @@ pub mod linking_authority;
 pub mod linking_channel;
 pub mod linking_state_machine;
 pub mod local_records;
+pub mod migration_fixtures;
 pub mod namespace;
 pub mod notification_integration;
 pub mod pairing_vs_linking;
@@ -812,6 +904,7 @@ pub mod recovery_state_machine;
 pub mod reuse_patterns;
 pub mod revocation;
 pub mod root_key;
+pub mod root_key_backup;
 pub mod root_rotation;
 pub mod rotation;
 pub mod routing_integration;
@@ -829,6 +922,7 @@ pub mod trust_store;
 pub mod verification_code;
 pub mod wire_limits;
 
+pub use algorithm_agility::{negotiate_algorithm, AlgorithmId};
 pub use approval::{LinkMethod, LinkingApprovalPrompt, VerificationStatus};
 pub use audit_export::{AuditDeviceRow, AuditExport};
 pub use audit_log::{
@@ -851,6 +945,7 @@ pub use contact_verification::{
     DirectoryServiceResponse, IdentityNotification, OfflineVerification, OfflineVerificationMethod,
     TransparencyDeploymentMode, VerificationPolicy, VerifiedContact,
 };
+pub use definition_of_done::{DefinitionOfDoneItem, DoneStatus};
 pub use destination::{
     large_file_default_fan_out_policy, messaging_default_fan_out_policy, resolve_destination,
     spec_70_example_target, Destination, FanOutPolicy, ResolvedDevice, SyncTarget,
@@ -893,6 +988,10 @@ pub use handshake_integration::{
     AuthenticatedCapabilityAdvertisement, HandshakePhase, InvalidHandshakeTransition,
 };
 pub use identity_backup::IdentityBackup;
+pub use identity_lifecycle::{
+    is_a_real_identity_reset, AccountDeletionAction, AccountDeletionPresentation,
+    IdentityResetPresentation, InvalidOffboardingTransition, OffboardingStep, OffboardingTarget,
+};
 pub use invite::DeviceLinkInvite;
 pub use link_key::{EphemeralLinkKeyPair, EphemeralLinkPublicKey};
 pub use link_rate_limits::{
@@ -912,6 +1011,7 @@ pub use namespace::{
     AccountIsolationDomain, ApplicationNamespace, ApplicationScopedResource,
     CrossApplicationIdentityMode, LocalAccountSession,
 };
+pub use namespace::{TenantId, TenantScopedAccountId};
 pub use notification_integration::{
     EndpointScope, PushEndpointRegistry, PushToken, ScopedEndpoint,
 };
@@ -931,6 +1031,7 @@ pub use recovery_state_machine::{InvalidRecoveryTransition, RecoveryState};
 pub use reuse_patterns::MapsToAccount;
 pub use revocation::{revoke_device, verify_revocation, RevocationError};
 pub use root_key::{RootIdentityKey, RootPublicKey};
+pub use root_key_backup::{validate_before_import, BackupImportRejection, RootKeyBackupEnvelope};
 pub use root_rotation::{
     rotate_root_key, verify_root_rotation, CompromisedRootRecoveryStrategy, RootRotation,
     RootRotationError,
