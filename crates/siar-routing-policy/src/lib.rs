@@ -32,7 +32,26 @@
 //!   [`failure`]'s failure classification (§36-39).
 //! - [`cache`] — §41 "Route Cache" with §42's invalidation triggers as
 //!   callable methods (this crate doesn't listen for the underlying OS/
-//!   network events itself).
+//!   network events itself), plus §43 "Route Re-Evaluation"'s targeted
+//!   per-transport invalidation (`RouteCache::invalidate_transport`),
+//!   narrower than §42's already-existing "clear everything."
+//! - [`setup`] — §44 "Transport Setup Cost", §46 "Connection Pool
+//!   Integration": an ordered `SetupCost` per transport, adjusted by a
+//!   caller-reported `ConnectionPoolState`, now a real weighted term in
+//!   [`scoring::DefaultScorer`] (previously that formula had nothing
+//!   for setup cost at all).
+//! - [`security`] — §47 "Peer Session Abstraction", §48 "Security
+//!   Constraints": a smart-constructor `AuthenticatedSession` that can
+//!   only be built by re-checking a candidate's peer against Part 02's
+//!   `TrustedAccountStore`, plus a list-level elimination function —
+//!   defense-in-depth on top of [`resolve`]'s own device-list-stage
+//!   trust filtering.
+//! - [`privacy`] — §49 "Privacy Policy", §50 "Direct vs Relay
+//!   Preference", and §52 "Wi-Fi Direct/Aware"'s setup-threshold gate
+//!   (also covers §53's Bluetooth-pairing side of that same threshold).
+//!   §51/§54/§56 are accounted for in that module's own doc comment
+//!   without needing new functions; §55 "Mesh Forwarding" is named
+//!   there as a real, un-implemented gap rather than papered over.
 //! - [`resolve`] — §16/§17 "Destination Resolution"/"Account-Level
 //!   Routing", the one piece of this crate that reaches into another
 //!   real crate (`siar-identity-multidevice`) rather than staying
@@ -72,19 +91,20 @@
 //!   collection/privacy), §124-127 (simulated routing/property/chaos/
 //!   failover tests beyond this crate's own unit tests) — not
 //!   attempted.
-//! - **Everything from roughly §43 onward that isn't listed above** —
-//!   network transition event *handling* (only cache invalidation
-//!   *hooks* exist, §42), transport setup cost/connection pooling
-//!   (§44-47), security/privacy policy layering (§48-49, §108-116),
-//!   LAN/Wi-Fi/Bluetooth/mesh-specific preference logic (§50-56) beyond
-//!   what [`types::TransportKind`] names, size/deadline/expiry-aware
-//!   routing (§60-62), traffic-type-specific route planning (§69-79),
-//!   battery/thermal/platform integration (§82-90), multi-device route
-//!   aggregation and group/broadcast routing (§171-175), storage-cost
-//!   awareness (§176-178), and the remainder of this 200-section
-//!   document not named above. This is a genuinely small slice of a
-//!   very large spec — see §198 "Definition of Done" in the source
-//!   document for the full bar this crate does not yet clear.
+//! - **Everything from roughly §57 onward that isn't listed above** —
+//!   the security/privacy layering that follows §48-56 more deeply
+//!   (§108-116), size/deadline/expiry-aware routing beyond
+//!   §56's fields (§60-62), traffic-type-specific route planning
+//!   (§69-79), battery/thermal/platform integration (§82-90),
+//!   multi-device route aggregation and group/broadcast routing
+//!   (§171-175), storage-cost awareness (§176-178), and the remainder
+//!   of this 200-section document not named above. §55 "Mesh
+//!   Forwarding"'s richer candidate representation (next hop, route
+//!   utility, hop budget, relay trust policy) also remains
+//!   unimplemented — see [`privacy`]'s own doc comment. This is a
+//!   genuinely small slice of a very large spec — see §198 "Definition
+//!   of Done" in the source document for the full bar this crate does
+//!   not yet clear.
 //!
 //! ## Relationship to the existing `siar-routing` crate
 //!
@@ -107,10 +127,13 @@ pub mod failure;
 pub mod metrics;
 pub mod plan;
 pub mod policy;
+pub mod privacy;
 pub mod requirements;
 pub mod resolve;
 pub mod retry;
 pub mod scoring;
+pub mod security;
+pub mod setup;
 pub mod types;
 
 pub use cache::RouteCache;
@@ -123,10 +146,16 @@ pub use metrics::{
 };
 pub use plan::{plan_route, RoutePlan, RouteStrategy};
 pub use policy::{HysteresisPolicy, PolicyWeights, RoutingPolicy, RoutingPolicyProfile};
+pub use privacy::{
+    direct_preference_bonus, eliminate_privacy_violations, eliminate_unjustified_expensive_setup,
+    justifies_expensive_setup, passes_privacy_policy, PrivacyPolicy,
+};
 pub use requirements::DeliveryRequirements;
 pub use resolve::resolve_destination_devices;
 pub use retry::RetryPolicy;
 pub use scoring::{DefaultScorer, PathScorer, RouteScore, RouteScoreDelta, RoutingContext};
+pub use security::{authorize_candidate, eliminate_untrusted_candidates, AuthenticatedSession};
+pub use setup::{effective_setup_cost, static_setup_cost, ConnectionPoolState, SetupCost};
 pub use types::{
     DeliveryClass, Destination, PathCapabilities, PathId, Priority, RouteHealth, TransportKind,
 };
