@@ -2,6 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::setup::ConnectionPoolState;
+
 /// §13: "Routing must not treat a 20-minute-old bandwidth estimate as
 /// current truth." A bare, unqualified confidence label — this crate
 /// doesn't invent a numeric decay curve (the spec doesn't specify one
@@ -99,7 +101,10 @@ pub enum SignalQuality {
     Excellent,
 }
 
-/// §12.
+/// §12, plus `pool_state` (§46 "Connection Pool Integration") — not
+/// one of §12's own listed fields, but the same kind of caller-
+/// reported live observation the rest of this struct already is, and
+/// [`crate::setup::effective_setup_cost`] needs it from somewhere.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct PathMetrics {
     pub rtt_millis: Option<u32>,
@@ -111,6 +116,7 @@ pub struct PathMetrics {
     pub monetary_cost: NetworkCost,
     pub signal_quality: Option<SignalQuality>,
     pub last_success_millis: Option<u64>,
+    pub pool_state: Option<ConnectionPoolState>,
 }
 
 impl PathMetrics {
@@ -129,6 +135,7 @@ impl PathMetrics {
             monetary_cost: NetworkCost::Moderate,
             signal_quality: None,
             last_success_millis: None,
+            pool_state: None,
         }
     }
 }
