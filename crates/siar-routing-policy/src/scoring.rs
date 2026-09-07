@@ -5,6 +5,7 @@ use crate::candidate::PathCandidate;
 use crate::metrics::{EnergyCost, NetworkCost, StabilityScore};
 use crate::policy::PolicyWeights;
 use crate::requirements::DeliveryRequirements;
+use crate::setup::{effective_setup_cost, SetupCost};
 use crate::types::{DeliveryClass, PathId, RouteHealth, TransportKind};
 
 /// Higher is better. `f64`, not an integer — §155 "Integer Score
@@ -130,6 +131,15 @@ fn cost_unit(c: NetworkCost) -> f64 {
     }
 }
 
+/// §44: higher is better, so a *cheap* setup gets the high end.
+fn setup_cost_unit(c: SetupCost) -> f64 {
+    match c {
+        SetupCost::Cheap => 1.0,
+        SetupCost::Moderate => 0.5,
+        SetupCost::Expensive => 0.0,
+    }
+}
+
 fn reachability_unit(h: RouteHealth) -> f64 {
     match h {
         RouteHealth::Healthy => 1.0,
@@ -157,7 +167,7 @@ impl PathScorer for DefaultScorer {
         &self,
         candidate: &PathCandidate,
         req: &DeliveryRequirements,
-        _context: &RoutingContext,
+        context: &RoutingContext,
     ) -> RouteScore {
         let w = &self.weights;
         let m = &candidate.metrics;
@@ -189,13 +199,36 @@ impl PathScorer for DefaultScorer {
             0.5
         };
 
+        // §44: fold pool state into a setup-cost suitability term —
+        // an Active pooled connection scores like a cheap transport
+        // regardless of what that transport statically costs.
+        let setup_cost_suitability =
+            setup_cost_unit(effective_setup_cost(candidate.transport, m.pool_state));
+
+        // §45 "Existing Connection Preference": this candidate *is*
+        // the context's currently-pinned path, on top of whatever
+        // §34/§35 stickiness in [`crate::plan`] already does with the
+        // same `current_path` field — stickiness protects an already-
+        // chosen primary from being unseated by a marginal gain
+        // elsewhere; this term additionally lets scoring itself notice
+        // "this one's already connected" the very first time several
+        // fresh candidates are compared, before any primary has been
+        // pinned at all.
+        let existing_connection = if context.current_path == Some(candidate.path_id) {
+            1.0
+        } else {
+            0.5
+        };
+
         let total = w.reachability * reachability
             + w.latency * latency_suitability
             + w.bandwidth * bandwidth_suitability
             + w.stability * stability
             + w.energy * energy_suitability
             + w.cost * cost_suitability
-            + w.recent_success * recent_success;
+            + w.recent_success * recent_success
+            + w.setup_cost * setup_cost_suitability
+            + w.existing_connection * existing_connection;
 
         RouteScore(total)
     }
