@@ -114,6 +114,12 @@ mod tests {
             allow_multipath: false,
             expiry_millis: None,
             max_cost: None,
+            // Added to `DeliveryRequirements` by `siar-routing-policy`
+            // for its own §52/§56 work — irrelevant to this bridge's
+            // forwarding-class/TTL derivation, so left at their
+            // no-op defaults rather than exercised by these tests.
+            nearby_session_explicit: false,
+            dtn_replication_budget: None,
         }
     }
 
