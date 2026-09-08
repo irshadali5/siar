@@ -4,9 +4,14 @@ Source spec: `sys-arch/03-transport-routing-policy-engine-architecture.md` — 2
 
 ## Implementation status
 
-**80/200 (40%) sections.**
+**86/200 (43%) sections.**
 
-Partial — Round 1 (§1–§42), Round 2 (§43–§56), and Round 3 (§57–§62) complete (63/63 unit tests).
+Partial — Round 1 (§1–§42), Round 2 (§43–§56), Round 3 (§57–§62), and Round 4 (§63–§68) complete (71/71 unit tests).
+
+### Round 4 (§63–§68) Summary (2026-09-08)
+- **§63–§65 (Queue Architecture, Weighted Fair Scheduling, Backpressure)**: Formally documented in `dispatch.rs` via `siar-protocol-ext`'s `FairScheduler` and `BoundedQueue` integration.
+- **§66 (Per-Transport Queues)**: Implemented `PerTransportDispatchQueue` in `dispatch.rs` maintaining separate `RouteDispatchQueue` instances per `TransportKind` so a stalled transport (e.g. Bluetooth) cannot block healthy transports (e.g. Iroh).
+- **§67 & §68 (Per-Peer & Per-Extension Fairness)**: Implemented generic `RoundRobinFairQueue<K, T>` in `fairness.rs`, instantiated with `DeviceId` for §67 per-peer fairness and `ContentClass` (with newly derived `Hash`) for §68 per-extension fairness.
 
 ### Round 3 (§57–§62) Summary (2026-09-08)
 - **§57 (Delivery Semantics)**: `typing_indicator()` (non-durable, 5s expiry, no DTN) and `file_chunk()` (durable, bulk, DTN/multipath allowed) constructors on `DeliveryRequirements`.
@@ -40,4 +45,4 @@ Partial — Round 1 (§1–§42), Round 2 (§43–§56), and Round 3 (§57–§6
 
 
 ## Note
-Detail above reflects implementation through Round 3 (§57–§62) completed on 2026-09-08. Next target: §63 onward.
+Detail above reflects implementation through Round 4 (§63–§68) completed on 2026-09-08. Next target: §69 onward.
