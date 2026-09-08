@@ -45,7 +45,7 @@ impl Default for OperationId {
 pub struct ByteCount(pub u64);
 
 /// §59, named exactly as listed, in the order listed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ContentClass {
     Control,
     Text,
