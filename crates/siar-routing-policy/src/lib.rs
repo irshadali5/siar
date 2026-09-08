@@ -66,6 +66,20 @@
 //!   plus [`retry::RetryPolicy::allows_attempt_at`], which combines it
 //!   with the existing attempt-count cap. Not its own module — both
 //!   pieces extend types that already existed.
+//! - [`dispatch`] — beyond its existing priority-fair bridge to
+//!   `siar-protocol-ext`, this is also where §63 "Queue Architecture",
+//!   §64 "Weighted Fair Scheduling", and §65 "Backpressure" are
+//!   accounted for (all three are already real one layer down, in
+//!   `siar-protocol-ext`'s own `FairScheduler`/`BoundedQueue` — see
+//!   this module's own doc comment), plus §66 "Per-Transport Queues"
+//!   (`PerTransportDispatchQueue`, new this round): one independent
+//!   dispatch queue per [`types::TransportKind`], so a stalled
+//!   Bluetooth backlog cannot block a healthy Iroh one.
+//! - [`fairness`] — §67 "Per-Peer Fairness", §68 "Per-Extension
+//!   Fairness": one generic `RoundRobinFairQueue<K, T>` covering both,
+//!   composable rather than wired into [`dispatch`] (see that module's
+//!   own doc comment for why: `siar-protocol-ext`'s per-tier queue
+//!   implementation is fixed and not swappable from this crate).
 //! - [`resolve`] — §16/§17 "Destination Resolution"/"Account-Level
 //!   Routing", the one piece of this crate that reaches into another
 //!   real crate (`siar-identity-multidevice`) rather than staying
@@ -105,11 +119,9 @@
 //!   collection/privacy), §124-127 (simulated routing/property/chaos/
 //!   failover tests beyond this crate's own unit tests) — not
 //!   attempted.
-//! - **Everything from roughly §63 onward that isn't listed above** —
-//!   queue architecture/weighted fair scheduling/backpressure beyond
-//!   [`dispatch`]'s priority-tier coverage (§63-68), traffic-type-
-//!   specific route planning (§69-79), battery/thermal/platform
-//!   integration (§82-90), multi-device route aggregation and
+//! - **Everything from roughly §69 onward that isn't listed above** —
+//!   traffic-type-specific route planning (§69-79), battery/thermal/
+//!   platform integration (§82-90), multi-device route aggregation and
 //!   group/broadcast routing (§171-175), storage-cost awareness
 //!   (§176-178), and the remainder of this 200-section document not
 //!   named above. §55 "Mesh Forwarding"'s richer candidate
@@ -141,6 +153,7 @@ pub mod dispatch;
 pub mod error;
 pub mod estimate;
 pub mod failure;
+pub mod fairness;
 pub mod metrics;
 pub mod plan;
 pub mod policy;
