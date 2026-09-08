@@ -92,15 +92,42 @@ doc-warning-free (one broken intra-doc link from `[Routing]` in a doc
 comment caught and escaped), zero regressions in `siar-dtn-bundle`
 (37/37), `siar-identity-multidevice` (251/251), `siar-protocol-ext`
 (115/115) — this round added no new `DeliveryRequirements` fields, so
-no downstream literal-construction fix was needed this time. Next for
-spec 03: §63 onward (queue architecture/weighted fair scheduling
-beyond what `dispatch.rs` already covers).
+no downstream literal-construction fix was needed this time.
+
+**2026-09-08 update (round 4):** §63-68 done, ~80→~86/200.
+Confirmed §63/§64/§65 ("Queue Architecture"/"Weighted Fair
+Scheduling"/"Backpressure") were already real one layer down in
+`siar-protocol-ext`'s `FairScheduler`/`BoundedQueue`, wired through
+this crate's existing `dispatch.rs` bridge — documented in that
+module's own doc comment rather than reimplemented. New this round:
+`PerTransportDispatchQueue` (§66) — one independent
+`RouteDispatchQueue` per `TransportKind`, so a stalled Bluetooth
+backlog genuinely cannot block a healthy Iroh one, which a single
+shared queue could never guarantee. New `fairness.rs` module: one
+generic `RoundRobinFairQueue<K, T>` (bounded per-key, round-robin
+across whichever keys have pending items) instantiated two ways in its
+own tests — keyed by `DeviceId` for §67 "Per-Peer Fairness" and by the
+new `ContentClass` (from round 3's `descriptor.rs`) for §68
+"Per-Extension Fairness" — one primitive closing two spec sections
+rather than writing the same round-robin logic twice. Deliberately not
+wired into `RouteDispatchQueue` itself: `FairScheduler`'s own per-tier
+queue is a fixed plain FIFO owned by `siar-protocol-ext`, not
+swappable from this crate — composable instead, same posture as
+`security.rs`/`privacy.rs`'s own elimination functions. 71/71 tests (up
+from 63), clippy clean, fmt clean, doc-warning-free, zero regressions
+in `siar-dtn-bundle` (37/37), `siar-identity-multidevice` (251/251),
+`siar-protocol-ext` (115/115). This round's diff was delivered as a
+git patch (`git format-patch`/`git diff` against round-3's tree) per
+explicit request, not a tarball — the project now has an actual git
+repo (initialized this round, baseline commit = round 3's state) to
+make that possible going forward. Next for spec 03: §69 onward
+(traffic-type-specific route planning — messaging/files/calls).
 
 | # | Crate | State |
 |---|---|---|
 | 01 | siar-protocol-ext | ✅ **108/108 — spec complete** (final round: §91-92 reconciled, §93-95 error codes/health/recovery, §96-99 scheduler contract/storage/metrics/capability isolation, §100-105 reconciled with notes, §106 honest 16-item Definition of Done self-audit — 4 genuine gaps named, §107-108 reconciled) |
 | 02 | siar-identity-multidevice | ✅ **204/204 — spec complete** (final round, 2026-09-05: §190-204 — algorithm agility/downgrade protection utilities kept deliberately minimal per spec's own "avoid needless abstraction" caution; a root-key backup envelope that structurally cannot carry plaintext key material; backup-import validation run before any local state is touched; identity-reset/account-deletion presentations with required disclaimer fields; a guarded organization-offboarding state machine that operates only on organization-scoped device ids, never a personal AccountId; multi-tenant-safe composite keys; migration-fixture round-trip tests (honestly incomplete pending §125); and an itemized 21-item Definition-of-Done self-audit — **19/21 fully done, 2 honestly `PartiallyDone`** (no-UI-shipped confirmation prompt; property/integration tests exist but no real fuzz harness). Also fixed a genuinely broken intra-doc link left over from an earlier round, dropping this crate's doc-warning count from 4 to 3. 6 new modules (`algorithm_agility.rs`, `root_key_backup.rs`, `identity_lifecycle.rs`, `migration_fixtures.rs`, `definition_of_done.rs`) plus a `namespace.rs` extension, 20 new tests, 251/251 total, clippy clean, zero regressions. Across all 11 rounds this session: 137 new tests written, zero regressions in siar-routing-policy/siar-crypto at any point, every round compiled+tested+clippy+fmt+doc-checked for real against the actual uploaded Cargo.lock with rustc 1.91.1. Real, named, still-open gaps carried forward into future work: §125 schema versioning absent from DeviceCertificate/DeviceDirectory; §164 no cargo-fuzz harness; §191 full cross-version migration tests blocked on §125; `storage::IdentityStore`/`transaction`/all four `client_api` traits have zero real call sites anywhere in this workspace yet; `RootTrustCacheEntry`/`VerifiedContact` overlap not consolidated; §107/§91 have no real BLE/Wi-Fi/NFC transport wiring.) |
-| 03 | siar-routing-policy | ✅ ~80/200 (round 3, 2026-09-08: §57-62 — `OperationDescriptor`/`ContentClass` named exactly per spec, two new `DeliveryRequirements` constructors closing §57's remaining worked examples (`typing_indicator`/`file_chunk`), a real `completion_time ≈ setup + bytes/bandwidth` estimate (§60) feeding a hard deadline-drop elimination (§61), and `has_expired`/`allows_attempt_at` finally putting the long-unused `expiry_millis` field to work (§62); round 2 covered §43-56 — see this crate's own lib.rs/round notes for what's genuinely covered vs merely accounted-for) |
+| 03 | siar-routing-policy | ✅ ~86/200 (round 4, 2026-09-08: §63-68 — confirmed §63-65 "Queue Architecture"/"Weighted Fair Scheduling"/"Backpressure" already real via `siar-protocol-ext`'s `FairScheduler`/`BoundedQueue` (documented, not reimplemented); new `PerTransportDispatchQueue` for §66 (a stalled Bluetooth queue cannot block a healthy Iroh one); new generic `RoundRobinFairQueue<K,T>` covering both §67 per-peer and §68 per-extension fairness with one primitive; rounds 2-3 covered §43-62 — see this crate's own lib.rs/round notes for what's genuinely covered vs merely accounted-for) |
 | 04 | siar-event-log | 🟡 ~10/95 (Phase 2 SQLite blocker below is now STALE — see Tier 3 update) |
 | 05 | siar-blob-manifest | ✅ ~23/210 (+ metadata_encryption.rs) |
 | 06 | siar-dtn-bundle | ✅ ~50/192 |
@@ -234,9 +261,9 @@ only genuine device/emulator/hardware-codec behavior does.
 Spec 01 (`siar-protocol-ext`) is complete (108/108). Spec 02
 (`siar-identity-multidevice`) is now ALSO complete (204/204) as of
 2026-09-05. Spec 03 (`siar-routing-policy`) is in progress, ~80/200 as
-of 2026-09-08 (round 3, §57-62) — the next crate in this project's
+of 2026-09-08 (round 4, §63-68) — the next crate in this project's
 explicit priority order ("work through the 9 Tier 0 core specs first,
-one by one"), continuing with §63 onward. Note there is a real, documented unresolved
+one by one"), continuing with §69 onward. Note there is a real, documented unresolved
 reconciliation question between `siar-routing` (pre-existing,
 next.md-era) and `siar-routing-policy` (this spec's own crate) — see
 that crate's own `lib.rs` for the current state of that question
