@@ -18,9 +18,31 @@
 //! priority-fair dispatch — this module is the missing connective
 //! tissue, not a new abstraction layered on top of either crate's own
 //! design.
+//!
+//! This is also where Part 03's own §63-65 "Queue Architecture"/
+//! "Weighted Fair Scheduling"/"Backpressure" are accounted for: all
+//! three are already real, just one layer down, in
+//! `siar-protocol-ext`'s [`FairScheduler`]/[`siar_protocol_ext::backpressure::BoundedQueue`]
+//! — per-class bounded queues (§63), weighted round-robin with a
+//! strict-bounded Critical override (§64), and real rejection rather
+//! than unbounded growth (§65's `QueueFull`, surfaced unchanged
+//! through [`RouteDispatchQueue::enqueue`]'s own `Result`). §65's
+//! alternative "or async wait" signaling isn't modeled — a caller
+//! gets `QueueFull` and decides for itself whether to wait, retry, or
+//! drop, same as [`siar_protocol_ext::backpressure::BoundedQueue::try_push`]'s
+//! own doc comment already says of its callers.
+//!
+//! §66 "Per-Transport Queues" is new this round:
+//! [`PerTransportDispatchQueue`] keeps one independent
+//! [`RouteDispatchQueue`] (and so one independent [`FairScheduler`])
+//! per [`crate::types::TransportKind`] — a stalled Bluetooth queue
+//! genuinely cannot block a healthy Iroh one, because they aren't the
+//! same queue.
+
+use std::collections::HashMap;
 
 use crate::plan::RoutePlan;
-use crate::types::Priority;
+use crate::types::{Priority, TransportKind};
 use siar_protocol_ext::backpressure::QueueFull;
 use siar_protocol_ext::lifecycle::TrafficPriority;
 use siar_protocol_ext::scheduler::FairScheduler;
@@ -86,6 +108,67 @@ impl<T> RouteDispatchQueue<T> {
     pub fn dispatch_next(&mut self) -> Option<(RoutePlan, T)> {
         self.scheduler.next()
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.scheduler.is_empty()
+    }
+}
+
+/// §66 "Per-Transport Queues": "Maintain separate bounded queues per
+/// transport/session. This prevents stalled Bluetooth from blocking
+/// healthy Iroh." One whole [`RouteDispatchQueue`] — priority tiers
+/// and all — per [`TransportKind`], keyed off each plan's own
+/// `primary.transport` at enqueue time. A caller running one consumer
+/// task per transport calls [`Self::dispatch_next`] with that task's
+/// own transport and never sees another transport's backlog at all,
+/// which is the actual isolation §66 asks for (not just "keep the
+/// data structures separate" but "a stall in one cannot be observed
+/// from the other").
+pub struct PerTransportDispatchQueue<T> {
+    per_tier_capacity: usize,
+    queues: HashMap<TransportKind, RouteDispatchQueue<T>>,
+}
+
+impl<T> PerTransportDispatchQueue<T> {
+    pub fn new(per_tier_capacity: usize) -> Self {
+        Self {
+            per_tier_capacity,
+            queues: HashMap::new(),
+        }
+    }
+
+    /// Routes to `plan.primary.transport`'s own queue, creating it on
+    /// first use — a transport that has never been enqueued to yet
+    /// doesn't pre-allocate a queue (and so doesn't pre-allocate
+    /// [`FairScheduler`]'s own six per-tier [`siar_protocol_ext::backpressure::BoundedQueue`]s)
+    /// until something actually needs it.
+    #[allow(clippy::result_large_err)]
+    pub fn enqueue(
+        &mut self,
+        priority: Priority,
+        plan: RoutePlan,
+        payload: T,
+    ) -> Result<(), ((RoutePlan, T), QueueFull)> {
+        let transport = plan.primary.transport;
+        let capacity = self.per_tier_capacity;
+        self.queues
+            .entry(transport)
+            .or_insert_with(|| RouteDispatchQueue::new(capacity))
+            .enqueue(priority, plan, payload)
+    }
+
+    /// `None` both when `transport` has no queue at all yet (nothing
+    /// has ever been enqueued for it) and when its queue exists but is
+    /// currently empty — indistinguishable to a caller that only cares
+    /// "is there something to dispatch right now," which is the only
+    /// question this method answers.
+    pub fn dispatch_next(&mut self, transport: TransportKind) -> Option<(RoutePlan, T)> {
+        self.queues.get_mut(&transport)?.dispatch_next()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.queues.values().all(RouteDispatchQueue::is_empty)
+    }
 }
 
 #[cfg(test)]
@@ -96,9 +179,13 @@ mod tests {
     use crate::types::{PathCapabilities, PathId, RouteHealth, TransportKind};
 
     fn plan_for(_label: &str) -> RoutePlan {
+        plan_with_transport(TransportKind::IrohDirect)
+    }
+
+    fn plan_with_transport(transport: TransportKind) -> RoutePlan {
         let primary = PathCandidate {
             path_id: PathId::new(),
-            transport: TransportKind::IrohDirect,
+            transport,
             peer: siar_domain::DeviceId::new(),
             endpoint: TransportEndpoint(Vec::new()),
             metrics: crate::metrics::PathMetrics::unknown(),
@@ -168,5 +255,70 @@ mod tests {
             .unwrap_err();
         let ((_, rejected_payload), _) = err;
         assert_eq!(rejected_payload, 2);
+    }
+
+    #[test]
+    fn a_stalled_transports_full_queue_does_not_affect_a_different_transport() {
+        let mut queue: PerTransportDispatchQueue<u32> = PerTransportDispatchQueue::new(1);
+        queue
+            .enqueue(
+                Priority::Normal,
+                plan_with_transport(TransportKind::BluetoothClassic),
+                1,
+            )
+            .unwrap();
+        // Bluetooth's Normal tier is now at capacity (1) — a second
+        // enqueue for the *same* transport is rejected...
+        assert!(queue
+            .enqueue(
+                Priority::Normal,
+                plan_with_transport(TransportKind::BluetoothClassic),
+                2,
+            )
+            .is_err());
+        // ...but Iroh's own queue is untouched and accepts normally.
+        assert!(queue
+            .enqueue(
+                Priority::Normal,
+                plan_with_transport(TransportKind::IrohDirect),
+                3
+            )
+            .is_ok());
+    }
+
+    #[test]
+    fn dispatch_next_only_returns_items_enqueued_for_that_transport() {
+        let mut queue: PerTransportDispatchQueue<&str> = PerTransportDispatchQueue::new(16);
+        queue
+            .enqueue(
+                Priority::Normal,
+                plan_with_transport(TransportKind::IrohDirect),
+                "iroh-item",
+            )
+            .unwrap();
+        queue
+            .enqueue(
+                Priority::Normal,
+                plan_with_transport(TransportKind::BluetoothClassic),
+                "bt-item",
+            )
+            .unwrap();
+
+        let (_, iroh_payload) = queue.dispatch_next(TransportKind::IrohDirect).unwrap();
+        assert_eq!(iroh_payload, "iroh-item");
+        // Iroh's queue is now empty, but Bluetooth's own item is
+        // still there, untouched.
+        assert!(queue.dispatch_next(TransportKind::IrohDirect).is_none());
+        let (_, bt_payload) = queue
+            .dispatch_next(TransportKind::BluetoothClassic)
+            .unwrap();
+        assert_eq!(bt_payload, "bt-item");
+    }
+
+    #[test]
+    fn a_transport_that_was_never_enqueued_to_has_no_queue_and_dispatches_nothing() {
+        let mut queue: PerTransportDispatchQueue<u32> = PerTransportDispatchQueue::new(16);
+        assert!(queue.dispatch_next(TransportKind::Dtn).is_none());
+        assert!(queue.is_empty());
     }
 }
