@@ -17,7 +17,11 @@ use crate::types::{PathCapabilities, PathId, RouteHealth, TransportKind};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TransportEndpoint(pub Vec<u8>);
 
-/// §9.
+/// §9, plus `underlay` (§74 "Underlay Group") — not one of §9's own
+/// listed fields, added this round because §73/§74 need somewhere to
+/// put it; see [`crate::diversity`]'s own doc comment for why it's a
+/// real newtype rather than the bare unit-struct stub §74's own code
+/// block literally shows (`pub struct UnderlayId;`).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PathCandidate {
     pub path_id: PathId,
@@ -27,4 +31,5 @@ pub struct PathCandidate {
     pub metrics: PathMetrics,
     pub capabilities: PathCapabilities,
     pub health: RouteHealth,
+    pub underlay: Option<crate::diversity::UnderlayId>,
 }
