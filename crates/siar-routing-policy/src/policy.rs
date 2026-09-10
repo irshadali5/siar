@@ -4,7 +4,8 @@ use crate::scoring::RouteScoreDelta;
 
 /// The tunable inputs to [`crate::scoring::DefaultScorer`] — §24's
 /// formula terms this crate actually models (see that module's own doc
-/// comment for the two it still doesn't: congestion, failure penalty).
+/// comment for the one it still doesn't: failure penalty — congestion
+/// was closed this round, §79).
 /// Not required to sum to 1.0 — [`crate::scoring::RouteScore`] is a
 /// relative ranking value, not a probability, so un-normalized weights
 /// are fine as long as they're consistent within one comparison.
@@ -30,6 +31,12 @@ pub struct PolicyWeights {
     pub recent_success: f64,
     pub setup_cost: f64,
     pub existing_connection: f64,
+    /// §79 "Congestion Signals" — closes the gap this struct's own doc
+    /// comment has named since Phase 1 ("the two it doesn't: congestion,
+    /// failure penalty"). Only "congestion" is closed this round;
+    /// failure penalty still needs failure history this crate doesn't
+    /// keep.
+    pub congestion: f64,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -80,6 +87,7 @@ impl RoutingPolicyProfile {
                     recent_success: 0.5,
                     setup_cost: 0.5,
                     existing_connection: 0.5,
+                    congestion: 0.5,
                 },
                 hysteresis: HysteresisPolicy {
                     switch_threshold: RouteScoreDelta(0.3),
@@ -107,6 +115,11 @@ impl RoutingPolicyProfile {
                     // would for a one-off tiny message.
                     setup_cost: 0.3,
                     existing_connection: 0.4,
+                    // Congestion is one of the most directly relevant
+                    // signals to a live call of anything in this
+                    // formula — the highest `congestion` weight of any
+                    // profile.
+                    congestion: 0.7,
                 },
                 hysteresis: HysteresisPolicy {
                     switch_threshold: RouteScoreDelta(0.6),
@@ -130,6 +143,7 @@ impl RoutingPolicyProfile {
                     recent_success: 0.8, // "prefer existing connection"
                     setup_cost: 1.3,
                     existing_connection: 1.2,
+                    congestion: 0.3,
                 },
                 hysteresis: HysteresisPolicy {
                     switch_threshold: RouteScoreDelta(0.5),
@@ -153,6 +167,7 @@ impl RoutingPolicyProfile {
                     // toward already-cheap-to-reach paths.
                     setup_cost: 0.6,
                     existing_connection: 0.5,
+                    congestion: 0.3,
                 },
                 hysteresis: HysteresisPolicy {
                     switch_threshold: RouteScoreDelta(0.3),
@@ -175,6 +190,10 @@ impl RoutingPolicyProfile {
                     recent_success: 1.2,
                     setup_cost: 0.4,
                     existing_connection: 0.9,
+                    // Congestion is a leading indicator of the exact
+                    // kind of unreliability this profile most wants to
+                    // avoid — its own highest weight of any profile.
+                    congestion: 0.8,
                 },
                 hysteresis: HysteresisPolicy {
                     switch_threshold: RouteScoreDelta(0.4),
@@ -205,6 +224,11 @@ impl RoutingPolicyProfile {
                     // its named exceptions to the normal threshold.
                     setup_cost: 0.1,
                     existing_connection: 0.3,
+                    // Reachability matters far more than avoiding
+                    // congestion when the traffic is an SOS — lowest
+                    // weight of any profile, deliberately, matching
+                    // this profile's already-lowest `setup_cost`.
+                    congestion: 0.1,
                 },
                 hysteresis: HysteresisPolicy {
                     switch_threshold: RouteScoreDelta(0.2), // switch readily — reachability matters more than stability here
@@ -230,6 +254,10 @@ impl RoutingPolicyProfile {
                     // instead of reachability.
                     setup_cost: 0.2,
                     existing_connection: 0.3,
+                    // Sustained throughput is exactly what congestion
+                    // erodes — a real, if not top, priority for a bulk
+                    // transfer.
+                    congestion: 0.6,
                 },
                 hysteresis: HysteresisPolicy {
                     switch_threshold: RouteScoreDelta(0.3),
