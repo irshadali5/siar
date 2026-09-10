@@ -120,6 +120,9 @@ mod tests {
             // no-op defaults rather than exercised by these tests.
             nearby_session_explicit: false,
             dtn_replication_budget: None,
+            // Same reasoning as the two fields just above: irrelevant
+            // to this bridge's forwarding-class/TTL derivation.
+            allow_roaming_bulk: true,
         }
     }
 
