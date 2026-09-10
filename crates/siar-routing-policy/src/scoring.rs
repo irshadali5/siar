@@ -2,11 +2,11 @@
 //! "Path Scoring Interface".
 
 use crate::candidate::PathCandidate;
-use crate::metrics::{EnergyCost, NetworkCost, StabilityScore};
+use crate::metrics::{CongestionState, EnergyCost, NetworkCost, StabilityScore};
 use crate::policy::PolicyWeights;
 use crate::requirements::DeliveryRequirements;
 use crate::setup::{effective_setup_cost, SetupCost};
-use crate::types::{DeliveryClass, PathId, RouteHealth, TransportKind};
+use crate::types::{DeliveryClass, MeteredState, PathId, RoamingState, RouteHealth, TransportKind};
 
 /// Higher is better. `f64`, not an integer — §155 "Integer Score
 /// Option" names an integer score as an *alternative* worth
@@ -41,6 +41,43 @@ pub trait PathScorer {
     ) -> RouteScore;
 }
 
+/// §82 "Metered Networks": "Do not use one global allow/deny." —
+/// `req.allow_metered` is already that per-traffic-type policy (each
+/// [`DeliveryRequirements`] constructor sets it appropriately: see
+/// [`DeliveryRequirements::file_chunk`]'s own doc comment for §82's
+/// own "block bulk" example, corrected this round to actually do
+/// that). What this function adds is the third state: a candidate
+/// whose metered-ness the platform hasn't reported yet
+/// ([`MeteredState::Unknown`]) is treated the same as
+/// [`MeteredState::Metered`] — the conservative direction for a
+/// signal that exists specifically to protect a user's data plan.
+/// [`MeteredState::Unmetered`] is the only state that bypasses
+/// `allow_metered` entirely, since there's nothing to protect against.
+fn metered_state_permits(state: MeteredState, allow_metered: bool) -> bool {
+    match state {
+        MeteredState::Unmetered => true,
+        MeteredState::Metered | MeteredState::Unknown => allow_metered,
+    }
+}
+
+/// §83 "Roaming": "A user may allow cellular but forbid roaming bulk
+/// transfer" — read literally: the restriction is specifically
+/// roaming *and* bulk together, not roaming in general (an
+/// interactive message while roaming is fine; a large file chunk
+/// while roaming is what §83 actually names as the thing to block).
+/// [`RoamingState::Unknown`] is treated like [`RoamingState::Roaming`]
+/// for the same conservative-default reasoning as
+/// [`metered_state_permits`]'s own `Unknown` case.
+fn permits_roaming_bulk(state: RoamingState, req: &DeliveryRequirements) -> bool {
+    if req.class != DeliveryClass::Bulk {
+        return true;
+    }
+    match state {
+        RoamingState::NotRoaming => true,
+        RoamingState::Roaming | RoamingState::Unknown => req.allow_roaming_bulk,
+    }
+}
+
 /// §25 step 1, applied to one candidate. Real checks against fields
 /// this crate actually has — not every hard constraint the spec
 /// gestures at is checkable without live transport/policy state this
@@ -68,7 +105,10 @@ pub fn passes_hard_constraints(candidate: &PathCandidate, req: &DeliveryRequirem
     if !req.allow_dtn && candidate.transport == TransportKind::Dtn {
         return false;
     }
-    if !req.allow_metered && candidate.capabilities.metered {
+    if !metered_state_permits(candidate.capabilities.metered, req.allow_metered) {
+        return false;
+    }
+    if !permits_roaming_bulk(candidate.capabilities.roaming, req) {
         return false;
     }
     // A missing bandwidth estimate does NOT eliminate the candidate —
@@ -153,11 +193,13 @@ fn reachability_unit(h: RouteHealth) -> f64 {
 /// The default, policy-weighted implementation of §24's conceptual
 /// formula. Deterministic (§123 "Deterministic Scoring" — no RNG, no
 /// wall-clock reads inside this function itself) and real, but a
-/// genuinely partial reading of §24's formula: `congestion` (§79,
-/// unimplemented — no live congestion signal type exists in this crate
-/// yet) and `failure_penalty` beyond what [`RouteHealth`] already
-/// folds into `reachability` are both treated as zero rather than
-/// modeled, named explicitly here rather than silently dropped.
+/// genuinely partial reading of §24's formula: `failure_penalty`
+/// beyond what [`RouteHealth`] already folds into `reachability` is
+/// treated as zero rather than modeled — it would need failure
+/// *history* this crate keeps no record of, named explicitly here
+/// rather than silently dropped. `congestion` (§79) is no longer in
+/// that list as of this round — see `congestion_suitability` in
+/// [`Self::score`]'s own body.
 pub struct DefaultScorer {
     pub weights: PolicyWeights,
 }
@@ -199,8 +241,7 @@ impl PathScorer for DefaultScorer {
             0.5
         };
 
-        // §44: fold pool state into a setup-cost suitability term —
-        // an Active pooled connection scores like a cheap transport
+        // §44: fold pool state into a setup-cost suitability term —        // an Active pooled connection scores like a cheap transport
         // regardless of what that transport statically costs.
         let setup_cost_suitability =
             setup_cost_unit(effective_setup_cost(candidate.transport, m.pool_state));
@@ -220,6 +261,23 @@ impl PathScorer for DefaultScorer {
             0.5
         };
 
+        // §79 "Congestion Signals": higher is better, so "Normal"
+        // scores highest. When `congestion_state` itself is unset,
+        // fall back to reading `retransmission_rate` directly — a
+        // rising retransmission rate is one of the concrete signals
+        // §79 names *for* deriving a congestion state, so a caller
+        // that reports the rate but hasn't (yet) classified it into a
+        // named state shouldn't be treated identically to one with no
+        // signal at all. Both absent falls back to neutral 0.5, same
+        // as every other unknown-metric case in this function.
+        let congestion_suitability = match (m.congestion_state, m.retransmission_rate) {
+            (Some(CongestionState::Normal), _) => 1.0,
+            (Some(CongestionState::Congested), _) => 0.4,
+            (Some(CongestionState::Severe), _) => 0.0,
+            (None, Some(rate)) => unit_interval(1.0 - rate.get()),
+            (None, None) => 0.5,
+        };
+
         let total = w.reachability * reachability
             + w.latency * latency_suitability
             + w.bandwidth * bandwidth_suitability
@@ -228,7 +286,8 @@ impl PathScorer for DefaultScorer {
             + w.cost * cost_suitability
             + w.recent_success * recent_success
             + w.setup_cost * setup_cost_suitability
-            + w.existing_connection * existing_connection;
+            + w.existing_connection * existing_connection
+            + w.congestion * congestion_suitability;
 
         RouteScore(total)
     }
@@ -257,7 +316,8 @@ mod tests {
                 realtime_media: realtime,
                 peer_discovery: true,
                 store_and_forward: false,
-                metered: false,
+                metered: crate::types::MeteredState::Unknown,
+                roaming: crate::types::RoamingState::Unknown,
             },
             health,
             underlay: None,
@@ -297,6 +357,72 @@ mod tests {
     }
 
     #[test]
+    fn an_explicitly_metered_candidate_is_eliminated_when_the_operation_disallows_it() {
+        let mut req = DeliveryRequirements::interactive_message();
+        req.allow_metered = false;
+        let mut metered = candidate(TransportKind::IrohDirect, RouteHealth::Healthy, false);
+        metered.capabilities.metered = MeteredState::Metered;
+        assert!(!passes_hard_constraints(&metered, &req));
+    }
+
+    #[test]
+    fn an_unconfirmed_metered_state_is_treated_as_metered_by_default() {
+        // §82: "unknown" is a real third state, not a free pass — the
+        // conservative default protects a user's data plan when the
+        // platform simply hasn't reported yet.
+        let mut req = DeliveryRequirements::interactive_message();
+        req.allow_metered = false;
+        let mut unknown_metered = candidate(TransportKind::IrohDirect, RouteHealth::Healthy, false);
+        unknown_metered.capabilities.metered = MeteredState::Unknown;
+        assert!(!passes_hard_constraints(&unknown_metered, &req));
+    }
+
+    #[test]
+    fn a_confirmed_unmetered_candidate_always_passes_regardless_of_the_flag() {
+        let mut req = DeliveryRequirements::interactive_message();
+        req.allow_metered = false;
+        let mut unmetered = candidate(TransportKind::IrohDirect, RouteHealth::Healthy, false);
+        unmetered.capabilities.metered = MeteredState::Unmetered;
+        assert!(passes_hard_constraints(&unmetered, &req));
+    }
+
+    #[test]
+    fn roaming_bulk_transfer_is_blocked_by_default() {
+        // §83's own worked example, verbatim: "allow cellular but
+        // forbid roaming bulk transfer."
+        let mut req = DeliveryRequirements::file_chunk(); // Bulk, allow_roaming_bulk: false
+        req.allow_metered = true; // isolate the roaming check from the metered one
+        let mut roaming = candidate(TransportKind::IrohDirect, RouteHealth::Healthy, false);
+        roaming.capabilities.metered = MeteredState::Unmetered;
+        roaming.capabilities.roaming = RoamingState::Roaming;
+        assert!(!passes_hard_constraints(&roaming, &req));
+    }
+
+    #[test]
+    fn roaming_is_fine_for_non_bulk_traffic() {
+        // §83's restriction names "roaming bulk transfer" specifically
+        // — an ordinary interactive message while roaming is not what
+        // it's about.
+        let mut req = DeliveryRequirements::interactive_message(); // Interactive, not Bulk
+        req.allow_metered = true;
+        let mut roaming = candidate(TransportKind::IrohDirect, RouteHealth::Healthy, false);
+        roaming.capabilities.metered = MeteredState::Unmetered;
+        roaming.capabilities.roaming = RoamingState::Roaming;
+        assert!(passes_hard_constraints(&roaming, &req));
+    }
+
+    #[test]
+    fn a_requirement_that_explicitly_allows_roaming_bulk_permits_it() {
+        let mut req = DeliveryRequirements::file_chunk();
+        req.allow_metered = true;
+        req.allow_roaming_bulk = true; // explicit override
+        let mut roaming = candidate(TransportKind::IrohDirect, RouteHealth::Healthy, false);
+        roaming.capabilities.metered = MeteredState::Unmetered;
+        roaming.capabilities.roaming = RoamingState::Roaming;
+        assert!(passes_hard_constraints(&roaming, &req));
+    }
+
+    #[test]
     fn a_healthier_candidate_scores_higher_all_else_equal() {
         let req = DeliveryRequirements::interactive_message();
         let policy = RoutingPolicyProfile::Balanced.policy();
@@ -311,5 +437,45 @@ mod tests {
         let healthy_score = scorer.score(&healthy, &req, &context);
         let degraded_score = scorer.score(&degraded, &req, &context);
         assert!(healthy_score.0 > degraded_score.0);
+    }
+
+    #[test]
+    fn a_severely_congested_candidate_scores_lower_than_a_normal_one() {
+        let req = DeliveryRequirements::interactive_message();
+        let policy = RoutingPolicyProfile::Balanced.policy();
+        let scorer = DefaultScorer {
+            weights: policy.weights,
+        };
+        let context = RoutingContext::default();
+
+        let mut normal = candidate(TransportKind::IrohDirect, RouteHealth::Healthy, false);
+        normal.metrics.congestion_state = Some(CongestionState::Normal);
+        let mut severe = candidate(TransportKind::IrohDirect, RouteHealth::Healthy, false);
+        severe.metrics.congestion_state = Some(CongestionState::Severe);
+
+        let normal_score = scorer.score(&normal, &req, &context);
+        let severe_score = scorer.score(&severe, &req, &context);
+        assert!(normal_score.0 > severe_score.0);
+    }
+
+    #[test]
+    fn a_rising_retransmission_rate_lowers_the_score_even_without_a_named_congestion_state() {
+        let req = DeliveryRequirements::interactive_message();
+        let policy = RoutingPolicyProfile::Balanced.policy();
+        let scorer = DefaultScorer {
+            weights: policy.weights,
+        };
+        let context = RoutingContext::default();
+
+        let mut low_retransmission =
+            candidate(TransportKind::IrohDirect, RouteHealth::Healthy, false);
+        low_retransmission.metrics.retransmission_rate = Some(crate::metrics::Ratio::new(0.01));
+        let mut high_retransmission =
+            candidate(TransportKind::IrohDirect, RouteHealth::Healthy, false);
+        high_retransmission.metrics.retransmission_rate = Some(crate::metrics::Ratio::new(0.5));
+
+        let low_score = scorer.score(&low_retransmission, &req, &context);
+        let high_score = scorer.score(&high_retransmission, &req, &context);
+        assert!(low_score.0 > high_score.0);
     }
 }
