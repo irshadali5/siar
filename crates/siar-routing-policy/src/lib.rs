@@ -102,6 +102,55 @@
 //!   `are_diverse`/`group_by_underlay`, and `most_diverse_fallback`,
 //!   now actually used by [`plan::plan_route`] to pick which fallback
 //!   becomes a `Redundant` plan's replica.
+//! - §75-78 "Multipath Chunk Scheduler"/"Path Collapse"/"Duplicate
+//!   Chunk Handling"/"Realtime Multipath" — read and deliberately not
+//!   implemented; the spec itself names all four as future/optional/
+//!   advanced work, not v1, matching [`plan::plan_route`]'s own doc
+//!   comment on why it never produces `RouteStrategy::Multipath`.
+//! - [`metrics::CongestionState`] plus two new [`metrics::PathMetrics`]
+//!   fields — §79 "Congestion Signals," closing a gap
+//!   [`scoring::DefaultScorer`]'s own doc comment named since this
+//!   crate's first phase ("the two it doesn't: congestion, failure
+//!   penalty"). Only congestion; failure penalty still needs failure
+//!   *history* this crate keeps no record of. "RTT trend" (also named
+//!   by §79) is deliberately not a field — a trend needs samples over
+//!   time this crate has no clock to collect (see this crate's own top
+//!   doc comment on scope).
+//! - [`stability`] — §80 "Route Stability Score":
+//!   `derive_stability_score` turns connection lifetime/failure rate/
+//!   path changes/timeout count into the [`metrics::StabilityScore`]
+//!   [`scoring::DefaultScorer`] already consumes — the half of §80
+//!   that didn't already exist (the other half, "a path with slightly
+//!   worse RTT but much better stability may win," was already true of
+//!   existing per-term weighting).
+//! - §81 "Cold vs Warm Path" — already covered before this round:
+//!   `warm` is exactly [`setup::ConnectionPoolState::Active`], which
+//!   [`setup::effective_setup_cost`] already collapses to
+//!   [`setup::SetupCost::Cheap`] regardless of the transport's own
+//!   static cost (§46, this crate's own round-2 work) — precisely
+//!   §81's "warm path gets a setup-cost advantage."
+//! - [`types::MeteredState`], [`types::RoamingState`] — §82 "Metered
+//!   Networks," §83 "Roaming": real tri-state enums (not the `bool`
+//!   [`candidate::PathCandidate::capabilities`] used to carry), each
+//!   with an `Unknown` case a platform that hasn't reported yet can
+//!   express, wired into [`scoring::passes_hard_constraints`] via two
+//!   new functions that both treat `Unknown` conservatively (same
+//!   direction as [`metrics::Confidence::Stale`]'s own "don't trust
+//!   what you can't currently verify" reasoning) — `Unknown` metered
+//!   state is blocked exactly like confirmed-metered; `Unknown`
+//!   roaming state is blocked for bulk transfers exactly like
+//!   confirmed-roaming. §82's own "do not use one global allow/deny"
+//!   was already satisfied structurally by `allow_metered` being a
+//!   per-`DeliveryRequirements` field, not a crate-wide setting — this
+//!   round's real fix was that [`requirements::DeliveryRequirements::file_chunk`]
+//!   had `allow_metered: true`, contradicting §82's own "block bulk"
+//!   worked example; now corrected, alongside a new
+//!   `allow_roaming_bulk` field for §83's own "allow cellular but
+//!   forbid roaming bulk transfer" example specifically.
+//! - §84 "Battery Cost" — already covered before this round by
+//!   [`metrics::EnergyCost`] (see that type's own doc comment for why
+//!   its variant names differ cosmetically from §84's own list without
+//!   being a gap).
 //! - [`resolve`] — §16/§17 "Destination Resolution"/"Account-Level
 //!   Routing", the one piece of this crate that reaches into another
 //!   real crate (`siar-identity-multidevice`) rather than staying
@@ -141,23 +190,17 @@
 //!   collection/privacy), §124-127 (simulated routing/property/chaos/
 //!   failover tests beyond this crate's own unit tests) — not
 //!   attempted.
-//! - **Everything from roughly §75 onward that isn't listed above** —
-//!   multipath chunk scheduling/path collapse/duplicate-chunk handling/
-//!   realtime multipath (§75-78, all explicitly named by the spec
-//!   itself as future/optional/advanced work, not v1 — matching
-//!   [`plan::plan_route`]'s own doc comment on why it never produces
-//!   `RouteStrategy::Multipath`), congestion signals beyond what
-//!   [`metrics::PathMetrics`] already carries (§79 — `rtt_millis`/
-//!   `packet_loss`/`estimated_bandwidth` already cover RTT/loss/
-//!   throughput; "send queue depth" and "connection congestion" as
-//!   named, distinct signals do not exist yet), battery/thermal/
-//!   platform integration (§82-90), multi-device route aggregation and
-//!   group/broadcast routing (§171-175), storage-cost awareness
-//!   (§176-178), and the remainder of this 200-section document not
-//!   named above. §55 "Mesh Forwarding"'s richer candidate
-//!   representation (next hop, route utility, hop budget, relay trust
-//!   policy) also remains unimplemented — see [`privacy`]'s own doc
-//!   comment. §108-116's deeper security/privacy layering beyond
+//! - **Everything from roughly §85 onward that isn't listed above** —
+//!   battery-aware inputs beyond §84/EnergyCost, background
+//!   restrictions, platform policy integration, path acquisition,
+//!   passive-vs-active candidates, discovery budget (§85-90),
+//!   multi-device route aggregation and group/broadcast routing
+//!   (§171-175), storage-cost awareness (§176-178), and the remainder
+//!   of this 200-section document not named above. §55 "Mesh
+//!   Forwarding"'s richer candidate representation (next hop, route
+//!   utility, hop budget, relay trust policy) also remains
+//!   unimplemented — see [`privacy`]'s own doc comment. §108-116's
+//!   deeper security/privacy layering beyond
 //!   §48/§49's basic version here is likewise untouched. This is a
 //!   genuinely small slice of a very large spec — see §198 "Definition
 //!   of Done" in the source document for the full bar this crate does
@@ -196,6 +239,7 @@ pub mod retry;
 pub mod scoring;
 pub mod security;
 pub mod setup;
+pub mod stability;
 pub mod types;
 
 pub use cache::RouteCache;
@@ -208,8 +252,8 @@ pub use estimate::{
 };
 pub use failure::RouteFailureClass;
 pub use metrics::{
-    Bitrate, Confidence, EnergyCost, MeasuredValue, NetworkCost, PathMetrics, Ratio, SignalQuality,
-    StabilityScore,
+    Bitrate, Confidence, CongestionState, EnergyCost, MeasuredValue, NetworkCost, PathMetrics,
+    Ratio, SignalQuality, StabilityScore,
 };
 pub use plan::{plan_route, RoutePlan, RouteStrategy};
 pub use policy::{HysteresisPolicy, PolicyWeights, RoutingPolicy, RoutingPolicyProfile};
@@ -224,6 +268,8 @@ pub use retry::RetryPolicy;
 pub use scoring::{DefaultScorer, PathScorer, RouteScore, RouteScoreDelta, RoutingContext};
 pub use security::{authorize_candidate, eliminate_untrusted_candidates, AuthenticatedSession};
 pub use setup::{effective_setup_cost, static_setup_cost, ConnectionPoolState, SetupCost};
+pub use stability::derive_stability_score;
 pub use types::{
-    DeliveryClass, Destination, PathCapabilities, PathId, Priority, RouteHealth, TransportKind,
+    DeliveryClass, Destination, MeteredState, PathCapabilities, PathId, Priority, RoamingState,
+    RouteHealth, TransportKind,
 };
