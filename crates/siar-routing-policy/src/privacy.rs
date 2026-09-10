@@ -30,7 +30,7 @@
 
 use crate::candidate::PathCandidate;
 use crate::requirements::DeliveryRequirements;
-use crate::types::{DeliveryClass, Priority, TransportKind};
+use crate::types::{DeliveryClass, MeteredState, Priority, TransportKind};
 
 /// §49: "Privacy policy should be explicit: prefer direct, avoid
 /// relay, avoid metered, [effectively-]nearby-only, internet-only. Do
@@ -68,12 +68,16 @@ fn is_internet_transport(t: TransportKind) -> bool {
 /// [`direct_preference_bonus`] — so it has no place in a hard-constraint
 /// check, same reasoning [`crate::scoring::passes_hard_constraints`]'s
 /// own doc comment already gives for keeping soft preferences out of
-/// that function).
+/// that function). `avoid_metered` treats [`MeteredState::Unknown`]
+/// the same as [`MeteredState::Metered`] — only a candidate the
+/// platform has actually confirmed [`MeteredState::Unmetered`] passes,
+/// matching [`crate::scoring::passes_hard_constraints`]'s own
+/// conservative-default reasoning for the same enum.
 pub fn passes_privacy_policy(candidate: &PathCandidate, policy: &PrivacyPolicy) -> bool {
     if policy.avoid_relay && candidate.transport == TransportKind::IrohRelay {
         return false;
     }
-    if policy.avoid_metered && candidate.capabilities.metered {
+    if policy.avoid_metered && candidate.capabilities.metered != MeteredState::Unmetered {
         return false;
     }
     if policy.nearby_only && !is_nearby_transport(candidate.transport) {
@@ -181,10 +185,10 @@ mod tests {
     use crate::candidate::TransportEndpoint;
     use crate::metrics::{Bitrate, PathMetrics};
     use crate::requirements::DeliveryRequirements;
-    use crate::types::{PathCapabilities, PathId, RouteHealth};
+    use crate::types::{MeteredState, PathCapabilities, PathId, RouteHealth};
     use siar_domain::DeviceId;
 
-    fn candidate(transport: TransportKind, metered: bool) -> PathCandidate {
+    fn candidate(transport: TransportKind, metered: MeteredState) -> PathCandidate {
         PathCandidate {
             path_id: PathId::new(),
             transport,
@@ -199,6 +203,7 @@ mod tests {
                 peer_discovery: false,
                 store_and_forward: false,
                 metered,
+                roaming: crate::types::RoamingState::Unknown,
             },
             health: RouteHealth::Healthy,
             underlay: None,
@@ -212,11 +217,11 @@ mod tests {
             ..Default::default()
         };
         assert!(!passes_privacy_policy(
-            &candidate(TransportKind::IrohRelay, false),
+            &candidate(TransportKind::IrohRelay, MeteredState::Unmetered),
             &policy
         ));
         assert!(passes_privacy_policy(
-            &candidate(TransportKind::IrohDirect, false),
+            &candidate(TransportKind::IrohDirect, MeteredState::Unmetered),
             &policy
         ));
     }
@@ -228,11 +233,11 @@ mod tests {
             ..Default::default()
         };
         assert!(!passes_privacy_policy(
-            &candidate(TransportKind::IrohDirect, false),
+            &candidate(TransportKind::IrohDirect, MeteredState::Unmetered),
             &policy
         ));
         assert!(passes_privacy_policy(
-            &candidate(TransportKind::LocalLan, false),
+            &candidate(TransportKind::LocalLan, MeteredState::Unmetered),
             &policy
         ));
     }
@@ -244,11 +249,11 @@ mod tests {
             ..Default::default()
         };
         assert!(!passes_privacy_policy(
-            &candidate(TransportKind::WifiDirect, false),
+            &candidate(TransportKind::WifiDirect, MeteredState::Unmetered),
             &policy
         ));
         assert!(passes_privacy_policy(
-            &candidate(TransportKind::IrohRelay, false),
+            &candidate(TransportKind::IrohRelay, MeteredState::Unmetered),
             &policy
         ));
     }
@@ -260,7 +265,7 @@ mod tests {
             ..Default::default()
         };
         assert!(!passes_privacy_policy(
-            &candidate(TransportKind::IrohDirect, true),
+            &candidate(TransportKind::IrohDirect, MeteredState::Metered),
             &policy
         ));
     }
@@ -274,7 +279,10 @@ mod tests {
             TransportKind::WifiDirect,
             TransportKind::Dtn,
         ] {
-            assert!(passes_privacy_policy(&candidate(t, true), &policy));
+            assert!(passes_privacy_policy(
+                &candidate(t, MeteredState::Metered),
+                &policy
+            ));
         }
     }
 
@@ -283,8 +291,8 @@ mod tests {
         let req = DeliveryRequirements::interactive_message();
         assert!(!justifies_expensive_setup(&req));
         let candidates = vec![
-            candidate(TransportKind::WifiDirect, false),
-            candidate(TransportKind::IrohDirect, false),
+            candidate(TransportKind::WifiDirect, MeteredState::Unmetered),
+            candidate(TransportKind::IrohDirect, MeteredState::Unmetered),
         ];
         let kept = eliminate_unjustified_expensive_setup(&candidates, &req);
         assert_eq!(kept.len(), 1);
@@ -295,7 +303,10 @@ mod tests {
     fn an_active_call_justifies_wifi_direct_setup() {
         let req = DeliveryRequirements::realtime_media();
         assert!(justifies_expensive_setup(&req));
-        let candidates = vec![candidate(TransportKind::WifiDirect, false)];
+        let candidates = vec![candidate(
+            TransportKind::WifiDirect,
+            MeteredState::Unmetered,
+        )];
         assert_eq!(
             eliminate_unjustified_expensive_setup(&candidates, &req).len(),
             1
