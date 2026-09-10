@@ -351,7 +351,7 @@ mod tests {
         };
 
         let plan =
-            crate::plan::plan_route(&candidates, &req, &policy, &scorer, None, None).unwrap();
+            crate::plan::plan_route(&candidates, &req, &policy, &scorer, None, None, 0).unwrap();
         let diagnostics = diagnose(&plan, &candidates, &req, None);
 
         assert_eq!(diagnostics.chosen_path_id, primary.path_id);
