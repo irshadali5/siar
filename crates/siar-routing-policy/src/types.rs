@@ -43,6 +43,31 @@ pub enum TransportKind {
     Dtn,
 }
 
+/// §82 "Metered Networks": "Platform reports: metered, unmetered,
+/// unknown." A plain `bool` can't express the third state — this
+/// crate has established elsewhere (`Confidence`, `StabilityScore`,
+/// `EnergyCost`) that a small named enum beats a primitive whenever
+/// the domain genuinely has more than two values, and "the platform
+/// hasn't told us yet" is a real, distinct value here, not a
+/// rounding-error edge case.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MeteredState {
+    Metered,
+    Unmetered,
+    Unknown,
+}
+
+/// §83 "Roaming": "Represent separately if platform provides it" —
+/// separately from [`MeteredState`], because the two are independent
+/// in practice (a plan can be unmetered while roaming, or metered
+/// while not). `Unknown` for the same reason as [`MeteredState`]'s own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RoamingState {
+    Roaming,
+    NotRoaming,
+    Unknown,
+}
+
 /// §11. "This prevents impossible route choices" — checked as a hard
 /// constraint in [`crate::scoring::eliminate_hard_constraint_violations`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -53,7 +78,8 @@ pub struct PathCapabilities {
     pub realtime_media: bool,
     pub peer_discovery: bool,
     pub store_and_forward: bool,
-    pub metered: bool,
+    pub metered: MeteredState,
+    pub roaming: RoamingState,
 }
 
 /// §14. "Health is derived from: recent failures, timeouts, connection
