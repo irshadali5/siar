@@ -208,8 +208,27 @@
 //!   margin, no priority override); battery-saver blocks unless
 //!   `Priority::Critical`, the same override shape
 //!   [`privacy::justifies_expensive_setup`] (§52) already uses.
-//! - **Everything from roughly §91 onward that isn't listed above** —
-//!   (§171-175), storage-cost awareness (§176-178), and the remainder
+//! - [`resilience`] — §91 "Route Escalation Ladder"
+//!   (`EscalationStage`/`escalation_stage_of`, built entirely from
+//!   existing types: [`acquisition::CandidateState`] for stages 1-2,
+//!   [`setup::SetupCost`] for the 3-vs-4 split, `TransportKind::Dtn`
+//!   for stage 5), §92 "Timeout by Stage"
+//!   (`timeout_millis_for_stage`), §93 "Hedged Requests"
+//!   (`HedgePolicy`/`hedge_policy_for`, now a real
+//!   [`plan::RouteStrategy::Hedged`] [`plan::plan_route`] can actually
+//!   produce, with `RoutePlan::hedge_delay_millis` carrying the
+//!   delay), §95 "Route Diagnostics" (`RouteDiagnostics`/`diagnose`,
+//!   scoped to the two rejection checks this crate can run without an
+//!   external policy object — see that module's own doc comment for
+//!   why security/privacy checks aren't included). §94
+//!   "Deduplication Requirement" has no function of its own — see
+//!   [`descriptor::OperationId`]'s own doc comment, extended this
+//!   round to cover `Hedged` alongside `Redundant`. §96 "Path
+//!   Visualization" is explicitly deferred by the spec itself to
+//!   "Part 18" — nothing to implement yet.
+//! - **Everything from roughly §97 onward that isn't listed above** —
+//!   §97-107 and beyond, multi-device route aggregation and
+//!   group/broadcast routing (§171-175), storage-cost awareness (§176-178), and the remainder
 //!   of this 200-section document not named above. §55 "Mesh
 //!   Forwarding"'s richer candidate representation (next hop, route
 //!   utility, hop budget, relay trust policy) also remains
@@ -251,6 +270,7 @@ pub mod policy;
 pub mod privacy;
 pub mod quality;
 pub mod requirements;
+pub mod resilience;
 pub mod resolve;
 pub mod retry;
 pub mod scoring;
@@ -280,6 +300,10 @@ pub use privacy::{
 };
 pub use quality::{quality_signal_for, PathQualitySignal};
 pub use requirements::DeliveryRequirements;
+pub use resilience::{
+    diagnose, escalation_stage_of, hedge_policy_for, should_escalate_beyond,
+    timeout_millis_for_stage, EscalationStage, HedgePolicy, RejectionReason, RouteDiagnostics,
+};
 pub use resolve::resolve_destination_devices;
 pub use retry::RetryPolicy;
 pub use scoring::{DefaultScorer, PathScorer, RouteScore, RouteScoreDelta, RoutingContext};
