@@ -82,9 +82,11 @@ mod tests {
                 store_and_forward: false,
                 metered: crate::types::MeteredState::Unknown,
                 roaming: crate::types::RoamingState::Unknown,
+                requires_foreground: false,
             },
             health: RouteHealth::Healthy,
             underlay: None,
+            state: crate::acquisition::CandidateState::Active,
         };
 
         let signal = quality_signal_for(&candidate);
