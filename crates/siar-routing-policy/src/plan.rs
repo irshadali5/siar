@@ -133,8 +133,27 @@ pub fn plan_route(
         RouteStrategy::Failover
     };
 
+    // §73 "Path Diversity": prefer a replica on a different underlay
+    // from the primary rather than blindly taking the next-best-scored
+    // fallback (which could easily share the primary's own underlay —
+    // see [`crate::diversity`]'s own doc comment for §73's worked
+    // "same Wi-Fi path twice" non-example).
     let replicas = if strategy == RouteStrategy::Redundant {
-        fallbacks.drain(..1.min(fallbacks.len())).collect()
+        match crate::diversity::most_diverse_fallback(&primary, &fallbacks) {
+            Some(chosen) => {
+                let chosen_id = chosen.path_id;
+                let index = fallbacks
+                    .iter()
+                    .position(|f| f.path_id == chosen_id)
+                    .expect("most_diverse_fallback only ever returns an item from `fallbacks`");
+                vec![fallbacks.remove(index)]
+            }
+            // Unreachable in practice — `strategy == Redundant` is
+            // only ever set when `!fallbacks.is_empty()` — but handled
+            // rather than assumed, per this crate's usual "don't panic
+            // on a state that shouldn't happen" posture.
+            None => vec![],
+        }
     } else {
         vec![]
     };
@@ -174,6 +193,7 @@ mod tests {
                 metered: false,
             },
             health,
+            underlay: None,
         }
     }
 
@@ -268,5 +288,132 @@ mod tests {
         let plan = plan_route(&candidates, &req, &policy, &scorer, None).unwrap();
         assert_eq!(plan.strategy, RouteStrategy::Redundant);
         assert_eq!(plan.replicas.len(), 1);
+    }
+
+    #[test]
+    fn redundant_strategy_prefers_an_underlay_diverse_replica_over_the_next_best_score() {
+        // Three eligible candidates: a healthy primary, a same-
+        // underlay fallback that would score marginally higher than
+        // the diverse one (via `recent_success`), and an underlay-
+        // diverse fallback that scores lower but is what §73 actually
+        // wants picked as the replica.
+        let underlay = crate::diversity::UnderlayId::new();
+        let mut primary = candidate(TransportKind::IrohDirect, RouteHealth::Healthy);
+        primary.underlay = Some(underlay);
+
+        let mut same_underlay_but_better_scored =
+            candidate(TransportKind::IrohRelay, RouteHealth::Healthy);
+        same_underlay_but_better_scored.underlay = Some(underlay);
+        same_underlay_but_better_scored.metrics.last_success_millis = Some(1_000);
+
+        let diverse_but_lower_scored = candidate(TransportKind::MeshRelay, RouteHealth::Healthy);
+
+        let candidates = vec![
+            primary.clone(),
+            same_underlay_but_better_scored.clone(),
+            diverse_but_lower_scored.clone(),
+        ];
+        let req = DeliveryRequirements::emergency();
+        let policy = RoutingPolicyProfile::Emergency.policy();
+        let scorer = DefaultScorer {
+            weights: policy.weights,
+        };
+
+        let plan = plan_route(&candidates, &req, &policy, &scorer, Some(&primary)).unwrap();
+        assert_eq!(plan.strategy, RouteStrategy::Redundant);
+        assert_eq!(plan.replicas.len(), 1);
+        assert_eq!(plan.replicas[0].path_id, diverse_but_lower_scored.path_id);
+        // The same-underlay candidate is still available as an
+        // ordinary fallback — diversity only changes which one
+        // becomes the *replica*, it doesn't discard the other.
+        assert!(plan
+            .fallbacks
+            .iter()
+            .any(|f| f.path_id == same_underlay_but_better_scored.path_id));
+    }
+
+    /// §69 "Route Planning for Messaging": "1. existing authenticated
+    /// direct route... 5. DTN," with the spec's own caveat "actual
+    /// ordering depends on policy and measured health" taken
+    /// seriously rather than glossed over — this only asserts the
+    /// parts of that ordering [`plan_route`]'s existing scoring
+    /// robustly produces without fabricated measurements: an
+    /// already-connected candidate stays primary (already covered by
+    /// this file's own stickiness tests, not re-tested here), and a
+    /// cheap-setup transport (LAN) outranks an expensive-setup one
+    /// (Bluetooth pairing) when nothing else differs, straight from
+    /// §44's `setup_cost` term. Where a candidate would land relative
+    /// to DTN specifically depends on real measured latency/reliability
+    /// data this crate has no basis to invent for a healthy-but-
+    /// otherwise-unmeasured DTN candidate — see [`crate::setup::static_setup_cost`]'s
+    /// own doc comment on why DTN's *setup* cost being cheap doesn't by
+    /// itself say anything about whether it's a *good* choice for
+    /// message delivery right now.
+    #[test]
+    fn messaging_prefers_cheap_setup_transports_when_all_else_is_equal() {
+        let lan = candidate(TransportKind::LocalLan, RouteHealth::Healthy);
+        let bluetooth_pairing = candidate(TransportKind::BluetoothClassic, RouteHealth::Healthy);
+        let candidates = vec![bluetooth_pairing.clone(), lan.clone()];
+        let req = DeliveryRequirements::interactive_message();
+        let policy = RoutingPolicyProfile::Balanced.policy();
+        let scorer = DefaultScorer {
+            weights: policy.weights,
+        };
+
+        let plan = plan_route(&candidates, &req, &policy, &scorer, None).unwrap();
+        assert_eq!(plan.primary.transport, TransportKind::LocalLan);
+    }
+
+    /// §70 "Route Planning for Files": "1. high-bandwidth direct...
+    /// 5. Bluetooth only if small/allowed." Using realistic
+    /// differentiated measurements (the kind a real caller would
+    /// actually supply for a file transfer, unlike §69's test above)
+    /// rather than leaving metrics unknown — with a `min_bandwidth`
+    /// floor actually set, both §44's setup-cost term and §24's own
+    /// bandwidth-suitability term agree: a high-bandwidth direct path
+    /// beats a low-bandwidth, expensive-setup Bluetooth one.
+    #[test]
+    fn files_prefer_high_bandwidth_direct_over_small_only_bluetooth() {
+        let mut high_bandwidth_direct = candidate(TransportKind::IrohDirect, RouteHealth::Healthy);
+        high_bandwidth_direct.metrics.estimated_bandwidth =
+            Some(crate::metrics::Bitrate(50_000_000));
+
+        let mut bluetooth_small_only =
+            candidate(TransportKind::BluetoothClassic, RouteHealth::Healthy);
+        bluetooth_small_only.metrics.estimated_bandwidth = Some(crate::metrics::Bitrate(500_000));
+
+        let candidates = vec![bluetooth_small_only.clone(), high_bandwidth_direct.clone()];
+        let mut req = DeliveryRequirements::file_chunk();
+        req.min_bandwidth = Some(crate::metrics::Bitrate(5_000_000));
+        let policy = RoutingPolicyProfile::BulkTransfer.policy();
+        let scorer = DefaultScorer {
+            weights: policy.weights,
+        };
+
+        let plan = plan_route(&candidates, &req, &policy, &scorer, None).unwrap();
+        assert_eq!(plan.primary.transport, TransportKind::IrohDirect);
+    }
+
+    /// §72 "Route Planning for Emergency": "SOS may choose: Internet
+    /// direct + nearby mesh copy... depending on connectivity." This
+    /// verifies the Emergency policy profile actually produces exactly
+    /// that composition — an Internet-direct primary plus a mesh
+    /// replica — when both are available, rather than asserting it as
+    /// prose without checking.
+    #[test]
+    fn emergency_composes_internet_direct_plus_a_nearby_mesh_replica() {
+        let internet_direct = candidate(TransportKind::IrohDirect, RouteHealth::Healthy);
+        let nearby_mesh = candidate(TransportKind::MeshRelay, RouteHealth::Healthy);
+        let candidates = vec![internet_direct.clone(), nearby_mesh.clone()];
+        let req = DeliveryRequirements::emergency();
+        let policy = RoutingPolicyProfile::Emergency.policy();
+        let scorer = DefaultScorer {
+            weights: policy.weights,
+        };
+
+        let plan = plan_route(&candidates, &req, &policy, &scorer, None).unwrap();
+        assert_eq!(plan.strategy, RouteStrategy::Redundant);
+        assert_eq!(plan.primary.transport, TransportKind::IrohDirect);
+        assert_eq!(plan.replicas[0].transport, TransportKind::MeshRelay);
     }
 }
