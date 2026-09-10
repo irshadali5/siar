@@ -3,6 +3,7 @@
 
 use crate::candidate::PathCandidate;
 use crate::metrics::{CongestionState, EnergyCost, NetworkCost, StabilityScore};
+use crate::platform::DeviceState;
 use crate::policy::PolicyWeights;
 use crate::requirements::DeliveryRequirements;
 use crate::setup::{effective_setup_cost, SetupCost};
@@ -25,10 +26,14 @@ pub struct RouteScoreDelta(pub f64);
 /// (§34-35) and existing-connection preference (§45) to work — this
 /// crate has no live connection pool of its own to introspect (see its
 /// top doc comment on scope), so `current_path` is supplied by
-/// whatever caller does have one.
+/// whatever caller does have one. `device` (§85, this round) is the
+/// same idea applied to battery/thermal/foreground state — optional,
+/// and `None` changes nothing (see [`crate::discovery::discovery_permitted`]
+/// for the one place it's actually read).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct RoutingContext {
     pub current_path: Option<PathId>,
+    pub device: Option<DeviceState>,
 }
 
 /// §26.
@@ -287,7 +292,8 @@ impl PathScorer for DefaultScorer {
             + w.recent_success * recent_success
             + w.setup_cost * setup_cost_suitability
             + w.existing_connection * existing_connection
-            + w.congestion * congestion_suitability;
+            + w.congestion * congestion_suitability
+            + w.candidate_state * crate::acquisition::candidate_state_unit(candidate.state);
 
         RouteScore(total)
     }
@@ -318,9 +324,11 @@ mod tests {
                 store_and_forward: false,
                 metered: crate::types::MeteredState::Unknown,
                 roaming: crate::types::RoamingState::Unknown,
+                requires_foreground: false,
             },
             health,
             underlay: None,
+            state: crate::acquisition::CandidateState::Active,
         }
     }
 
