@@ -226,9 +226,37 @@
 //!   round to cover `Hedged` alongside `Redundant`. §96 "Path
 //!   Visualization" is explicitly deferred by the spec itself to
 //!   "Part 18" — nothing to implement yet.
-//! - **Everything from roughly §97 onward that isn't listed above** —
-//!   §97-107 and beyond, multi-device route aggregation and
-//!   group/broadcast routing (§171-175), storage-cost awareness (§176-178), and the remainder
+//! - [`explain`] — §97 "Route Decision Explainability"
+//!   (`RouteReason`, transcribed exactly, now a real
+//!   `RoutePlan::reason` field), §98 "Metrics Collection"
+//!   (`RouteMetricEvent`/`metric_events_for` — event classification
+//!   only, no counters kept, since this crate has no history of its
+//!   own; see that module's own doc comment for which of §98's named
+//!   metrics have no equivalent here at all, and why), §100 "Routing
+//!   State Store" (`RouteHint`/`hint_from_plan`), §101 "Startup
+//!   Behavior" (`revalidate_hint` — the one step of that section's own
+//!   three-step startup sequence that's actually this crate's to
+//!   implement). §99 "Privacy of Metrics" needed no function: it's
+//!   enforced by construction, not filtering — see [`explain::RouteMetricEvent`]'s
+//!   own doc comment for why there's no field to redact in the first
+//!   place. §102 "Suspend/Resume" turned out to already be covered
+//!   entirely by composing existing pieces: [`cache::RouteCache::invalidate_all`]
+//!   (invalidate stale metrics), a fresh [`plan::plan_route`] call
+//!   (reassess active sessions), [`retry::RetryPolicy`] (retry durable
+//!   operations), and [`discovery::DiscoveryBudget`]'s own cooldown
+//!   (do not immediately launch every discovery mechanism) — nothing
+//!   new needed. §103 "Process Death" is likewise already true by
+//!   design, not by this round's addition — see [`plan::RoutePlan`]'s
+//!   own doc comment for why it deliberately has no
+//!   `Serialize`/`Deserialize` derive. §104 "Route Plan Lifetime" adds
+//!   real fields: `RoutePlan::created_at_millis`/`valid_until_millis`,
+//!   the latter derived from `RoutingPolicy::hysteresis.minimum_hold_millis`
+//!   rather than a new invented duration.
+//! - **Everything from roughly §105 onward that isn't listed above** —
+//!   §105-107 (Path Authorization, Extension Capability Integration,
+//!   Device Capability Integration) and beyond, multi-device route
+//!   aggregation and group/broadcast routing (§171-175), storage-cost
+//!   awareness (§176-178), and the remainder
 //!   of this 200-section document not named above. §55 "Mesh
 //!   Forwarding"'s richer candidate representation (next hop, route
 //!   utility, hop budget, relay trust policy) also remains
@@ -261,6 +289,7 @@ pub mod dispatch;
 pub mod diversity;
 pub mod error;
 pub mod estimate;
+pub mod explain;
 pub mod failure;
 pub mod fairness;
 pub mod metrics;
@@ -286,6 +315,10 @@ pub use diversity::{are_diverse, group_by_underlay, most_diverse_fallback, Under
 pub use error::RoutingError;
 pub use estimate::{
     completion_time_millis, eliminate_deadline_exceeding_candidates, exceeds_deadline,
+};
+pub use explain::{
+    hint_from_plan, infer_reason, metric_events_for, revalidate_hint, RouteHint, RouteMetricEvent,
+    RouteReason,
 };
 pub use failure::RouteFailureClass;
 pub use metrics::{
