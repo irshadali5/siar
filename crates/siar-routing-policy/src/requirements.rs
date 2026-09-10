@@ -6,17 +6,24 @@ use crate::metrics::{Bitrate, NetworkCost};
 use crate::types::{DeliveryClass, Priority};
 
 /// §6. Every field the spec lists, in the order it lists them, plus
-/// two fields added this round for spec text that names a signal this
-/// struct didn't yet carry: `nearby_session_explicit` is §52 "Wi-Fi
-/// Direct/Aware"'s third threshold case ("explicit nearby session") —
-/// the other two (large transfer, active call) are already derivable
-/// from `min_bandwidth`/`class` without a new field, but "the caller
-/// explicitly asked for a nearby session" has no existing signal to
-/// reuse. `dtn_replication_budget` is §56 "DTN Routing Boundary"'s own
-/// enumeration of what the routing engine (not the DTN subsystem)
-/// decides — "DTN allowed? priority? expiry? **replication budget**?"
-/// — the first three already exist (`allow_dtn`, `priority`,
-/// `expiry_millis`); this is the one that didn't.
+/// three fields added in later rounds for spec text that names a
+/// signal this struct didn't yet carry: `nearby_session_explicit` is
+/// §52 "Wi-Fi Direct/Aware"'s third threshold case ("explicit nearby
+/// session") — the other two (large transfer, active call) are
+/// already derivable from `min_bandwidth`/`class` without a new
+/// field, but "the caller explicitly asked for a nearby session" has
+/// no existing signal to reuse. `dtn_replication_budget` is §56 "DTN
+/// Routing Boundary"'s own enumeration of what the routing engine
+/// (not the DTN subsystem) decides — "DTN allowed? priority? expiry?
+/// **replication budget**?" — the first three already exist
+/// (`allow_dtn`, `priority`, `expiry_millis`); this is the one that
+/// didn't. `allow_roaming_bulk` is §83 "Roaming"'s own named example,
+/// read literally: "a user may allow cellular but forbid **roaming
+/// bulk transfer**" is a restriction on roaming *and* bulk together
+/// (see `permits_roaming_bulk` in `scoring.rs`), not roaming in
+/// general — `allow_metered` already covers the general cellular-data
+/// case, and conflating the two would lose §83's own "represent
+/// separately" instruction.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DeliveryRequirements {
     pub class: DeliveryClass,
@@ -33,6 +40,7 @@ pub struct DeliveryRequirements {
     pub max_cost: Option<NetworkCost>,
     pub nearby_session_explicit: bool,
     pub dtn_replication_budget: Option<u8>,
+    pub allow_roaming_bulk: bool,
 }
 
 impl DeliveryRequirements {
@@ -60,6 +68,7 @@ impl DeliveryRequirements {
             // own without needing the explicit-nearby-session flag.
             nearby_session_explicit: false,
             dtn_replication_budget: None,
+            allow_roaming_bulk: true,
         }
     }
 
@@ -82,6 +91,7 @@ impl DeliveryRequirements {
             max_cost: None,
             nearby_session_explicit: false,
             dtn_replication_budget: None,
+            allow_roaming_bulk: true,
         }
     }
 
@@ -109,6 +119,7 @@ impl DeliveryRequirements {
             // per this crate's general no-unbounded-anything posture;
             // see [`crate::retry`]'s own bounded-backoff reasoning).
             dtn_replication_budget: Some(8),
+            allow_roaming_bulk: true, // §33: emergency ignores this restriction — it's DelayTolerant, not Bulk, so §83's gate never even applies
         }
     }
 
@@ -136,6 +147,7 @@ impl DeliveryRequirements {
             max_cost: None,
             nearby_session_explicit: false,
             dtn_replication_budget: None,
+            allow_roaming_bulk: true,
         }
     }
 
@@ -150,7 +162,12 @@ impl DeliveryRequirements {
     /// "Multipath Chunk Scheduler" 's own premise — file chunks are
     /// exactly the traffic multipath chunk scheduling exists for —
     /// though that scheduler itself remains out of this crate's scope
-    /// (see this crate's own top doc comment).
+    /// (see this crate's own top doc comment). `allow_metered: false`
+    /// and `allow_roaming_bulk: false` are corrected this round to
+    /// match §82/§83's own worked examples exactly ("block bulk" on
+    /// metered, "forbid roaming bulk transfer") — an earlier version
+    /// of this constructor set `allow_metered: true`, which was wrong
+    /// against the very section this constructor exists to satisfy.
     pub fn file_chunk() -> Self {
         Self {
             class: DeliveryClass::Bulk,
@@ -158,7 +175,7 @@ impl DeliveryRequirements {
             max_latency_millis: None,
             min_bandwidth: None,
             durable: true,
-            allow_metered: true,
+            allow_metered: false,
             allow_relay: true,
             allow_bluetooth: true,
             allow_dtn: true,
@@ -167,6 +184,7 @@ impl DeliveryRequirements {
             max_cost: None,
             nearby_session_explicit: false,
             dtn_replication_budget: None,
+            allow_roaming_bulk: false,
         }
     }
 
@@ -206,6 +224,10 @@ mod tests {
         assert!(req.durable); // "resumable"
         assert_eq!(req.class, DeliveryClass::Bulk);
         assert!(req.allow_dtn); // "optional" = permitted, not forced
+                                // §82/§83's own worked examples, corrected this round: "block
+                                // bulk" on metered, "forbid roaming bulk transfer."
+        assert!(!req.allow_metered);
+        assert!(!req.allow_roaming_bulk);
     }
 
     #[test]
