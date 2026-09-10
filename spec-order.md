@@ -71,7 +71,7 @@ SIAR cannot be written in strictly numerical order (`01 → 33` followed by `ui-
 |:---:|:---|:---:|:---:|:---|:---|
 | **1.1** | [`01-protocol-extension-system-architecture.md`](sys-arch/01-protocol-extension-system-architecture.md) | **108** | **108/108 (100%)** | [`siar-protocol-ext`](crates/siar-protocol-ext), [`siar-protocol`](crates/siar-protocol) | Envelope framing, version negotiation, capability headers |
 | **1.2** | [`02-multi-device-identity-architecture.md`](sys-arch/02-multi-device-identity-architecture.md) | **204** | **204/204 (100%)** | [`siar-identity-multidevice`](crates/siar-identity-multidevice), [`siar-crypto`](crates/siar-crypto) | Ed25519 root key, device certs, revocation, algorithm agility (§190–§204 complete) |
-| **1.3** | [`03-transport-routing-policy-engine-architecture.md`](sys-arch/03-transport-routing-policy-engine-architecture.md) | **200** | **92/200 (46%)** | [`siar-routing-policy`](crates/siar-routing-policy), [`siar-connectivity`](crates/siar-connectivity) | **ACTIVE FOCUS**: Dynamic link scoring, path diversity (underlay), quality signals. Next: §75+ |
+| **1.3** | [`03-transport-routing-policy-engine-architecture.md`](sys-arch/03-transport-routing-policy-engine-architecture.md) | **200** | **101/200 (51%)** | [`siar-routing-policy`](crates/siar-routing-policy), [`siar-connectivity`](crates/siar-connectivity) | **ACTIVE FOCUS**: Congestion signals, stability score, metered/roaming tri-state. Next: §85+ |
 | **1.4** | [`04-offline-event-log-architecture.md`](sys-arch/04-offline-event-log-architecture.md) | **95** | 10/95 (11%) | [`siar-event-log`](crates/siar-event-log), [`siar-storage`](crates/siar-storage) | Crash-resilient transactional outbox, append-only log |
 | **1.5** | [`05-robust-file-blob-subsystem-architecture.md`](sys-arch/05-robust-file-blob-subsystem-architecture.md) | **210** | 23/210 (11%) | [`siar-blob-manifest`](crates/siar-blob-manifest), [`siar-storage`](crates/siar-storage) | BLAKE3 chunking, deduplication, resumable blob transfers |
 | **1.6** | [`06-dtn-store-carry-forward-architecture.md`](sys-arch/06-dtn-store-carry-forward-architecture.md) | **192** | 50/192 (26%) | [`siar-dtn-bundle`](crates/siar-dtn-bundle), [`siar-dtn`](crates/siar-dtn) | Delay-tolerant bundle store, epidemic forwarding, anti-entropy |
@@ -183,7 +183,7 @@ SIAR cannot be written in strictly numerical order (`01 → 33` followed by `ui-
 |:---:|:---|:---:|:---:|:---:|
 | 01 | [Protocol Extension System](sys-arch/01-protocol-extension-system-architecture.md) | 108 | 108/108 (100%) | Milestone 1 |
 | 02 | [Multi-Device Identity](sys-arch/02-multi-device-identity-architecture.md) | 204 | 204/204 (100%) | Milestone 1 |
-| 03 | [Transport & Routing Policy](sys-arch/03-transport-routing-policy-engine-architecture.md) | 200 | 92/200 (46%) | Milestone 1 (Active) |
+| 03 | [Transport & Routing Policy](sys-arch/03-transport-routing-policy-engine-architecture.md) | 200 | 101/200 (51%) | Milestone 1 (Active) |
 | 04 | [Offline Event Log](sys-arch/04-offline-event-log-architecture.md) | 95 | 10/95 (11%) | Milestone 1 |
 | 05 | [Robust File Blob Subsystem](sys-arch/05-robust-file-blob-subsystem-architecture.md) | 210 | 23/210 (11%) | Milestone 1 |
 | 06 | [DTN Store-Carry-Forward](sys-arch/06-dtn-store-carry-forward-architecture.md) | 192 | 50/192 (26%) | Milestone 1 |
@@ -257,7 +257,7 @@ SIAR cannot be written in strictly numerical order (`01 → 33` followed by `ui-
 Current Milestone: MILESTONE 1 (Tier 0: Headless Core Engine)
 Current Document : Spec 03 (03-transport-routing-policy-engine-architecture.md)
 Target Crate     : crates/siar-routing-policy
-Current Status   : 92 / 200 Sections (46% Reconciled, 82/82 Tests Passing)
+Current Status   : 101 / 200 Sections (51% Reconciled, 95/95 Tests Passing)
 ```
 
 1. **Completed Batches**:
@@ -268,8 +268,9 @@ Current Status   : 92 / 200 Sections (46% Reconciled, 82/82 Tests Passing)
    * Spec 03 Round 3: §57–§62 (40%)
    * Spec 03 Round 4: §63–§68 (43%)
    * Spec 03 Round 5: §69–§74 (46%)
-2. **Next Batch (Round 6)**: Implement sections **§75 onward** of Spec 03:
-   * Multipath Chunk Scheduler (§75)
-   * File Transfer Retry & Resumable State (§76–§77)
-   * Route Planning for Calls & Call Path Selection (§78–§81)
-   * Platform Power & Battery Level Awareness (§82–§84)
+   * Spec 03 Round 6: §75–§84 (51%)
+2. **Next Batch (Round 7)**: Implement sections **§85 onward** of Spec 03:
+   * Battery-Aware Inputs & BatteryLevelClass/DeviceState (§85)
+   * Background Restrictions & Foreground Isolation (§86)
+   * Platform Policy Integration & Radio Availability (§87)
+   * Discovery Budget & Throttling (§88–§90)
