@@ -80,6 +80,28 @@
 //!   composable rather than wired into [`dispatch`] (see that module's
 //!   own doc comment for why: `siar-protocol-ext`'s per-tier queue
 //!   implementation is fixed and not swappable from this crate).
+//! - §69 "Route Planning for Messaging", §70 "Route Planning for
+//!   Files", §72 "Route Planning for Emergency" — verified, not
+//!   separately implemented: this crate's own `plan` module test suite
+//!   has integration tests
+//!   checking that [`plan::plan_route`]'s existing scoring actually
+//!   produces the compositions/orderings these sections describe
+//!   (where that's robustly true without fabricated measurements —
+//!   see those tests' own doc comments for the one case, DTN's
+//!   relative position in §69, this crate deliberately does *not*
+//!   claim to get right without real caller-supplied data).
+//! - [`quality`] — §71 "Route Planning for Calls"'s "routing supplies
+//!   path quality signals to media adaptation" half (the video →
+//!   audio → voice-message fallback ladder itself is a media-
+//!   adaptation decision, out of this crate's scope; the *selection*
+//!   half of §71 was already covered by existing scoring before this
+//!   round).
+//! - [`diversity`] — §73 "Path Diversity", §74 "Underlay Group": a
+//!   real `UnderlayId` newtype (not the bare unit-struct stub §74's
+//!   own code block shows — see this module's own doc comment),
+//!   `are_diverse`/`group_by_underlay`, and `most_diverse_fallback`,
+//!   now actually used by [`plan::plan_route`] to pick which fallback
+//!   becomes a `Redundant` plan's replica.
 //! - [`resolve`] — §16/§17 "Destination Resolution"/"Account-Level
 //!   Routing", the one piece of this crate that reaches into another
 //!   real crate (`siar-identity-multidevice`) rather than staying
@@ -119,16 +141,24 @@
 //!   collection/privacy), §124-127 (simulated routing/property/chaos/
 //!   failover tests beyond this crate's own unit tests) — not
 //!   attempted.
-//! - **Everything from roughly §69 onward that isn't listed above** —
-//!   traffic-type-specific route planning (§69-79), battery/thermal/
+//! - **Everything from roughly §75 onward that isn't listed above** —
+//!   multipath chunk scheduling/path collapse/duplicate-chunk handling/
+//!   realtime multipath (§75-78, all explicitly named by the spec
+//!   itself as future/optional/advanced work, not v1 — matching
+//!   [`plan::plan_route`]'s own doc comment on why it never produces
+//!   `RouteStrategy::Multipath`), congestion signals beyond what
+//!   [`metrics::PathMetrics`] already carries (§79 — `rtt_millis`/
+//!   `packet_loss`/`estimated_bandwidth` already cover RTT/loss/
+//!   throughput; "send queue depth" and "connection congestion" as
+//!   named, distinct signals do not exist yet), battery/thermal/
 //!   platform integration (§82-90), multi-device route aggregation and
 //!   group/broadcast routing (§171-175), storage-cost awareness
 //!   (§176-178), and the remainder of this 200-section document not
 //!   named above. §55 "Mesh Forwarding"'s richer candidate
 //!   representation (next hop, route utility, hop budget, relay trust
 //!   policy) also remains unimplemented — see [`privacy`]'s own doc
-//!   comment; §108-116's deeper security/privacy layering beyond §48/
-//!   §49's basic version here is likewise untouched. This is a
+//!   comment. §108-116's deeper security/privacy layering beyond
+//!   §48/§49's basic version here is likewise untouched. This is a
 //!   genuinely small slice of a very large spec — see §198 "Definition
 //!   of Done" in the source document for the full bar this crate does
 //!   not yet clear.
@@ -150,6 +180,7 @@ pub mod cache;
 pub mod candidate;
 pub mod descriptor;
 pub mod dispatch;
+pub mod diversity;
 pub mod error;
 pub mod estimate;
 pub mod failure;
@@ -158,6 +189,7 @@ pub mod metrics;
 pub mod plan;
 pub mod policy;
 pub mod privacy;
+pub mod quality;
 pub mod requirements;
 pub mod resolve;
 pub mod retry;
@@ -169,6 +201,7 @@ pub mod types;
 pub use cache::RouteCache;
 pub use candidate::{PathCandidate, TransportEndpoint};
 pub use descriptor::{ByteCount, ContentClass, OperationDescriptor, OperationId};
+pub use diversity::{are_diverse, group_by_underlay, most_diverse_fallback, UnderlayId};
 pub use error::RoutingError;
 pub use estimate::{
     completion_time_millis, eliminate_deadline_exceeding_candidates, exceeds_deadline,
@@ -184,6 +217,7 @@ pub use privacy::{
     direct_preference_bonus, eliminate_privacy_violations, eliminate_unjustified_expensive_setup,
     justifies_expensive_setup, passes_privacy_policy, PrivacyPolicy,
 };
+pub use quality::{quality_signal_for, PathQualitySignal};
 pub use requirements::DeliveryRequirements;
 pub use resolve::resolve_destination_devices;
 pub use retry::RetryPolicy;
