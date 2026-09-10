@@ -39,6 +39,13 @@ pub struct RoutePlan {
 /// worked example ("Iroh direct stable, Wi-Fi briefly appears — do not
 /// churn"); pass `None` for a fresh destination with no existing route.
 ///
+/// `device` (§85, this round) is the same idea for battery/thermal/
+/// foreground state — `None` when a caller has none to report, which
+/// changes nothing (see [`crate::acquisition::eliminate_background_restricted`],
+/// the only place this function actually reads it, for what `None`
+/// resolves to: every candidate kept, since nothing is confirmed
+/// backgrounded).
+///
 /// §22 "Multipath Route" is explicitly named in the spec as "a later
 /// optimization, not required for v1 routing" — this function never
 /// produces [`RouteStrategy::Multipath`] for that reason, not because
@@ -49,14 +56,23 @@ pub fn plan_route(
     policy: &RoutingPolicy,
     scorer: &dyn PathScorer,
     current: Option<&PathCandidate>,
+    device: Option<&crate::platform::DeviceState>,
 ) -> Result<RoutePlan, RoutingError> {
-    let eligible = eliminate_hard_constraint_violations(candidates, req);
+    let mut eligible = eliminate_hard_constraint_violations(candidates, req);
+    // §86 "Background Restrictions": a second, independent elimination
+    // pass — kept separate from `eliminate_hard_constraint_violations`
+    // rather than folded into it, the same "composable, not baked into
+    // the core hard-constraint function" posture already used for
+    // [`crate::privacy::eliminate_privacy_violations`]/
+    // [`crate::security::eliminate_untrusted_candidates`].
+    eligible.retain(|c| crate::acquisition::is_currently_usable(c, device));
     if eligible.is_empty() {
         return Err(RoutingError::NoEligibleCandidates);
     }
 
     let context = RoutingContext {
         current_path: current.map(|c| c.path_id),
+        device: device.copied(),
     };
     let mut scored: Vec<(&PathCandidate, RouteScore)> = eligible
         .into_iter()
@@ -192,9 +208,11 @@ mod tests {
                 store_and_forward: false,
                 metered: crate::types::MeteredState::Unknown,
                 roaming: crate::types::RoamingState::Unknown,
+                requires_foreground: false,
             },
             health,
             underlay: None,
+            state: crate::acquisition::CandidateState::Active,
         }
     }
 
@@ -207,7 +225,7 @@ mod tests {
             weights: policy.weights,
         };
 
-        let plan = plan_route(&candidates, &req, &policy, &scorer, None).unwrap();
+        let plan = plan_route(&candidates, &req, &policy, &scorer, None, None).unwrap();
         assert_eq!(plan.strategy, RouteStrategy::Single);
         assert!(plan.fallbacks.is_empty());
     }
@@ -223,7 +241,7 @@ mod tests {
             weights: policy.weights,
         };
 
-        let plan = plan_route(&candidates, &req, &policy, &scorer, None).unwrap();
+        let plan = plan_route(&candidates, &req, &policy, &scorer, None, None).unwrap();
         assert_eq!(plan.strategy, RouteStrategy::Failover);
         assert_eq!(plan.primary.path_id, healthy.path_id);
         assert_eq!(plan.fallbacks.len(), 1);
@@ -238,7 +256,7 @@ mod tests {
             weights: policy.weights,
         };
 
-        let result = plan_route(&[unreachable], &req, &policy, &scorer, None);
+        let result = plan_route(&[unreachable], &req, &policy, &scorer, None, None);
         assert!(matches!(result, Err(RoutingError::NoEligibleCandidates)));
     }
 
@@ -256,7 +274,7 @@ mod tests {
             weights: policy.weights,
         };
 
-        let plan = plan_route(&candidates, &req, &policy, &scorer, Some(&current)).unwrap();
+        let plan = plan_route(&candidates, &req, &policy, &scorer, Some(&current), None).unwrap();
         assert_eq!(plan.primary.path_id, current.path_id);
     }
 
@@ -271,7 +289,7 @@ mod tests {
             weights: policy.weights,
         };
 
-        let plan = plan_route(&candidates, &req, &policy, &scorer, Some(&current)).unwrap();
+        let plan = plan_route(&candidates, &req, &policy, &scorer, Some(&current), None).unwrap();
         assert_eq!(plan.primary.path_id, healthy_alternative.path_id);
     }
 
@@ -286,7 +304,7 @@ mod tests {
             weights: policy.weights,
         };
 
-        let plan = plan_route(&candidates, &req, &policy, &scorer, None).unwrap();
+        let plan = plan_route(&candidates, &req, &policy, &scorer, None, None).unwrap();
         assert_eq!(plan.strategy, RouteStrategy::Redundant);
         assert_eq!(plan.replicas.len(), 1);
     }
@@ -320,7 +338,7 @@ mod tests {
             weights: policy.weights,
         };
 
-        let plan = plan_route(&candidates, &req, &policy, &scorer, Some(&primary)).unwrap();
+        let plan = plan_route(&candidates, &req, &policy, &scorer, Some(&primary), None).unwrap();
         assert_eq!(plan.strategy, RouteStrategy::Redundant);
         assert_eq!(plan.replicas.len(), 1);
         assert_eq!(plan.replicas[0].path_id, diverse_but_lower_scored.path_id);
@@ -361,7 +379,7 @@ mod tests {
             weights: policy.weights,
         };
 
-        let plan = plan_route(&candidates, &req, &policy, &scorer, None).unwrap();
+        let plan = plan_route(&candidates, &req, &policy, &scorer, None, None).unwrap();
         assert_eq!(plan.primary.transport, TransportKind::LocalLan);
     }
 
@@ -395,7 +413,7 @@ mod tests {
             weights: policy.weights,
         };
 
-        let plan = plan_route(&candidates, &req, &policy, &scorer, None).unwrap();
+        let plan = plan_route(&candidates, &req, &policy, &scorer, None, None).unwrap();
         assert_eq!(plan.primary.transport, TransportKind::IrohDirect);
     }
 
@@ -416,7 +434,7 @@ mod tests {
             weights: policy.weights,
         };
 
-        let plan = plan_route(&candidates, &req, &policy, &scorer, None).unwrap();
+        let plan = plan_route(&candidates, &req, &policy, &scorer, None, None).unwrap();
         assert_eq!(plan.strategy, RouteStrategy::Redundant);
         assert_eq!(plan.primary.transport, TransportKind::IrohDirect);
         assert_eq!(plan.replicas[0].transport, TransportKind::MeshRelay);
