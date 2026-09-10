@@ -204,9 +204,11 @@ mod tests {
                 store_and_forward: false,
                 metered,
                 roaming: crate::types::RoamingState::Unknown,
+                requires_foreground: false,
             },
             health: RouteHealth::Healthy,
             underlay: None,
+            state: crate::acquisition::CandidateState::Active,
         }
     }
 
