@@ -201,6 +201,7 @@ mod tests {
                 metered,
             },
             health: RouteHealth::Healthy,
+            underlay: None,
         }
     }
 
