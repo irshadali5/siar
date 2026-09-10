@@ -4,9 +4,16 @@ Source spec: `sys-arch/03-transport-routing-policy-engine-architecture.md` — 2
 
 ## Implementation status
 
-**113/200 (57%) sections.**
+**121/200 (61%) sections.**
 
-Partial — Round 1 (§1–§42), Round 2 (§43–§56), Round 3 (§57–§62), Round 4 (§63–§68), Round 5 (§69–§74), Round 6 (§75–§84), Round 7 (§85–§90), and Round 8 (§91–§96) complete (119/119 unit tests).
+Partial — Round 1 (§1–§42), Round 2 (§43–§56), Round 3 (§57–§62), Round 4 (§63–§68), Round 5 (§69–§74), Round 6 (§75–§84), Round 7 (§85–§90), Round 8 (§91–§96), and Round 9 (§97–§104) complete (130/130 unit tests).
+
+### Round 9 (§97–§104) Summary (2026-09-10)
+- **§97 (Route Decision Explainability)**: Implemented `RouteReason` and `infer_reason` in `explain.rs`; added `reason: RouteReason` to `RoutePlan`.
+- **§98 & §99 (Metrics Collection & Privacy of Metrics)**: Implemented `RouteMetricEvent` and `metric_events_for`; verified privacy-by-construction (no peer identity, IP, or location fields).
+- **§100 & §101 (Routing State Store & Startup Behavior)**: Implemented `RouteHint`, `hint_from_plan`, and `revalidate_hint` (verifies persisted hint against live healthy candidates).
+- **§102 & §103 (Suspend/Resume & Process Death)**: Documented composition of `RouteCache::invalidate_all`, fresh `plan_route`, `RetryPolicy`, and `DiscoveryBudget` for suspend/resume; noted deliberate lack of `Serialize` on `RoutePlan` to prevent stale plan restoration.
+- **§104 (Route Plan Lifetime)**: Added `created_at_millis` and `valid_until_millis` to `RoutePlan`, derived from `now_millis` parameter and `policy.hysteresis.minimum_hold_millis`.
 
 ### Round 8 (§91–§96) Summary (2026-09-08)
 - **§91 & §92 (Route Escalation Ladder & Timeout by Stage)**: Implemented `EscalationStage` (`ActiveConnections`, `KnownEndpoints`, `LightweightDiscovery`, `ExpensiveProximitySetup`, `DtnFallback`) in `resilience.rs`; implemented `escalation_stage_of` by composing `CandidateState`, `SetupCost`, and `TransportKind::Dtn`; implemented `timeout_millis_for_stage` and `should_escalate_beyond`.
