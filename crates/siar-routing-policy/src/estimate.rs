@@ -119,6 +119,7 @@ mod tests {
                 metered: false,
             },
             health: RouteHealth::Healthy,
+            underlay: None,
         }
     }
 
