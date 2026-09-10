@@ -120,6 +120,7 @@ mod tests {
                 metered: false,
             },
             health: RouteHealth::Healthy,
+            underlay: None,
         };
         RoutePlan {
             primary: candidate,
