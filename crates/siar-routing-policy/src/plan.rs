@@ -10,23 +10,27 @@ use crate::scoring::{
 };
 use crate::types::{DeliveryClass, Priority};
 
-/// §18's strategies.
+/// §18's strategies, plus `Hedged` (§93 "Hedged Requests", round 8).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RouteStrategy {
     Single,
     Failover,
     Redundant,
+    Hedged,
     Multipath,
     DelayTolerant,
 }
 
-/// §18.
+/// §18, plus `hedge_delay_millis` (§93) — `Some` only when `strategy
+/// == Hedged`; see [`crate::resilience::hedge_policy_for`] for how
+/// it's derived.
 #[derive(Debug, Clone)]
 pub struct RoutePlan {
     pub primary: PathCandidate,
     pub fallbacks: Vec<PathCandidate>,
     pub replicas: Vec<PathCandidate>,
     pub strategy: RouteStrategy,
+    pub hedge_delay_millis: Option<u64>,
 }
 
 /// §25's four-step evaluation order, run end to end:
@@ -131,23 +135,29 @@ pub fn plan_route(
 
     // §21 "Redundant Route": "Use redundancy sparingly" — reserved for
     // the spec's own named case, Critical + DelayTolerant (its SOS
-    // example). Everything else with at least one fallback is
-    // Failover (§20); a lone eligible candidate is Single (§19). §23
-    // DelayTolerant is not separately produced here since a DTN
-    // candidate competes on its own merits via [`crate::scoring`]
+    // example). §93 "Hedged Requests" comes next in priority once
+    // Redundant doesn't apply — a caller-configured hedge preference
+    // for a fallback-having plan; everything else with at least one
+    // fallback is Failover (§20); a lone eligible candidate is Single
+    // (§19). §23 DelayTolerant is not separately produced here since a
+    // DTN candidate competes on its own merits via [`crate::scoring`]
     // rather than this function special-casing "no other path exists"
     // — a real DTN candidate reaching this function already passed
     // §25 step 1 like any other transport.
+    let hedge = crate::resilience::hedge_policy_for(req);
     let strategy = if req.priority == Priority::Critical
         && req.class == DeliveryClass::DelayTolerant
         && !fallbacks.is_empty()
     {
         RouteStrategy::Redundant
+    } else if hedge.should_hedge && !fallbacks.is_empty() {
+        RouteStrategy::Hedged
     } else if fallbacks.is_empty() {
         RouteStrategy::Single
     } else {
         RouteStrategy::Failover
     };
+    let hedge_delay_millis = (strategy == RouteStrategy::Hedged).then_some(hedge.delay_millis);
 
     // §73 "Path Diversity": prefer a replica on a different underlay
     // from the primary rather than blindly taking the next-best-scored
@@ -179,6 +189,7 @@ pub fn plan_route(
         fallbacks,
         replicas,
         strategy,
+        hedge_delay_millis,
     })
 }
 
@@ -245,6 +256,51 @@ mod tests {
         assert_eq!(plan.strategy, RouteStrategy::Failover);
         assert_eq!(plan.primary.path_id, healthy.path_id);
         assert_eq!(plan.fallbacks.len(), 1);
+    }
+
+    /// §93 "Hedged Requests" wired end to end: a high-priority
+    /// interactive message with a fallback available should produce
+    /// `Hedged`, not `Failover`, and carry a real delay.
+    #[test]
+    fn a_high_priority_message_with_a_fallback_produces_a_hedged_plan() {
+        let healthy = candidate(TransportKind::IrohDirect, RouteHealth::Healthy);
+        let also_healthy = candidate(TransportKind::LocalLan, RouteHealth::Healthy);
+        let candidates = vec![healthy.clone(), also_healthy.clone()];
+        let mut req = DeliveryRequirements::interactive_message();
+        req.priority = Priority::High;
+        let policy = RoutingPolicyProfile::Balanced.policy();
+        let scorer = DefaultScorer {
+            weights: policy.weights,
+        };
+
+        let plan = plan_route(&candidates, &req, &policy, &scorer, None, None).unwrap();
+        assert_eq!(plan.strategy, RouteStrategy::Hedged);
+        assert_eq!(plan.hedge_delay_millis, Some(150)); // no deadline stated -> default
+        assert_eq!(plan.fallbacks.len(), 1);
+    }
+
+    /// A file transfer never hedges even at Critical priority (§93's
+    /// own "potentially expensive: use selectively" caveat) — this
+    /// stays `Failover`, and `hedge_delay_millis` stays `None`.
+    #[test]
+    fn a_critical_bulk_transfer_does_not_hedge() {
+        let mut healthy = candidate(TransportKind::IrohDirect, RouteHealth::Healthy);
+        healthy.capabilities.metered = crate::types::MeteredState::Unmetered;
+        healthy.capabilities.roaming = crate::types::RoamingState::NotRoaming;
+        let mut also_healthy = candidate(TransportKind::LocalLan, RouteHealth::Healthy);
+        also_healthy.capabilities.metered = crate::types::MeteredState::Unmetered;
+        also_healthy.capabilities.roaming = crate::types::RoamingState::NotRoaming;
+        let candidates = vec![healthy.clone(), also_healthy.clone()];
+        let mut req = DeliveryRequirements::file_chunk();
+        req.priority = Priority::Critical;
+        let policy = RoutingPolicyProfile::BulkTransfer.policy();
+        let scorer = DefaultScorer {
+            weights: policy.weights,
+        };
+
+        let plan = plan_route(&candidates, &req, &policy, &scorer, None, None).unwrap();
+        assert_eq!(plan.strategy, RouteStrategy::Failover);
+        assert_eq!(plan.hedge_delay_millis, None);
     }
 
     #[test]
