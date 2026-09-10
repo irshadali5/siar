@@ -23,7 +23,19 @@ pub enum RouteStrategy {
 
 /// §18, plus `hedge_delay_millis` (§93) — `Some` only when `strategy
 /// == Hedged`; see [`crate::resilience::hedge_policy_for`] for how
-/// it's derived.
+/// it's derived — and `reason` (§97), `created_at_millis`/
+/// `valid_until_millis` (§104), all three new this round.
+///
+/// §103 "Process Death": "Routing correctness must not depend on
+/// in-memory plans... After restart: reconstruct route from current
+/// conditions." This type deliberately does **not** derive
+/// `Serialize`/`Deserialize` — unlike almost every other value type in
+/// this crate — so there is no way to persist a `RoutePlan` itself
+/// using this crate's own types; a caller can only ever get a fresh
+/// one from [`plan_route`]. That's not an oversight this round is
+/// filling in; it's the one place in this crate where the *absence*
+/// of a capability is the actual §103 compliance, so it's named here
+/// rather than silently left unremarked.
 #[derive(Debug, Clone)]
 pub struct RoutePlan {
     pub primary: PathCandidate,
@@ -31,6 +43,9 @@ pub struct RoutePlan {
     pub replicas: Vec<PathCandidate>,
     pub strategy: RouteStrategy,
     pub hedge_delay_millis: Option<u64>,
+    pub reason: crate::explain::RouteReason,
+    pub created_at_millis: u64,
+    pub valid_until_millis: u64,
 }
 
 /// §25's four-step evaluation order, run end to end:
@@ -54,6 +69,18 @@ pub struct RoutePlan {
 /// optimization, not required for v1 routing" — this function never
 /// produces [`RouteStrategy::Multipath`] for that reason, not because
 /// the type doesn't exist.
+///
+/// `now_millis` (§104, this round) sets `RoutePlan::created_at_millis`
+/// and derives `valid_until_millis` — this crate has no clock of its
+/// own (see its top doc comment on scope), so "now" is always a
+/// caller-supplied parameter, the same convention every other
+/// timestamp in this crate already follows (e.g.
+/// [`crate::cache::RouteCache::get`]'s own `now_millis`). The validity
+/// window reuses `policy.hysteresis.minimum_hold_millis` rather than
+/// inventing a separate per-profile duration — that field already
+/// represents "how long this decision should be trusted before
+/// re-evaluating" for stickiness purposes (§34-35), which is the same
+/// question §104 is asking.
 pub fn plan_route(
     candidates: &[PathCandidate],
     req: &DeliveryRequirements,
@@ -61,6 +88,7 @@ pub fn plan_route(
     scorer: &dyn PathScorer,
     current: Option<&PathCandidate>,
     device: Option<&crate::platform::DeviceState>,
+    now_millis: u64,
 ) -> Result<RoutePlan, RoutingError> {
     let mut eligible = eliminate_hard_constraint_violations(candidates, req);
     // §86 "Background Restrictions": a second, independent elimination
@@ -184,12 +212,17 @@ pub fn plan_route(
         vec![]
     };
 
+    let reason = crate::explain::infer_reason(&primary, &context, strategy);
+
     Ok(RoutePlan {
         primary,
         fallbacks,
         replicas,
         strategy,
         hedge_delay_millis,
+        reason,
+        created_at_millis: now_millis,
+        valid_until_millis: now_millis + policy.hysteresis.minimum_hold_millis,
     })
 }
 
@@ -236,7 +269,7 @@ mod tests {
             weights: policy.weights,
         };
 
-        let plan = plan_route(&candidates, &req, &policy, &scorer, None, None).unwrap();
+        let plan = plan_route(&candidates, &req, &policy, &scorer, None, None, 0).unwrap();
         assert_eq!(plan.strategy, RouteStrategy::Single);
         assert!(plan.fallbacks.is_empty());
     }
@@ -252,10 +285,32 @@ mod tests {
             weights: policy.weights,
         };
 
-        let plan = plan_route(&candidates, &req, &policy, &scorer, None, None).unwrap();
+        let plan = plan_route(&candidates, &req, &policy, &scorer, None, None, 0).unwrap();
         assert_eq!(plan.strategy, RouteStrategy::Failover);
         assert_eq!(plan.primary.path_id, healthy.path_id);
         assert_eq!(plan.fallbacks.len(), 1);
+    }
+
+    /// §104 "Route Plan Lifetime" wired end to end: `created_at_millis`
+    /// echoes the caller-supplied `now_millis`, and `valid_until_millis`
+    /// is derived from the policy's own hysteresis window rather than
+    /// being left for the caller to guess at.
+    #[test]
+    fn route_plan_lifetime_is_derived_from_the_policys_own_hysteresis_window() {
+        let healthy = candidate(TransportKind::IrohDirect, RouteHealth::Healthy);
+        let candidates = vec![healthy];
+        let req = DeliveryRequirements::interactive_message();
+        let policy = RoutingPolicyProfile::Balanced.policy();
+        let scorer = DefaultScorer {
+            weights: policy.weights,
+        };
+
+        let plan = plan_route(&candidates, &req, &policy, &scorer, None, None, 10_000).unwrap();
+        assert_eq!(plan.created_at_millis, 10_000);
+        assert_eq!(
+            plan.valid_until_millis,
+            10_000 + policy.hysteresis.minimum_hold_millis
+        );
     }
 
     /// §93 "Hedged Requests" wired end to end: a high-priority
@@ -273,7 +328,7 @@ mod tests {
             weights: policy.weights,
         };
 
-        let plan = plan_route(&candidates, &req, &policy, &scorer, None, None).unwrap();
+        let plan = plan_route(&candidates, &req, &policy, &scorer, None, None, 0).unwrap();
         assert_eq!(plan.strategy, RouteStrategy::Hedged);
         assert_eq!(plan.hedge_delay_millis, Some(150)); // no deadline stated -> default
         assert_eq!(plan.fallbacks.len(), 1);
@@ -298,7 +353,7 @@ mod tests {
             weights: policy.weights,
         };
 
-        let plan = plan_route(&candidates, &req, &policy, &scorer, None, None).unwrap();
+        let plan = plan_route(&candidates, &req, &policy, &scorer, None, None, 0).unwrap();
         assert_eq!(plan.strategy, RouteStrategy::Failover);
         assert_eq!(plan.hedge_delay_millis, None);
     }
@@ -312,7 +367,7 @@ mod tests {
             weights: policy.weights,
         };
 
-        let result = plan_route(&[unreachable], &req, &policy, &scorer, None, None);
+        let result = plan_route(&[unreachable], &req, &policy, &scorer, None, None, 0);
         assert!(matches!(result, Err(RoutingError::NoEligibleCandidates)));
     }
 
@@ -330,7 +385,8 @@ mod tests {
             weights: policy.weights,
         };
 
-        let plan = plan_route(&candidates, &req, &policy, &scorer, Some(&current), None).unwrap();
+        let plan =
+            plan_route(&candidates, &req, &policy, &scorer, Some(&current), None, 0).unwrap();
         assert_eq!(plan.primary.path_id, current.path_id);
     }
 
@@ -345,7 +401,8 @@ mod tests {
             weights: policy.weights,
         };
 
-        let plan = plan_route(&candidates, &req, &policy, &scorer, Some(&current), None).unwrap();
+        let plan =
+            plan_route(&candidates, &req, &policy, &scorer, Some(&current), None, 0).unwrap();
         assert_eq!(plan.primary.path_id, healthy_alternative.path_id);
     }
 
@@ -360,7 +417,7 @@ mod tests {
             weights: policy.weights,
         };
 
-        let plan = plan_route(&candidates, &req, &policy, &scorer, None, None).unwrap();
+        let plan = plan_route(&candidates, &req, &policy, &scorer, None, None, 0).unwrap();
         assert_eq!(plan.strategy, RouteStrategy::Redundant);
         assert_eq!(plan.replicas.len(), 1);
     }
@@ -394,7 +451,8 @@ mod tests {
             weights: policy.weights,
         };
 
-        let plan = plan_route(&candidates, &req, &policy, &scorer, Some(&primary), None).unwrap();
+        let plan =
+            plan_route(&candidates, &req, &policy, &scorer, Some(&primary), None, 0).unwrap();
         assert_eq!(plan.strategy, RouteStrategy::Redundant);
         assert_eq!(plan.replicas.len(), 1);
         assert_eq!(plan.replicas[0].path_id, diverse_but_lower_scored.path_id);
@@ -435,7 +493,7 @@ mod tests {
             weights: policy.weights,
         };
 
-        let plan = plan_route(&candidates, &req, &policy, &scorer, None, None).unwrap();
+        let plan = plan_route(&candidates, &req, &policy, &scorer, None, None, 0).unwrap();
         assert_eq!(plan.primary.transport, TransportKind::LocalLan);
     }
 
@@ -469,7 +527,7 @@ mod tests {
             weights: policy.weights,
         };
 
-        let plan = plan_route(&candidates, &req, &policy, &scorer, None, None).unwrap();
+        let plan = plan_route(&candidates, &req, &policy, &scorer, None, None, 0).unwrap();
         assert_eq!(plan.primary.transport, TransportKind::IrohDirect);
     }
 
@@ -490,7 +548,7 @@ mod tests {
             weights: policy.weights,
         };
 
-        let plan = plan_route(&candidates, &req, &policy, &scorer, None, None).unwrap();
+        let plan = plan_route(&candidates, &req, &policy, &scorer, None, None, 0).unwrap();
         assert_eq!(plan.strategy, RouteStrategy::Redundant);
         assert_eq!(plan.primary.transport, TransportKind::IrohDirect);
         assert_eq!(plan.replicas[0].transport, TransportKind::MeshRelay);
