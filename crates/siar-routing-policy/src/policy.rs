@@ -37,6 +37,12 @@ pub struct PolicyWeights {
     /// failure penalty still needs failure history this crate doesn't
     /// keep.
     pub congestion: f64,
+    /// §89 "Passive vs Active Candidates": "Scoring can penalize
+    /// setup" — a distinct axis from `setup_cost` (§44's cost *of*
+    /// establishing a connection once you've decided to) since this
+    /// is about whether the candidate is already reachable at all
+    /// (see [`crate::acquisition::CandidateState`]).
+    pub candidate_state: f64,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -88,6 +94,7 @@ impl RoutingPolicyProfile {
                     setup_cost: 0.5,
                     existing_connection: 0.5,
                     congestion: 0.5,
+                    candidate_state: 0.5,
                 },
                 hysteresis: HysteresisPolicy {
                     switch_threshold: RouteScoreDelta(0.3),
@@ -120,6 +127,9 @@ impl RoutingPolicyProfile {
                     // formula — the highest `congestion` weight of any
                     // profile.
                     congestion: 0.7,
+                    // A call shouldn't wait on active discovery/setup
+                    // — prefer already-reachable candidates strongly.
+                    candidate_state: 0.6,
                 },
                 hysteresis: HysteresisPolicy {
                     switch_threshold: RouteScoreDelta(0.6),
@@ -144,6 +154,11 @@ impl RoutingPolicyProfile {
                     setup_cost: 1.3,
                     existing_connection: 1.2,
                     congestion: 0.3,
+                    // "Avoid active discovery" is this profile's own
+                    // §30 text — the highest `candidate_state` weight
+                    // of any profile, matching its already-highest
+                    // `existing_connection`.
+                    candidate_state: 0.8,
                 },
                 hysteresis: HysteresisPolicy {
                     switch_threshold: RouteScoreDelta(0.5),
@@ -168,6 +183,7 @@ impl RoutingPolicyProfile {
                     setup_cost: 0.6,
                     existing_connection: 0.5,
                     congestion: 0.3,
+                    candidate_state: 0.4,
                 },
                 hysteresis: HysteresisPolicy {
                     switch_threshold: RouteScoreDelta(0.3),
@@ -194,6 +210,7 @@ impl RoutingPolicyProfile {
                     // kind of unreliability this profile most wants to
                     // avoid — its own highest weight of any profile.
                     congestion: 0.8,
+                    candidate_state: 0.5,
                 },
                 hysteresis: HysteresisPolicy {
                     switch_threshold: RouteScoreDelta(0.4),
@@ -229,6 +246,11 @@ impl RoutingPolicyProfile {
                     // weight of any profile, deliberately, matching
                     // this profile's already-lowest `setup_cost`.
                     congestion: 0.1,
+                    // §90's own "SOS: aggressive discovery allowed" —
+                    // willing to use a `RequiresDiscovery`/
+                    // `RequiresSetup` candidate readily; lowest weight
+                    // of any profile, deliberately.
+                    candidate_state: 0.1,
                 },
                 hysteresis: HysteresisPolicy {
                     switch_threshold: RouteScoreDelta(0.2), // switch readily — reachability matters more than stability here
@@ -258,6 +280,7 @@ impl RoutingPolicyProfile {
                     // erodes — a real, if not top, priority for a bulk
                     // transfer.
                     congestion: 0.6,
+                    candidate_state: 0.3,
                 },
                 hysteresis: HysteresisPolicy {
                     switch_threshold: RouteScoreDelta(0.3),
