@@ -4,9 +4,15 @@ Source spec: `sys-arch/03-transport-routing-policy-engine-architecture.md` — 2
 
 ## Implementation status
 
-**101/200 (51%) sections.**
+**107/200 (54%) sections.**
 
-Partial — Round 1 (§1–§42), Round 2 (§43–§56), Round 3 (§57–§62), Round 4 (§63–§68), Round 5 (§69–§74), and Round 6 (§75–§84) complete (95/95 unit tests).
+Partial — Round 1 (§1–§42), Round 2 (§43–§56), Round 3 (§57–§62), Round 4 (§63–§68), Round 5 (§69–§74), Round 6 (§75–§84), and Round 7 (§85–§90) complete (106/106 unit tests).
+
+### Round 7 (§85–§90) Summary (2026-09-08)
+- **§85 & §87 (Battery-Aware Inputs & Platform Policy Integration)**: Implemented `BatteryLevelClass`, `ThermalState`, and `DeviceState` in `platform.rs`; mapped §87's six platform signals across typed fields in the crate.
+- **§86 & §89 (Background Restrictions & Candidate Acquisition State)**: Implemented `CandidateState` (`Active`, `PassiveKnown`, `RequiresDiscovery`, `RequiresSetup`) in `acquisition.rs`; added `is_currently_usable` and `eliminate_background_restricted` (with permissive default for unknown foreground state); added `candidate_state` weight across all 7 profiles.
+- **§88 & §90 (Path Acquisition & Discovery Budget)**: Implemented `DiscoveryBudget` in `discovery.rs` (sliding-window rate limiting + exhaustion cooldown per `Priority`); implemented `discovery_permitted` combining budget with device safety margins (unconditional block on `ThermalState::Critical`, priority-gated battery saver).
+- **Pipeline Integration**: Extended `plan_route` to accept `Option<&DeviceState>` and actively filter background-restricted candidates.
 
 ### Round 6 (§75–§84) Summary (2026-09-08)
 - **§75–§78 (Multipath Chunk Scheduler, Path Collapse, Duplicate Chunks, Realtime Multipath)**: Documented as out-of-scope for v1 per the spec's own designation as future/optional/advanced.
