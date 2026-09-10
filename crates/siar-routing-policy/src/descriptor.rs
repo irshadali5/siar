@@ -21,6 +21,19 @@ use crate::types::Destination;
 /// already is one (see that type's own doc comment): an `OperationId`
 /// should never be silently comparable to an unrelated `Uuid`-backed
 /// id.
+///
+/// Also §72 "Route Planning for Emergency"'s own "stable operation ID
+/// ensures deduplication" — when [`crate::plan::plan_route`] produces
+/// [`crate::plan::RouteStrategy::Redundant`] for an SOS (Internet
+/// direct + a nearby mesh copy, per §72's own worked example), both
+/// copies need to carry the *same* `OperationId` for a receiver to
+/// recognize them as one delivery rather than two. Enforcing that
+/// isn't this crate's job — it produces a plan describing which paths
+/// to use, not the actual duplicate-message payload a caller builds
+/// for each one — but the requirement is worth naming here, next to
+/// the type it's actually about, since a caller reading only
+/// [`crate::plan`] would have no reason to know duplicate detection
+/// depends on something this far upstream.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[repr(transparent)]
 pub struct OperationId(Uuid);
