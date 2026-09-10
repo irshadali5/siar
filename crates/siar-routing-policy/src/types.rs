@@ -80,6 +80,9 @@ pub struct PathCapabilities {
     pub store_and_forward: bool,
     pub metered: MeteredState,
     pub roaming: RoamingState,
+    /// §86 "Background Restrictions" — see [`crate::acquisition`]'s own
+    /// doc comment for how this is actually enforced.
+    pub requires_foreground: bool,
 }
 
 /// §14. "Health is derived from: recent failures, timeouts, connection
