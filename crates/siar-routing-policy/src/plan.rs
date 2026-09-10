@@ -190,7 +190,8 @@ mod tests {
                 realtime_media: false,
                 peer_discovery: true,
                 store_and_forward: false,
-                metered: false,
+                metered: crate::types::MeteredState::Unknown,
+                roaming: crate::types::RoamingState::Unknown,
             },
             health,
             underlay: None,
@@ -377,10 +378,14 @@ mod tests {
         let mut high_bandwidth_direct = candidate(TransportKind::IrohDirect, RouteHealth::Healthy);
         high_bandwidth_direct.metrics.estimated_bandwidth =
             Some(crate::metrics::Bitrate(50_000_000));
+        high_bandwidth_direct.capabilities.metered = crate::types::MeteredState::Unmetered;
+        high_bandwidth_direct.capabilities.roaming = crate::types::RoamingState::NotRoaming;
 
         let mut bluetooth_small_only =
             candidate(TransportKind::BluetoothClassic, RouteHealth::Healthy);
         bluetooth_small_only.metrics.estimated_bandwidth = Some(crate::metrics::Bitrate(500_000));
+        bluetooth_small_only.capabilities.metered = crate::types::MeteredState::Unmetered;
+        bluetooth_small_only.capabilities.roaming = crate::types::RoamingState::NotRoaming;
 
         let candidates = vec![bluetooth_small_only.clone(), high_bandwidth_direct.clone()];
         let mut req = DeliveryRequirements::file_chunk();
