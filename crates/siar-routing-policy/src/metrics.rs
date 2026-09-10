@@ -74,6 +74,16 @@ pub enum StabilityScore {
     VeryStable,
 }
 
+/// §84 "Battery Cost" names this scale as `VeryLow, Low, Medium, High,
+/// VeryHigh` — this predates that section (Phase 1) and uses `Free`/
+/// `Moderate` instead of `VeryLow`/`Medium`. Kept rather than renamed:
+/// `Free` is a meaningfully different claim than "very low" (zero
+/// additional radio/CPU cost — e.g. a message riding an already-open
+/// connection — versus merely small-but-nonzero), and renaming five
+/// variants across this crate for a synonym would be pure churn with
+/// no behavior change. §84's own "no need for fake precision
+/// initially" instruction is satisfied either way — this is still a
+/// small ordered enum, not invented numeric wattage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum EnergyCost {
     Free,
@@ -101,10 +111,31 @@ pub enum SignalQuality {
     Excellent,
 }
 
-/// §12, plus `pool_state` (§46 "Connection Pool Integration") — not
-/// one of §12's own listed fields, but the same kind of caller-
-/// reported live observation the rest of this struct already is, and
-/// [`crate::setup::effective_setup_cost`] needs it from somewhere.
+/// §79 "Congestion Signals": "Use transport-level signals: RTT trend,
+/// packet loss, retransmission rate, connection congestion state." Two
+/// of those four already existed on [`PathMetrics`] before this round
+/// (`rtt_millis`, `packet_loss`); "RTT trend" is deliberately *not*
+/// added as a field — a trend needs two or more samples over time, and
+/// this crate keeps no history of its own (see its top doc comment on
+/// scope: no clock, no live connection). A caller tracking RTT samples
+/// itself can already compute a trend from successive `rtt_millis`
+/// readings without this crate's help; there's nothing this crate
+/// could add to that computation. `retransmission_rate` and
+/// `congestion_state` are the two signals left, and this round finally
+/// closes [`crate::scoring::DefaultScorer`]'s own long-named gap (see
+/// that module's doc comment, present since this crate's first phase:
+/// "the two it doesn't \[model\]: congestion, failure penalty") — for
+/// congestion, at least; failure penalty remains open, since it would
+/// need failure *history* this crate similarly doesn't keep.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CongestionState {
+    Normal,
+    Congested,
+    Severe,
+}
+
+/// §12, plus `pool_state` (§46) and `retransmission_rate`/
+/// `congestion_state` (§79, this round).
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct PathMetrics {
     pub rtt_millis: Option<u32>,
@@ -117,6 +148,8 @@ pub struct PathMetrics {
     pub signal_quality: Option<SignalQuality>,
     pub last_success_millis: Option<u64>,
     pub pool_state: Option<ConnectionPoolState>,
+    pub retransmission_rate: Option<Ratio>,
+    pub congestion_state: Option<CongestionState>,
 }
 
 impl PathMetrics {
@@ -136,6 +169,8 @@ impl PathMetrics {
             signal_quality: None,
             last_success_millis: None,
             pool_state: None,
+            retransmission_rate: None,
+            congestion_state: None,
         }
     }
 }
