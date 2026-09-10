@@ -131,6 +131,9 @@ mod tests {
             replicas: vec![],
             strategy: RouteStrategy::Single,
             hedge_delay_millis: None,
+            reason: crate::explain::RouteReason::PolicyPreferred,
+            created_at_millis: 0,
+            valid_until_millis: 0,
         }
     }
 
