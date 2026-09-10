@@ -4,9 +4,15 @@ Source spec: `sys-arch/03-transport-routing-policy-engine-architecture.md` — 2
 
 ## Implementation status
 
-**107/200 (54%) sections.**
+**113/200 (57%) sections.**
 
-Partial — Round 1 (§1–§42), Round 2 (§43–§56), Round 3 (§57–§62), Round 4 (§63–§68), Round 5 (§69–§74), Round 6 (§75–§84), and Round 7 (§85–§90) complete (106/106 unit tests).
+Partial — Round 1 (§1–§42), Round 2 (§43–§56), Round 3 (§57–§62), Round 4 (§63–§68), Round 5 (§69–§74), Round 6 (§75–§84), Round 7 (§85–§90), and Round 8 (§91–§96) complete (119/119 unit tests).
+
+### Round 8 (§91–§96) Summary (2026-09-08)
+- **§91 & §92 (Route Escalation Ladder & Timeout by Stage)**: Implemented `EscalationStage` (`ActiveConnections`, `KnownEndpoints`, `LightweightDiscovery`, `ExpensiveProximitySetup`, `DtnFallback`) in `resilience.rs`; implemented `escalation_stage_of` by composing `CandidateState`, `SetupCost`, and `TransportKind::Dtn`; implemented `timeout_millis_for_stage` and `should_escalate_beyond`.
+- **§93 (Hedged Requests)**: Added `RouteStrategy::Hedged` and `RoutePlan::hedge_delay_millis`; implemented `HedgePolicy` and `hedge_policy_for` (hedges high/critical priority non-bulk, non-delay-tolerant traffic; sets delay to 150ms or 25% of deadline floored at 50ms); integrated into `plan_route`.
+- **§94 (Deduplication Requirement)**: Extended `OperationId` documentation to mandate receiver idempotency across `Redundant` and `Hedged` strategies.
+- **§95 & §96 (Route Diagnostics & Path Visualization)**: Implemented `RouteDiagnostics`, `RejectionReason`, and `diagnose` in `resilience.rs`; documented §96 Path Visualization as deferred by the spec to Part 18.
 
 ### Round 7 (§85–§90) Summary (2026-09-08)
 - **§85 & §87 (Battery-Aware Inputs & Platform Policy Integration)**: Implemented `BatteryLevelClass`, `ThermalState`, and `DeviceState` in `platform.rs`; mapped §87's six platform signals across typed fields in the crate.
