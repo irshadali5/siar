@@ -190,11 +190,25 @@
 //!   collection/privacy), §124-127 (simulated routing/property/chaos/
 //!   failover tests beyond this crate's own unit tests) — not
 //!   attempted.
-//! - **Everything from roughly §85 onward that isn't listed above** —
-//!   battery-aware inputs beyond §84/EnergyCost, background
-//!   restrictions, platform policy integration, path acquisition,
-//!   passive-vs-active candidates, discovery budget (§85-90),
-//!   multi-device route aggregation and group/broadcast routing
+//! - [`platform`] — §85 "Battery-Aware Inputs" (`DeviceState`), §87
+//!   "Platform Policy Integration" (see that module's own doc comment
+//!   for how §87's six named signals map across this crate — three
+//!   already existed, three land in this module and [`acquisition`]).
+//! - [`acquisition`] — §86 "Background Restrictions"
+//!   (`is_currently_usable`/`eliminate_background_restricted`, now
+//!   actually called by [`plan::plan_route`]), §89 "Passive vs Active
+//!   Candidates" (`CandidateState`, transcribed exactly from that
+//!   section's own code block, now a real [`policy::PolicyWeights::candidate_state`]
+//!   scoring term).
+//! - [`discovery`] — §88 "Path Acquisition", §90 "Discovery Budget":
+//!   a real, stateful `DiscoveryBudget` (sliding window + cooldown, a
+//!   caller persists it across calls) plus `discovery_permitted`,
+//!   which combines the budget with [`platform::DeviceState`] —
+//!   thermal-critical blocks unconditionally (a hardware safety
+//!   margin, no priority override); battery-saver blocks unless
+//!   `Priority::Critical`, the same override shape
+//!   [`privacy::justifies_expensive_setup`] (§52) already uses.
+//! - **Everything from roughly §91 onward that isn't listed above** —
 //!   (§171-175), storage-cost awareness (§176-178), and the remainder
 //!   of this 200-section document not named above. §55 "Mesh
 //!   Forwarding"'s richer candidate representation (next hop, route
@@ -219,9 +233,11 @@
 //! `siar-identity-multidevice` already takes toward the existing
 //! `siar_crypto::device_cert` system, for the same reason.
 
+pub mod acquisition;
 pub mod cache;
 pub mod candidate;
 pub mod descriptor;
+pub mod discovery;
 pub mod dispatch;
 pub mod diversity;
 pub mod error;
@@ -230,6 +246,7 @@ pub mod failure;
 pub mod fairness;
 pub mod metrics;
 pub mod plan;
+pub mod platform;
 pub mod policy;
 pub mod privacy;
 pub mod quality;
