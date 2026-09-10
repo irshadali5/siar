@@ -120,14 +120,214 @@ in `siar-dtn-bundle` (37/37), `siar-identity-multidevice` (251/251),
 git patch (`git format-patch`/`git diff` against round-3's tree) per
 explicit request, not a tarball — the project now has an actual git
 repo (initialized this round, baseline commit = round 3's state) to
-make that possible going forward. Next for spec 03: §69 onward
-(traffic-type-specific route planning — messaging/files/calls).
+make that possible going forward.
+
+**2026-09-08 update (round 5):** §69-74 done, ~86→~92/200. New
+`diversity.rs`: a real `UnderlayId` newtype (§74's own code block is
+literally just `pub struct UnderlayId;` — read as an illustrative
+stub, not a literal instruction, same as this crate already does for
+similar bare-stub spec snippets), `are_diverse`/`group_by_underlay`,
+and `most_diverse_fallback` — and unlike round 4's `fairness.rs`
+primitive (deliberately left composable/unwired), this one **is**
+wired directly into `plan_route`'s existing redundant-strategy replica
+selection, replacing a blind "take the next-best-scored fallback" with
+"take the best-scored fallback that's actually on a different
+underlay." New `quality.rs` for §71: `PathQualitySignal`/
+`quality_signal_for`, a purpose-narrowed projection of `PathMetrics`
+for a call's media-adaptation consumer (the video→audio→voice-message
+fallback ladder itself stays out of scope — that's a media decision,
+not a routing one).
+
+§69/§70/§72 ("Route Planning for Messaging/Files/Emergency") were
+verified rather than separately implemented — real integration tests
+against `plan_route`'s actual output. This caught a real mistake
+before it shipped: the first draft of the §69 messaging test assumed
+DTN would naturally rank last "for free" from existing scoring terms;
+running it showed that assumption was false (DTN's *setup* cost is
+cheap — no live connection to establish — which is a different
+property from DTN being a *good* choice for immediate delivery, and
+nothing in current scoring captures that difference without real
+caller-supplied latency data). The test was corrected to only assert
+what's robustly true (cheap-setup transports beat expensive-setup ones
+all else equal) rather than a claim that happened to be untested and
+wrong. §70's files test uses realistic differentiated metrics (a real
+`min_bandwidth` floor plus measured bandwidth per candidate) rather
+than relying on coincidental tie-breaking. §72's emergency-composition
+test was robust as originally written and needed no correction.
+
+82/82 tests (up from 71), clippy clean, fmt clean, doc-warning-free
+(one broken intra-doc link to a `#[cfg(test)]`-only module, caught and
+reworded), zero regressions in `siar-dtn-bundle` (37/37,
+no `PathCandidate` literal construction there so no downstream fix
+needed this time), `siar-identity-multidevice` (251/251),
+`siar-protocol-ext` (115/115). Delivered as a git commit on top of
+round 4's tree (same repo from round 4, not re-initialized). Next for
+spec 03: §75 onward — §75-78 (multipath chunk scheduler/path collapse/
+duplicate chunks/realtime multipath) are explicitly named by the spec
+itself as future/optional/advanced work, not v1, so likely to be
+documented as out-of-scope rather than implemented; §79 (congestion
+signals) is partially covered already by existing `PathMetrics` fields
+(rtt/loss/bandwidth) — worth checking exactly what's still missing
+(send-queue depth, connection-congestion signal) before assuming it
+needs a full new module.
+
+**2026-09-08 update (round 6):** §75-84 done, ~92→~101/200. §75-78
+(multipath chunk scheduler, path collapse, duplicate chunks, realtime
+multipath) documented as out-of-scope — the spec itself names all four
+as future/optional/advanced, not v1. §81 (Cold vs Warm Path) and §84
+(Battery Cost) turned out to already be covered by existing work
+(`ConnectionPoolState`/`effective_setup_cost` from round 2, and
+`EnergyCost` from Phase 1 respectively) — documented rather than
+reimplemented, per the note left last round to check before assuming
+new code is needed.
+
+Real new work: §82/§83 (Metered Networks, Roaming) got a genuine
+`bool`→tri-state refactor — new `MeteredState`/`RoamingState` enums
+(`Metered`/`Unmetered`/`Unknown` and `Roaming`/`NotRoaming`/`Unknown`)
+replacing a plain `metered: bool` that couldn't express "the platform
+hasn't told us yet," wired into `passes_hard_constraints` via two new
+functions that both treat `Unknown` conservatively. This refactor
+caught a real, pre-existing bug: `DeliveryRequirements::file_chunk()`
+had `allow_metered: true`, directly contradicting §82's own "block
+bulk" worked example — now corrected, with a new `allow_roaming_bulk`
+field added for §83's own "allow cellular but forbid roaming bulk
+transfer" example. §79 (Congestion Signals) added `CongestionState`
+plus two new `PathMetrics` fields, finally closing a gap
+`DefaultScorer`'s own doc comment had named as unmodeled since this
+crate's first phase — congestion is now a real scored term across all
+7 policy profiles; failure penalty remains open (documented) since it
+needs failure history this crate keeps no record of. §80 (Route
+Stability Score) got a new `derive_stability_score` heuristic turning
+lifetime/failure-rate/path-changes/timeouts into the existing
+`StabilityScore` enum.
+
+Process note: this round's §82/§83 work was actually started in an
+unfinished prior session and found already sitting uncommitted in the
+working tree at the start of this round — it compiled and was
+functionally sound, but had no dedicated tests for the new
+metered/roaming hard-constraint logic. Six tests were added before
+treating it as done, rather than trusting that "it compiles" meant
+"it's finished." As anticipated last round, adding `allow_roaming_bulk`
+to `DeliveryRequirements` required the same downstream
+`siar-dtn-bundle` test-helper fix as round 2's field additions did —
+worth continuing to expect this every time a `DeliveryRequirements`
+field is added, and to keep checking the whole workspace, not just
+this crate, before calling a round done.
+
+95/95 tests (up from 82), clippy clean, fmt clean, doc-warning-free
+(two broken intra-doc links caught: one from this round's own edit,
+one pre-existing in the found-uncommitted work). Zero regressions in
+`siar-dtn-bundle` (37/37, after the fix above), `siar-identity-multidevice`
+(251/251), `siar-protocol-ext` (115/115).
+
+**2026-09-08 update (round 7):** §85-90 done, ~101→~107/200. New
+`platform.rs`: `BatteryLevelClass`/`ThermalState`/`DeviceState` (§85),
+plus a doc comment reconciling §87's six named platform signals
+against where each actually lives in this crate — three already
+existed (network type = `TransportKind`; metered/roaming =
+`MeteredState`/`RoamingState` from round 6), the other three land this
+round (power saver = `DeviceState::battery_saver`; background
+restrictions = the new `requires_foreground` capability flag; radio
+availability = `CandidateState`). New `acquisition.rs`: `CandidateState`
+transcribed exactly from §89's own code block
+(`Active`/`PassiveKnown`/`RequiresDiscovery`/`RequiresSetup`), a new
+`candidate_state` scoring weight across all 7 `PolicyWeights` profiles,
+and `is_currently_usable`/`eliminate_background_restricted` for §86 —
+deliberately the *opposite* default from round 6's metered/roaming
+`Unknown` handling: an unreported foreground state defaults
+*permissive* here, since (unlike metered/roaming) there's no named
+"protect a resource" bias to justify assuming the worst. New
+`discovery.rs`: a real stateful `DiscoveryBudget` (sliding window +
+cooldown, the first genuinely stateful-across-calls type in this
+crate — everything before it was either pure functions or took
+`now_millis` as a bare parameter) and `discovery_permitted`, which
+layers `DeviceState` on top: thermal-critical blocks unconditionally,
+with no priority override (a hardware safety margin — even an SOS
+shouldn't force active scanning while the device is about to
+thermally shut down), while battery-saver blocks unless
+`Priority::Critical` (a user preference, overridable the same way
+§52's `justifies_expensive_setup` already treats Critical priority).
+
+All three new pieces are wired through the real pipeline this round,
+not left composable-only the way round 4's `fairness.rs` was: `RoutingContext`
+gained a `device: Option<DeviceState>` field, `PathCandidate` gained
+`state: CandidateState`, `PathCapabilities` gained
+`requires_foreground: bool`, and `plan_route` itself gained a `device`
+parameter and now actually calls the §86 background-restriction filter
+as a real elimination pass. This was the most invasive round yet at
+the call-site level: `plan_route`'s own signature changed (a 6th
+parameter), which meant fixing all 10 existing call sites in
+`plan.rs`'s own test suite, on top of the now-familiar mechanical
+`PathCandidate`/`PathCapabilities` literal updates across 9 files. A
+genuine bug was caught mid-implementation, not just mid-review this
+time: the first draft of `DiscoveryBudget`'s own cooldown test used a
+short window that let the second attempt's timestamp age out of the
+window before the cap was ever actually hit, so the intended
+exhaustion path never triggered — caught by actually running the test
+suite (it failed), not by re-reading the code, and fixed by widening
+the test's window so the cap is hit while both timestamps are still
+live.
+
+106/106 tests (up from 95), clippy clean, fmt clean, doc-warning-free.
+No `DeliveryRequirements` fields were touched this round, so — for the
+first time since round 3 — no downstream `siar-dtn-bundle` fix was
+needed; still confirmed via the full workspace check rather than
+assumed. Zero regressions in `siar-dtn-bundle` (37/37),
+`siar-identity-multidevice` (251/251), `siar-protocol-ext` (115/115).
+Next for spec 03: §91 onward (Route Escalation Ladder, Timeout by
+Stage, Hedged Requests, Deduplication Requirement, Route Diagnostics —
+§91-95, a natural "resilience mechanics" cluster; §95-99/§124-127
+diagnostics-and-testing work is flagged in lib.rs as a whole phase not
+yet attempted, worth checking how much of it this round's cluster
+might already close incidentally).
+
+**2026-09-08 update (round 8):** §91-96 done, ~107→~113/200. New
+`resilience.rs`: `EscalationStage`/`escalation_stage_of` (§91) — no
+new state needed at all, built entirely by composing round 7's
+`CandidateState` (stages 1-2), round 2's `SetupCost` (the 3-vs-4
+lightweight/expensive split), and `TransportKind::Dtn` (stage 5)
+directly, confirming the "check how much this cluster might close
+incidentally" instinct from last round's note was worth having.
+`timeout_millis_for_stage` (§92, same coarse-named-heuristic style as
+`estimate.rs`/`discovery.rs`). `HedgePolicy`/`hedge_policy_for` (§93)
+— unlike most of this round's other pieces, this one required a real
+API change: `RouteStrategy` gained a `Hedged` variant and `RoutePlan`
+gained `hedge_delay_millis`, with `plan_route` itself now producing
+`Hedged` for high-priority, non-bulk, non-delay-tolerant traffic with
+a fallback available. `RouteDiagnostics`/`diagnose` (§95), deliberately
+scoped to the two rejection checks (hard constraints, background
+restriction) this crate can run without an external policy object —
+security/privacy checks need a `TrustedAccountStore`/`PrivacyPolicy` a
+caller may not have, and a caller composing those itself already knows
+which one rejected a candidate. §94 needed no new function, just a doc
+comment extending `OperationId`'s existing dedup note to cover
+`Hedged` alongside `Redundant`. §96 "Path Visualization" is explicitly
+deferred by the spec itself to "Part 18" — documented, not attempted.
+
+A real bug was caught mid-round by running the test suite, not by
+re-reading code: the first hedge-strategy integration test's own
+candidates used the default `MeteredState::Unknown`/`RoamingState::Unknown`
+from the crate's usual test-helper pattern, which round 6's own hard
+constraints correctly block for a Bulk-class, `allow_metered: false`
+request — the test failed with `NoEligibleCandidates` until the test's
+own candidates were given explicit `Unmetered`/`NotRoaming`
+capabilities, the same fix `files_prefer_high_bandwidth_direct_over_small_only_bluetooth`
+(round 5) already needed for the same reason.
+
+119/119 tests (up from 106), clippy clean, fmt clean, doc-warning-free
+(two broken intra-doc links to private items, caught and fixed). Also
+fixed, while in the file: a real content gap in this file's own §85-90
+coverage bullet from round 7 — a sentence fragment had gone missing
+mid-edit, leaving a dangling `(§171-175)` reference with nothing
+before it. Zero regressions in `siar-dtn-bundle` (37/37),
+`siar-identity-multidevice` (251/251), `siar-protocol-ext` (115/115).
+Next for spec 03: §97 onward.
 
 | # | Crate | State |
 |---|---|---|
 | 01 | siar-protocol-ext | ✅ **108/108 — spec complete** (final round: §91-92 reconciled, §93-95 error codes/health/recovery, §96-99 scheduler contract/storage/metrics/capability isolation, §100-105 reconciled with notes, §106 honest 16-item Definition of Done self-audit — 4 genuine gaps named, §107-108 reconciled) |
 | 02 | siar-identity-multidevice | ✅ **204/204 — spec complete** (final round, 2026-09-05: §190-204 — algorithm agility/downgrade protection utilities kept deliberately minimal per spec's own "avoid needless abstraction" caution; a root-key backup envelope that structurally cannot carry plaintext key material; backup-import validation run before any local state is touched; identity-reset/account-deletion presentations with required disclaimer fields; a guarded organization-offboarding state machine that operates only on organization-scoped device ids, never a personal AccountId; multi-tenant-safe composite keys; migration-fixture round-trip tests (honestly incomplete pending §125); and an itemized 21-item Definition-of-Done self-audit — **19/21 fully done, 2 honestly `PartiallyDone`** (no-UI-shipped confirmation prompt; property/integration tests exist but no real fuzz harness). Also fixed a genuinely broken intra-doc link left over from an earlier round, dropping this crate's doc-warning count from 4 to 3. 6 new modules (`algorithm_agility.rs`, `root_key_backup.rs`, `identity_lifecycle.rs`, `migration_fixtures.rs`, `definition_of_done.rs`) plus a `namespace.rs` extension, 20 new tests, 251/251 total, clippy clean, zero regressions. Across all 11 rounds this session: 137 new tests written, zero regressions in siar-routing-policy/siar-crypto at any point, every round compiled+tested+clippy+fmt+doc-checked for real against the actual uploaded Cargo.lock with rustc 1.91.1. Real, named, still-open gaps carried forward into future work: §125 schema versioning absent from DeviceCertificate/DeviceDirectory; §164 no cargo-fuzz harness; §191 full cross-version migration tests blocked on §125; `storage::IdentityStore`/`transaction`/all four `client_api` traits have zero real call sites anywhere in this workspace yet; `RootTrustCacheEntry`/`VerifiedContact` overlap not consolidated; §107/§91 have no real BLE/Wi-Fi/NFC transport wiring.) |
-| 03 | siar-routing-policy | ✅ ~86/200 (round 4, 2026-09-08: §63-68 — confirmed §63-65 "Queue Architecture"/"Weighted Fair Scheduling"/"Backpressure" already real via `siar-protocol-ext`'s `FairScheduler`/`BoundedQueue` (documented, not reimplemented); new `PerTransportDispatchQueue` for §66 (a stalled Bluetooth queue cannot block a healthy Iroh one); new generic `RoundRobinFairQueue<K,T>` covering both §67 per-peer and §68 per-extension fairness with one primitive; rounds 2-3 covered §43-62 — see this crate's own lib.rs/round notes for what's genuinely covered vs merely accounted-for) |
+| 03 | siar-routing-policy | ✅ ~113/200 (round 8, 2026-09-08: §91-96 — new `EscalationStage`/`escalation_stage_of` (§91) built entirely from existing round 2/6/7 types, `timeout_millis_for_stage` (§92), `HedgePolicy`/`hedge_policy_for` (§93) wired into a genuinely new `RouteStrategy::Hedged` that `plan_route` can now actually produce, `RouteDiagnostics`/`diagnose` (§95); §94 closed via a doc-comment extension, §96 explicitly deferred by the spec itself to "Part 18"; a real integration-test failure caught and fixed mid-round (round 6/7's metered/roaming hard constraints blocking a hedge test's own candidates until their capabilities were set correctly); rounds 2-7 covered §43-90 — see this crate's own lib.rs/round notes for what's genuinely covered vs merely accounted-for) |
 | 04 | siar-event-log | 🟡 ~10/95 (Phase 2 SQLite blocker below is now STALE — see Tier 3 update) |
 | 05 | siar-blob-manifest | ✅ ~23/210 (+ metadata_encryption.rs) |
 | 06 | siar-dtn-bundle | ✅ ~50/192 |
@@ -261,9 +461,9 @@ only genuine device/emulator/hardware-codec behavior does.
 Spec 01 (`siar-protocol-ext`) is complete (108/108). Spec 02
 (`siar-identity-multidevice`) is now ALSO complete (204/204) as of
 2026-09-05. Spec 03 (`siar-routing-policy`) is in progress, ~80/200 as
-of 2026-09-08 (round 4, §63-68) — the next crate in this project's
+of 2026-09-08 (round 8, §91-96) — the next crate in this project's
 explicit priority order ("work through the 9 Tier 0 core specs first,
-one by one"), continuing with §69 onward. Note there is a real, documented unresolved
+one by one"), continuing with §97 onward. Note there is a real, documented unresolved
 reconciliation question between `siar-routing` (pre-existing,
 next.md-era) and `siar-routing-policy` (this spec's own crate) — see
 that crate's own `lib.rs` for the current state of that question
