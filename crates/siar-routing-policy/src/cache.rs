@@ -130,6 +130,7 @@ mod tests {
             fallbacks: vec![],
             replicas: vec![],
             strategy: RouteStrategy::Single,
+            hedge_delay_millis: None,
         }
     }
 
