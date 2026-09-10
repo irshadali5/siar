@@ -4,9 +4,16 @@ Source spec: `sys-arch/03-transport-routing-policy-engine-architecture.md` — 2
 
 ## Implementation status
 
-**92/200 (46%) sections.**
+**101/200 (51%) sections.**
 
-Partial — Round 1 (§1–§42), Round 2 (§43–§56), Round 3 (§57–§62), Round 4 (§63–§68), and Round 5 (§69–§74) complete (82/82 unit tests).
+Partial — Round 1 (§1–§42), Round 2 (§43–§56), Round 3 (§57–§62), Round 4 (§63–§68), Round 5 (§69–§74), and Round 6 (§75–§84) complete (95/95 unit tests).
+
+### Round 6 (§75–§84) Summary (2026-09-08)
+- **§75–§78 (Multipath Chunk Scheduler, Path Collapse, Duplicate Chunks, Realtime Multipath)**: Documented as out-of-scope for v1 per the spec's own designation as future/optional/advanced.
+- **§79 (Congestion Signals)**: Added `CongestionState` (`Normal`, `Congested`, `Severe`), `retransmission_rate`, and `congestion_state` to `PathMetrics`; added `congestion` weight across all 7 `PolicyWeights` profiles; scored in `DefaultScorer`.
+- **§80 (Route Stability Score)**: Implemented `derive_stability_score` in `stability.rs` converting lifetime, failure rate, path changes, and timeout count into `StabilityScore`.
+- **§81 & §84 (Cold vs Warm Path & Battery Cost)**: Reconciled and documented existing coverage in `setup.rs` (`ConnectionPoolState::Active` -> `SetupCost::Cheap`) and `metrics.rs` (`EnergyCost`).
+- **§82 & §83 (Metered Networks & Roaming)**: Refactored `metered` to tri-state `MeteredState` and added `RoamingState`, both conservatively blocking `Unknown` in `passes_hard_constraints`; corrected `file_chunk()` to `allow_metered: false` and added `allow_roaming_bulk: bool`.
 
 ### Round 5 (§69–§74) Summary (2026-09-08)
 - **§69 & §70 (Route Planning for Messaging & Message Routing Workflow)**: Verified through comprehensive integration tests covering interactive messages, low-power preferences, emergency profiles, and fallback paths.
