@@ -1,0 +1,987 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Claude <claude@anthropic.local>
+Date: Wed, 9 Sep 2026 04:50:58 +0000
+Subject: =?UTF-8?q?spec=2003=20round=207:=20=C2=A785-90=20(Battery-Aware?=
+ =?UTF-8?q?=20Inputs,=20Background=20Restrictions,=20Platform=20Policy=20I?=
+ =?UTF-8?q?ntegration,=20Path=20Acquisition,=20Passive=20vs=20Active=20Can?=
+ =?UTF-8?q?didates,=20Discovery=20Budget)?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- platform.rs (new): BatteryLevelClass/ThermalState/DeviceState (§85);
+  doc comment reconciling §87's 6 platform signals to where each
+  lives across this crate
+- acquisition.rs (new): CandidateState transcribed exactly from §89's
+  own code block, candidate_state_unit, is_currently_usable/
+  eliminate_background_restricted (§86) - unknown foreground state
+  defaults permissive (opposite of round 6's metered/roaming default,
+  documented why)
+- discovery.rs (new): DiscoveryBudget (real sliding-window+cooldown
+  state, §90) and discovery_permitted combining it with DeviceState
+  (§88) - thermal-critical blocks unconditionally, battery-saver
+  blocks unless Priority::Critical
+- candidate.rs: PathCandidate gains state: CandidateState
+- types.rs: PathCapabilities gains requires_foreground: bool
+- scoring.rs: RoutingContext gains device: Option<DeviceState>; new
+  candidate_state term wired into DefaultScorer::score
+- policy.rs: new candidate_state: f64 weight across all 7
+  PolicyWeights profiles
+- plan.rs: plan_route gains a `device` parameter and now calls the
+  §86 background-restriction filter as a real elimination pass
+  (signature change required fixing all 10 existing call sites in
+  this file's own test suite)
+- mechanical: requires_foreground: false + state: CandidateState::Active
+  added across all PathCandidate/PathCapabilities literal
+  construction sites (cache.rs, dispatch.rs, diversity.rs, estimate.rs,
+  plan.rs, privacy.rs, quality.rs, scoring.rs, security.rs)
+- lib.rs: mod acquisition/discovery/platform; + updated doc-comment
+  coverage map for §85-90
+
+106/106 tests (up from 95), clippy clean, fmt clean, doc-warning-free.
+No DeliveryRequirements fields changed this round, so no downstream
+siar-dtn-bundle fix was needed (confirmed via full workspace check).
+Zero regressions in siar-dtn-bundle (37/37)/siar-identity-multidevice
+(251/251)/siar-protocol-ext (115/115).
+---
+ crates/siar-routing-policy/src/acquisition.rs | 155 ++++++++++++++
+ crates/siar-routing-policy/src/cache.rs       |   2 +
+ crates/siar-routing-policy/src/candidate.rs   |  10 +-
+ crates/siar-routing-policy/src/discovery.rs   | 196 ++++++++++++++++++
+ crates/siar-routing-policy/src/dispatch.rs    |   2 +
+ crates/siar-routing-policy/src/diversity.rs   |   2 +
+ crates/siar-routing-policy/src/estimate.rs    |   2 +
+ crates/siar-routing-policy/src/lib.rs         |  27 ++-
+ crates/siar-routing-policy/src/plan.rs        |  40 +++-
+ crates/siar-routing-policy/src/platform.rs    |  63 ++++++
+ crates/siar-routing-policy/src/policy.rs      |  23 ++
+ crates/siar-routing-policy/src/privacy.rs     |   2 +
+ crates/siar-routing-policy/src/quality.rs     |   2 +
+ crates/siar-routing-policy/src/scoring.rs     |  12 +-
+ crates/siar-routing-policy/src/security.rs    |   2 +
+ crates/siar-routing-policy/src/types.rs       |   3 +
+ 16 files changed, 520 insertions(+), 23 deletions(-)
+ create mode 100644 crates/siar-routing-policy/src/acquisition.rs
+ create mode 100644 crates/siar-routing-policy/src/discovery.rs
+ create mode 100644 crates/siar-routing-policy/src/platform.rs
+
+diff --git a/crates/siar-routing-policy/src/acquisition.rs b/crates/siar-routing-policy/src/acquisition.rs
+new file mode 100644
+index 0000000..3df0122
+--- /dev/null
++++ b/crates/siar-routing-policy/src/acquisition.rs
+@@ -0,0 +1,155 @@
++//! §86 "Background Restrictions", §88 "Path Acquisition", §89 "Passive
++//! vs Active Candidates".
++
++use serde::{Deserialize, Serialize};
++
++use crate::candidate::PathCandidate;
++use crate::platform::DeviceState;
++
++/// §89's own code block, transcribed exactly — `Active` (already
++/// connected), `PassiveKnown` (seen via passive discovery, e.g. a
++/// cached mDNS/BLE advertisement, no connection yet), `RequiresDiscovery`
++/// (would need an active scan first), `RequiresSetup` (known reachable
++/// but needs a handshake/pairing/group-creation step first — see
++/// [`crate::setup::SetupCost`] for the cost *of* that step; this is
++/// whether one is needed *at all*).
++#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
++pub enum CandidateState {
++    Active,
++    PassiveKnown,
++    RequiresDiscovery,
++    RequiresSetup,
++}
++
++/// §89: "Scoring can penalize setup." Higher is better, same
++/// direction as every other `_unit` function in
++/// [`crate::scoring`] — kept here rather than in that module since it
++/// reads a type this module owns, the same split
++/// [`crate::setup::static_setup_cost`] already has from
++/// [`crate::scoring::DefaultScorer`]'s own use of it.
++pub fn candidate_state_unit(state: CandidateState) -> f64 {
++    match state {
++        CandidateState::Active => 1.0,
++        CandidateState::PassiveKnown => 0.75,
++        CandidateState::RequiresDiscovery => 0.4,
++        CandidateState::RequiresSetup => 0.25,
++    }
++}
++
++/// §86: "Candidate path must include: currently usable, requires
++/// foreground. Routing should not repeatedly attempt impossible
++/// background operations." Unlike [`crate::privacy::passes_privacy_policy`]'s
++/// `Unknown` metered/roaming states (round 6, deliberately
++/// conservative because those signals exist specifically to protect a
++/// resource), an *unknown* foreground state here defaults to
++/// permissive: this crate has no equivalent named reason to assume the
++/// worst, and the actual harm §86 warns about — "repeatedly attempt
++/// impossible background operations" — only exists when the app is
++/// *confirmed* backgrounded, not merely when foreground state hasn't
++/// been reported.
++pub fn is_currently_usable(candidate: &PathCandidate, device: Option<&DeviceState>) -> bool {
++    if !candidate.capabilities.requires_foreground {
++        return true;
++    }
++    match device.and_then(|d| d.foreground) {
++        Some(false) => false,
++        Some(true) | None => true,
++    }
++}
++
++/// §86 applied across a candidate list — composable, same shape as
++/// [`crate::security::eliminate_untrusted_candidates`]/
++/// [`crate::privacy::eliminate_privacy_violations`]: a caller that has
++/// device state calls this (and [`crate::plan::plan_route`] does,
++/// when given one); a caller that doesn't just skips it, since `device:
++/// None` would keep every candidate anyway.
++pub fn eliminate_background_restricted<'a>(
++    candidates: &'a [PathCandidate],
++    device: Option<&DeviceState>,
++) -> Vec<&'a PathCandidate> {
++    candidates
++        .iter()
++        .filter(|c| is_currently_usable(c, device))
++        .collect()
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use crate::candidate::TransportEndpoint;
++    use crate::metrics::PathMetrics;
++    use crate::types::{
++        MeteredState, PathCapabilities, PathId, RoamingState, RouteHealth, TransportKind,
++    };
++    use siar_domain::DeviceId;
++
++    fn candidate_requiring_foreground(requires_foreground: bool) -> PathCandidate {
++        PathCandidate {
++            path_id: PathId::new(),
++            transport: TransportKind::WifiDirect,
++            peer: DeviceId::new(),
++            endpoint: TransportEndpoint(Vec::new()),
++            metrics: PathMetrics::unknown(),
++            capabilities: PathCapabilities {
++                reliable_stream: true,
++                datagram: false,
++                large_files: false,
++                realtime_media: false,
++                peer_discovery: false,
++                store_and_forward: false,
++                metered: MeteredState::Unknown,
++                roaming: RoamingState::Unknown,
++                requires_foreground,
++            },
++            health: RouteHealth::Healthy,
++            underlay: None,
++            state: CandidateState::Active,
++        }
++    }
++
++    #[test]
++    fn a_foreground_only_candidate_is_unusable_while_confirmed_backgrounded() {
++        let candidate = candidate_requiring_foreground(true);
++        let device = DeviceState {
++            foreground: Some(false),
++            ..Default::default()
++        };
++        assert!(!is_currently_usable(&candidate, Some(&device)));
++    }
++
++    #[test]
++    fn a_foreground_only_candidate_is_usable_while_confirmed_foregrounded() {
++        let candidate = candidate_requiring_foreground(true);
++        let device = DeviceState {
++            foreground: Some(true),
++            ..Default::default()
++        };
++        assert!(is_currently_usable(&candidate, Some(&device)));
++    }
++
++    #[test]
++    fn an_unknown_foreground_state_defaults_permissive() {
++        let candidate = candidate_requiring_foreground(true);
++        assert!(is_currently_usable(&candidate, None));
++        let unknown_device = DeviceState::default();
++        assert!(is_currently_usable(&candidate, Some(&unknown_device)));
++    }
++
++    #[test]
++    fn a_candidate_not_requiring_foreground_is_always_usable() {
++        let candidate = candidate_requiring_foreground(false);
++        let device = DeviceState {
++            foreground: Some(false),
++            ..Default::default()
++        };
++        assert!(is_currently_usable(&candidate, Some(&device)));
++    }
++
++    #[test]
++    fn candidate_state_ranks_active_above_requires_setup() {
++        assert!(
++            candidate_state_unit(CandidateState::Active)
++                > candidate_state_unit(CandidateState::RequiresSetup)
++        );
++    }
++}
+diff --git a/crates/siar-routing-policy/src/cache.rs b/crates/siar-routing-policy/src/cache.rs
+index 2130d0e..be100de 100644
+--- a/crates/siar-routing-policy/src/cache.rs
++++ b/crates/siar-routing-policy/src/cache.rs
+@@ -119,9 +119,11 @@ mod tests {
+                 store_and_forward: false,
+                 metered: crate::types::MeteredState::Unknown,
+                 roaming: crate::types::RoamingState::Unknown,
++                requires_foreground: false,
+             },
+             health: RouteHealth::Healthy,
+             underlay: None,
++            state: crate::acquisition::CandidateState::Active,
+         };
+         RoutePlan {
+             primary: candidate,
+diff --git a/crates/siar-routing-policy/src/candidate.rs b/crates/siar-routing-policy/src/candidate.rs
+index 858a4a3..000ac7f 100644
+--- a/crates/siar-routing-policy/src/candidate.rs
++++ b/crates/siar-routing-policy/src/candidate.rs
+@@ -17,11 +17,10 @@ use crate::types::{PathCapabilities, PathId, RouteHealth, TransportKind};
+ #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+ pub struct TransportEndpoint(pub Vec<u8>);
+ 
+-/// §9, plus `underlay` (§74 "Underlay Group") — not one of §9's own
+-/// listed fields, added this round because §73/§74 need somewhere to
+-/// put it; see [`crate::diversity`]'s own doc comment for why it's a
+-/// real newtype rather than the bare unit-struct stub §74's own code
+-/// block literally shows (`pub struct UnderlayId;`).
++/// §9, plus `underlay` (§74 "Underlay Group") and `state` (§89
++/// "Passive vs Active Candidates") — neither is one of §9's own listed
++/// fields; see [`crate::diversity`]'s and [`crate::acquisition`]'s own
++/// doc comments for why each was added in its respective round.
+ #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+ pub struct PathCandidate {
+     pub path_id: PathId,
+@@ -32,4 +31,5 @@ pub struct PathCandidate {
+     pub capabilities: PathCapabilities,
+     pub health: RouteHealth,
+     pub underlay: Option<crate::diversity::UnderlayId>,
++    pub state: crate::acquisition::CandidateState,
+ }
+diff --git a/crates/siar-routing-policy/src/discovery.rs b/crates/siar-routing-policy/src/discovery.rs
+new file mode 100644
+index 0000000..6f21645
+--- /dev/null
++++ b/crates/siar-routing-policy/src/discovery.rs
+@@ -0,0 +1,196 @@
++//! §88 "Path Acquisition", §90 "Discovery Budget".
++
++use crate::platform::{DeviceState, ThermalState};
++use crate::types::Priority;
++
++/// §90: "Routing should not trigger unlimited scans. Use: discovery
++/// budget, cooldown, priority-based escalation." A sliding-window
++/// admission counter with a cooldown once exhausted — real state a
++/// caller owns and persists across calls (this crate has no clock or
++/// storage of its own; see its top doc comment on scope), not a
++/// stateless heuristic like most of this crate's other functions,
++/// because §90's own "budget" and "cooldown" are inherently about
++/// behavior *over time*, which a pure function of a single call's
++/// inputs can't express.
++pub struct DiscoveryBudget {
++    max_attempts_per_window: u32,
++    window_millis: u64,
++    cooldown_after_exhaustion_millis: u64,
++    attempt_timestamps_millis: Vec<u64>,
++    exhausted_until_millis: Option<u64>,
++}
++
++impl DiscoveryBudget {
++    pub fn new(
++        max_attempts_per_window: u32,
++        window_millis: u64,
++        cooldown_after_exhaustion_millis: u64,
++    ) -> Self {
++        Self {
++            max_attempts_per_window,
++            window_millis,
++            cooldown_after_exhaustion_millis,
++            attempt_timestamps_millis: Vec::new(),
++            exhausted_until_millis: None,
++        }
++    }
++
++    /// §90's own worked example, transcribed as concrete numbers:
++    /// "normal message: no aggressive BLE scan" is a tight budget (a
++    /// couple of attempts, long window, long cooldown); "SOS:
++    /// aggressive discovery allowed" is a generous one. `Priority`
++    /// (not `DeliveryClass`) is the right axis here — §90's own
++    /// example contrasts an ordinary message against an SOS
++    /// specifically by urgency, the same signal
++    /// [`crate::privacy::justifies_expensive_setup`] (§52) already
++    /// keys its own Critical-priority override on.
++    pub fn for_priority(priority: Priority) -> Self {
++        match priority {
++            Priority::Critical => Self::new(20, 60_000, 5_000),
++            Priority::High => Self::new(5, 60_000, 15_000),
++            Priority::Normal => Self::new(2, 60_000, 30_000),
++            Priority::Low => Self::new(1, 120_000, 60_000),
++            Priority::Background => Self::new(1, 300_000, 120_000),
++        }
++    }
++
++    /// Returns `true` and records the attempt if the budget currently
++    /// allows one; `false` (recording nothing) otherwise. Exhausting
++    /// the window starts a cooldown — the window alone re-admitting
++    /// the instant the oldest timestamp ages out would let a caller
++    /// retry in a tight loop right at the window boundary, which is
++    /// exactly the "unlimited scans" shape §90 warns against; the
++    /// cooldown is what actually stops that.
++    pub fn try_admit(&mut self, now_millis: u64) -> bool {
++        if let Some(until) = self.exhausted_until_millis {
++            if now_millis < until {
++                return false;
++            }
++            self.exhausted_until_millis = None;
++        }
++
++        self.attempt_timestamps_millis
++            .retain(|&t| now_millis.saturating_sub(t) < self.window_millis);
++
++        if self.attempt_timestamps_millis.len() as u32 >= self.max_attempts_per_window {
++            self.exhausted_until_millis = Some(now_millis + self.cooldown_after_exhaustion_millis);
++            return false;
++        }
++
++        self.attempt_timestamps_millis.push(now_millis);
++        true
++    }
++}
++
++/// §88: "Active acquisition must be policy-limited because it costs
++/// power/time." Combines [`DiscoveryBudget`] with §85's device state:
++/// even a budget-admitted attempt is refused during
++/// [`ThermalState::Critical`] — a hardware safety margin, not a user
++/// preference, so it has no priority-based override (an SOS shouldn't
++/// force active radio scanning if the device is about to thermally
++/// shut down; that would make the emergency worse, not better).
++/// `battery_saver`, by contrast, *is* a user preference, and
++/// `Priority::Critical` does override it — the same asymmetry
++/// [`crate::privacy::justifies_expensive_setup`] already treats
++/// Critical priority as able to override cost/setup preferences but
++/// never safety constraints.
++pub fn discovery_permitted(
++    priority: Priority,
++    device: Option<&DeviceState>,
++    budget: &mut DiscoveryBudget,
++    now_millis: u64,
++) -> bool {
++    if let Some(device) = device {
++        if device.thermal_state == Some(ThermalState::Critical) {
++            return false;
++        }
++        if device.battery_saver == Some(true) && priority != Priority::Critical {
++            return false;
++        }
++    }
++    budget.try_admit(now_millis)
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn a_normal_priority_budget_is_much_tighter_than_a_critical_ones() {
++        let normal = DiscoveryBudget::for_priority(Priority::Normal);
++        let critical = DiscoveryBudget::for_priority(Priority::Critical);
++        assert!(critical.max_attempts_per_window > normal.max_attempts_per_window);
++    }
++
++    #[test]
++    fn admits_up_to_the_window_limit_then_denies() {
++        let mut budget = DiscoveryBudget::new(2, 60_000, 30_000);
++        assert!(budget.try_admit(0));
++        assert!(budget.try_admit(1_000));
++        assert!(!budget.try_admit(2_000)); // third attempt within the window
++    }
++
++    #[test]
++    fn exhaustion_starts_a_cooldown_that_outlasts_the_window() {
++        let mut budget = DiscoveryBudget::new(1, 10_000, 20_000);
++        assert!(budget.try_admit(0));
++        // Second attempt well within the 10s window hits the cap and
++        // triggers a 20s cooldown from *this* moment.
++        assert!(!budget.try_admit(500));
++        // Still within that cooldown, even though the original
++        // window itself would have re-opened by now.
++        assert!(!budget.try_admit(15_000));
++        // Cooldown (20s from t=500) has now elapsed.
++        assert!(budget.try_admit(20_501));
++    }
++
++    #[test]
++    fn thermal_critical_blocks_discovery_even_for_critical_priority() {
++        let mut budget = DiscoveryBudget::for_priority(Priority::Critical);
++        let device = DeviceState {
++            thermal_state: Some(ThermalState::Critical),
++            ..Default::default()
++        };
++        assert!(!discovery_permitted(
++            Priority::Critical,
++            Some(&device),
++            &mut budget,
++            0
++        ));
++    }
++
++    #[test]
++    fn battery_saver_blocks_normal_priority_but_not_critical() {
++        let device = DeviceState {
++            battery_saver: Some(true),
++            ..Default::default()
++        };
++        let mut normal_budget = DiscoveryBudget::for_priority(Priority::Normal);
++        assert!(!discovery_permitted(
++            Priority::Normal,
++            Some(&device),
++            &mut normal_budget,
++            0
++        ));
++
++        let mut critical_budget = DiscoveryBudget::for_priority(Priority::Critical);
++        assert!(discovery_permitted(
++            Priority::Critical,
++            Some(&device),
++            &mut critical_budget,
++            0
++        ));
++    }
++
++    #[test]
++    fn no_device_state_at_all_still_respects_the_budget() {
++        let mut budget = DiscoveryBudget::new(1, 60_000, 30_000);
++        assert!(discovery_permitted(Priority::Normal, None, &mut budget, 0));
++        assert!(!discovery_permitted(
++            Priority::Normal,
++            None,
++            &mut budget,
++            100
++        ));
++    }
++}
+diff --git a/crates/siar-routing-policy/src/dispatch.rs b/crates/siar-routing-policy/src/dispatch.rs
+index 433c8d9..907bf7e 100644
+--- a/crates/siar-routing-policy/src/dispatch.rs
++++ b/crates/siar-routing-policy/src/dispatch.rs
+@@ -198,9 +198,11 @@ mod tests {
+                 store_and_forward: false,
+                 metered: crate::types::MeteredState::Unknown,
+                 roaming: crate::types::RoamingState::Unknown,
++                requires_foreground: false,
+             },
+             health: RouteHealth::Healthy,
+             underlay: None,
++            state: crate::acquisition::CandidateState::Active,
+         };
+         RoutePlan {
+             primary,
+diff --git a/crates/siar-routing-policy/src/diversity.rs b/crates/siar-routing-policy/src/diversity.rs
+index 7d05c2f..80d43fd 100644
+--- a/crates/siar-routing-policy/src/diversity.rs
++++ b/crates/siar-routing-policy/src/diversity.rs
+@@ -123,9 +123,11 @@ mod tests {
+                 store_and_forward: false,
+                 metered: crate::types::MeteredState::Unknown,
+                 roaming: crate::types::RoamingState::Unknown,
++                requires_foreground: false,
+             },
+             health: RouteHealth::Healthy,
+             underlay,
++            state: crate::acquisition::CandidateState::Active,
+         }
+     }
+ 
+diff --git a/crates/siar-routing-policy/src/estimate.rs b/crates/siar-routing-policy/src/estimate.rs
+index 7a913a7..cc55e02 100644
+--- a/crates/siar-routing-policy/src/estimate.rs
++++ b/crates/siar-routing-policy/src/estimate.rs
+@@ -118,9 +118,11 @@ mod tests {
+                 store_and_forward: false,
+                 metered: crate::types::MeteredState::Unknown,
+                 roaming: crate::types::RoamingState::Unknown,
++                requires_foreground: false,
+             },
+             health: RouteHealth::Healthy,
+             underlay: None,
++            state: crate::acquisition::CandidateState::Active,
+         }
+     }
+ 
+diff --git a/crates/siar-routing-policy/src/lib.rs b/crates/siar-routing-policy/src/lib.rs
+index 60c690b..b0a53a0 100644
+--- a/crates/siar-routing-policy/src/lib.rs
++++ b/crates/siar-routing-policy/src/lib.rs
+@@ -190,11 +190,25 @@
+ //!   collection/privacy), §124-127 (simulated routing/property/chaos/
+ //!   failover tests beyond this crate's own unit tests) — not
+ //!   attempted.
+-//! - **Everything from roughly §85 onward that isn't listed above** —
+-//!   battery-aware inputs beyond §84/EnergyCost, background
+-//!   restrictions, platform policy integration, path acquisition,
+-//!   passive-vs-active candidates, discovery budget (§85-90),
+-//!   multi-device route aggregation and group/broadcast routing
++//! - [`platform`] — §85 "Battery-Aware Inputs" (`DeviceState`), §87
++//!   "Platform Policy Integration" (see that module's own doc comment
++//!   for how §87's six named signals map across this crate — three
++//!   already existed, three land in this module and [`acquisition`]).
++//! - [`acquisition`] — §86 "Background Restrictions"
++//!   (`is_currently_usable`/`eliminate_background_restricted`, now
++//!   actually called by [`plan::plan_route`]), §89 "Passive vs Active
++//!   Candidates" (`CandidateState`, transcribed exactly from that
++//!   section's own code block, now a real [`policy::PolicyWeights::candidate_state`]
++//!   scoring term).
++//! - [`discovery`] — §88 "Path Acquisition", §90 "Discovery Budget":
++//!   a real, stateful `DiscoveryBudget` (sliding window + cooldown, a
++//!   caller persists it across calls) plus `discovery_permitted`,
++//!   which combines the budget with [`platform::DeviceState`] —
++//!   thermal-critical blocks unconditionally (a hardware safety
++//!   margin, no priority override); battery-saver blocks unless
++//!   `Priority::Critical`, the same override shape
++//!   [`privacy::justifies_expensive_setup`] (§52) already uses.
++//! - **Everything from roughly §91 onward that isn't listed above** —
+ //!   (§171-175), storage-cost awareness (§176-178), and the remainder
+ //!   of this 200-section document not named above. §55 "Mesh
+ //!   Forwarding"'s richer candidate representation (next hop, route
+@@ -219,9 +233,11 @@
+ //! `siar-identity-multidevice` already takes toward the existing
+ //! `siar_crypto::device_cert` system, for the same reason.
+ 
++pub mod acquisition;
+ pub mod cache;
+ pub mod candidate;
+ pub mod descriptor;
++pub mod discovery;
+ pub mod dispatch;
+ pub mod diversity;
+ pub mod error;
+@@ -230,6 +246,7 @@ pub mod failure;
+ pub mod fairness;
+ pub mod metrics;
+ pub mod plan;
++pub mod platform;
+ pub mod policy;
+ pub mod privacy;
+ pub mod quality;
+diff --git a/crates/siar-routing-policy/src/plan.rs b/crates/siar-routing-policy/src/plan.rs
+index f7f228d..6a09ce9 100644
+--- a/crates/siar-routing-policy/src/plan.rs
++++ b/crates/siar-routing-policy/src/plan.rs
+@@ -39,6 +39,13 @@ pub struct RoutePlan {
+ /// worked example ("Iroh direct stable, Wi-Fi briefly appears — do not
+ /// churn"); pass `None` for a fresh destination with no existing route.
+ ///
++/// `device` (§85, this round) is the same idea for battery/thermal/
++/// foreground state — `None` when a caller has none to report, which
++/// changes nothing (see [`crate::acquisition::eliminate_background_restricted`],
++/// the only place this function actually reads it, for what `None`
++/// resolves to: every candidate kept, since nothing is confirmed
++/// backgrounded).
++///
+ /// §22 "Multipath Route" is explicitly named in the spec as "a later
+ /// optimization, not required for v1 routing" — this function never
+ /// produces [`RouteStrategy::Multipath`] for that reason, not because
+@@ -49,14 +56,23 @@ pub fn plan_route(
+     policy: &RoutingPolicy,
+     scorer: &dyn PathScorer,
+     current: Option<&PathCandidate>,
++    device: Option<&crate::platform::DeviceState>,
+ ) -> Result<RoutePlan, RoutingError> {
+-    let eligible = eliminate_hard_constraint_violations(candidates, req);
++    let mut eligible = eliminate_hard_constraint_violations(candidates, req);
++    // §86 "Background Restrictions": a second, independent elimination
++    // pass — kept separate from `eliminate_hard_constraint_violations`
++    // rather than folded into it, the same "composable, not baked into
++    // the core hard-constraint function" posture already used for
++    // [`crate::privacy::eliminate_privacy_violations`]/
++    // [`crate::security::eliminate_untrusted_candidates`].
++    eligible.retain(|c| crate::acquisition::is_currently_usable(c, device));
+     if eligible.is_empty() {
+         return Err(RoutingError::NoEligibleCandidates);
+     }
+ 
+     let context = RoutingContext {
+         current_path: current.map(|c| c.path_id),
++        device: device.copied(),
+     };
+     let mut scored: Vec<(&PathCandidate, RouteScore)> = eligible
+         .into_iter()
+@@ -192,9 +208,11 @@ mod tests {
+                 store_and_forward: false,
+                 metered: crate::types::MeteredState::Unknown,
+                 roaming: crate::types::RoamingState::Unknown,
++                requires_foreground: false,
+             },
+             health,
+             underlay: None,
++            state: crate::acquisition::CandidateState::Active,
+         }
+     }
+ 
+@@ -207,7 +225,7 @@ mod tests {
+             weights: policy.weights,
+         };
+ 
+-        let plan = plan_route(&candidates, &req, &policy, &scorer, None).unwrap();
++        let plan = plan_route(&candidates, &req, &policy, &scorer, None, None).unwrap();
+         assert_eq!(plan.strategy, RouteStrategy::Single);
+         assert!(plan.fallbacks.is_empty());
+     }
+@@ -223,7 +241,7 @@ mod tests {
+             weights: policy.weights,
+         };
+ 
+-        let plan = plan_route(&candidates, &req, &policy, &scorer, None).unwrap();
++        let plan = plan_route(&candidates, &req, &policy, &scorer, None, None).unwrap();
+         assert_eq!(plan.strategy, RouteStrategy::Failover);
+         assert_eq!(plan.primary.path_id, healthy.path_id);
+         assert_eq!(plan.fallbacks.len(), 1);
+@@ -238,7 +256,7 @@ mod tests {
+             weights: policy.weights,
+         };
+ 
+-        let result = plan_route(&[unreachable], &req, &policy, &scorer, None);
++        let result = plan_route(&[unreachable], &req, &policy, &scorer, None, None);
+         assert!(matches!(result, Err(RoutingError::NoEligibleCandidates)));
+     }
+ 
+@@ -256,7 +274,7 @@ mod tests {
+             weights: policy.weights,
+         };
+ 
+-        let plan = plan_route(&candidates, &req, &policy, &scorer, Some(&current)).unwrap();
++        let plan = plan_route(&candidates, &req, &policy, &scorer, Some(&current), None).unwrap();
+         assert_eq!(plan.primary.path_id, current.path_id);
+     }
+ 
+@@ -271,7 +289,7 @@ mod tests {
+             weights: policy.weights,
+         };
+ 
+-        let plan = plan_route(&candidates, &req, &policy, &scorer, Some(&current)).unwrap();
++        let plan = plan_route(&candidates, &req, &policy, &scorer, Some(&current), None).unwrap();
+         assert_eq!(plan.primary.path_id, healthy_alternative.path_id);
+     }
+ 
+@@ -286,7 +304,7 @@ mod tests {
+             weights: policy.weights,
+         };
+ 
+-        let plan = plan_route(&candidates, &req, &policy, &scorer, None).unwrap();
++        let plan = plan_route(&candidates, &req, &policy, &scorer, None, None).unwrap();
+         assert_eq!(plan.strategy, RouteStrategy::Redundant);
+         assert_eq!(plan.replicas.len(), 1);
+     }
+@@ -320,7 +338,7 @@ mod tests {
+             weights: policy.weights,
+         };
+ 
+-        let plan = plan_route(&candidates, &req, &policy, &scorer, Some(&primary)).unwrap();
++        let plan = plan_route(&candidates, &req, &policy, &scorer, Some(&primary), None).unwrap();
+         assert_eq!(plan.strategy, RouteStrategy::Redundant);
+         assert_eq!(plan.replicas.len(), 1);
+         assert_eq!(plan.replicas[0].path_id, diverse_but_lower_scored.path_id);
+@@ -361,7 +379,7 @@ mod tests {
+             weights: policy.weights,
+         };
+ 
+-        let plan = plan_route(&candidates, &req, &policy, &scorer, None).unwrap();
++        let plan = plan_route(&candidates, &req, &policy, &scorer, None, None).unwrap();
+         assert_eq!(plan.primary.transport, TransportKind::LocalLan);
+     }
+ 
+@@ -395,7 +413,7 @@ mod tests {
+             weights: policy.weights,
+         };
+ 
+-        let plan = plan_route(&candidates, &req, &policy, &scorer, None).unwrap();
++        let plan = plan_route(&candidates, &req, &policy, &scorer, None, None).unwrap();
+         assert_eq!(plan.primary.transport, TransportKind::IrohDirect);
+     }
+ 
+@@ -416,7 +434,7 @@ mod tests {
+             weights: policy.weights,
+         };
+ 
+-        let plan = plan_route(&candidates, &req, &policy, &scorer, None).unwrap();
++        let plan = plan_route(&candidates, &req, &policy, &scorer, None, None).unwrap();
+         assert_eq!(plan.strategy, RouteStrategy::Redundant);
+         assert_eq!(plan.primary.transport, TransportKind::IrohDirect);
+         assert_eq!(plan.replicas[0].transport, TransportKind::MeshRelay);
+diff --git a/crates/siar-routing-policy/src/platform.rs b/crates/siar-routing-policy/src/platform.rs
+new file mode 100644
+index 0000000..cfd6e96
+--- /dev/null
++++ b/crates/siar-routing-policy/src/platform.rs
+@@ -0,0 +1,63 @@
++//! §85 "Battery-Aware Inputs", §87 "Platform Policy Integration".
++//!
++//! §87 lists six things a platform adapter exposes: "network type,
++//! metered, roaming, power saver, background restrictions, radio
++//! availability." Four of those six already have a home elsewhere in
++//! this crate rather than here: "network type" is
++//! [`crate::types::TransportKind`] itself; "metered"/"roaming" are
++//! [`crate::types::MeteredState`]/[`crate::types::RoamingState`]
++//! (round 6); "radio availability" is
++//! [`crate::acquisition::CandidateState`] (this round, see that
++//! module). "Power saver" and "background restrictions" are the two
++//! that had nowhere to live until now — [`DeviceState::battery_saver`]
++//! here, and [`crate::candidate::PathCandidate::capabilities`]'s new
++//! `requires_foreground` flag over in [`crate::acquisition`]. §87's own
++//! closing line — "Rust routing policy remains authoritative" — is
++//! exactly why none of these six are modeled as a single opaque
++//! platform blob: each is its own typed field this crate's own logic
++//! can reason about, not a black box the platform adapter interprets
++//! on this crate's behalf.
++//!
++//! §85 itself is deliberately thin: "Part 13 will deepen battery
++//! scheduling" is the spec's own admission that this section is a
++//! placeholder for representation, not a request for this round to
++//! invent full battery-scheduling policy. [`DeviceState`] is that
++//! representation; [`crate::discovery::discovery_permitted`] is the
++//! one real behavior wired to it this round — enough to make it true
++//! that supplying this context actually changes a routing outcome,
++//! not inert data collected for its own sake.
++
++use serde::{Deserialize, Serialize};
++
++/// A small ordered scale, deliberately coarse — same "no need for fake
++/// precision" reasoning as [`crate::metrics::EnergyCost`]'s own doc
++/// comment (§84, which names that exact phrase). A platform adapter
++/// reports a percentage; this crate has no principled use for the
++/// exact number, only for which coarse band it falls in.
++#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
++pub enum BatteryLevelClass {
++    Critical,
++    Low,
++    Medium,
++    High,
++    Full,
++}
++
++#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
++pub enum ThermalState {
++    Normal,
++    Elevated,
++    Critical,
++}
++
++/// §85's own list, one field each, every field optional — a platform
++/// adapter that only reports some of these (or none yet, at startup)
++/// shouldn't be forced to fabricate the rest.
++#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
++pub struct DeviceState {
++    pub battery_level_class: Option<BatteryLevelClass>,
++    pub charging: Option<bool>,
++    pub battery_saver: Option<bool>,
++    pub thermal_state: Option<ThermalState>,
++    pub foreground: Option<bool>,
++}
+diff --git a/crates/siar-routing-policy/src/policy.rs b/crates/siar-routing-policy/src/policy.rs
+index b098282..9c27a62 100644
+--- a/crates/siar-routing-policy/src/policy.rs
++++ b/crates/siar-routing-policy/src/policy.rs
+@@ -37,6 +37,12 @@ pub struct PolicyWeights {
+     /// failure penalty still needs failure history this crate doesn't
+     /// keep.
+     pub congestion: f64,
++    /// §89 "Passive vs Active Candidates": "Scoring can penalize
++    /// setup" — a distinct axis from `setup_cost` (§44's cost *of*
++    /// establishing a connection once you've decided to) since this
++    /// is about whether the candidate is already reachable at all
++    /// (see [`crate::acquisition::CandidateState`]).
++    pub candidate_state: f64,
+ }
+ 
+ #[derive(Debug, Clone, Copy)]
+@@ -88,6 +94,7 @@ impl RoutingPolicyProfile {
+                     setup_cost: 0.5,
+                     existing_connection: 0.5,
+                     congestion: 0.5,
++                    candidate_state: 0.5,
+                 },
+                 hysteresis: HysteresisPolicy {
+                     switch_threshold: RouteScoreDelta(0.3),
+@@ -120,6 +127,9 @@ impl RoutingPolicyProfile {
+                     // formula — the highest `congestion` weight of any
+                     // profile.
+                     congestion: 0.7,
++                    // A call shouldn't wait on active discovery/setup
++                    // — prefer already-reachable candidates strongly.
++                    candidate_state: 0.6,
+                 },
+                 hysteresis: HysteresisPolicy {
+                     switch_threshold: RouteScoreDelta(0.6),
+@@ -144,6 +154,11 @@ impl RoutingPolicyProfile {
+                     setup_cost: 1.3,
+                     existing_connection: 1.2,
+                     congestion: 0.3,
++                    // "Avoid active discovery" is this profile's own
++                    // §30 text — the highest `candidate_state` weight
++                    // of any profile, matching its already-highest
++                    // `existing_connection`.
++                    candidate_state: 0.8,
+                 },
+                 hysteresis: HysteresisPolicy {
+                     switch_threshold: RouteScoreDelta(0.5),
+@@ -168,6 +183,7 @@ impl RoutingPolicyProfile {
+                     setup_cost: 0.6,
+                     existing_connection: 0.5,
+                     congestion: 0.3,
++                    candidate_state: 0.4,
+                 },
+                 hysteresis: HysteresisPolicy {
+                     switch_threshold: RouteScoreDelta(0.3),
+@@ -194,6 +210,7 @@ impl RoutingPolicyProfile {
+                     // kind of unreliability this profile most wants to
+                     // avoid — its own highest weight of any profile.
+                     congestion: 0.8,
++                    candidate_state: 0.5,
+                 },
+                 hysteresis: HysteresisPolicy {
+                     switch_threshold: RouteScoreDelta(0.4),
+@@ -229,6 +246,11 @@ impl RoutingPolicyProfile {
+                     // weight of any profile, deliberately, matching
+                     // this profile's already-lowest `setup_cost`.
+                     congestion: 0.1,
++                    // §90's own "SOS: aggressive discovery allowed" —
++                    // willing to use a `RequiresDiscovery`/
++                    // `RequiresSetup` candidate readily; lowest weight
++                    // of any profile, deliberately.
++                    candidate_state: 0.1,
+                 },
+                 hysteresis: HysteresisPolicy {
+                     switch_threshold: RouteScoreDelta(0.2), // switch readily — reachability matters more than stability here
+@@ -258,6 +280,7 @@ impl RoutingPolicyProfile {
+                     // erodes — a real, if not top, priority for a bulk
+                     // transfer.
+                     congestion: 0.6,
++                    candidate_state: 0.3,
+                 },
+                 hysteresis: HysteresisPolicy {
+                     switch_threshold: RouteScoreDelta(0.3),
+diff --git a/crates/siar-routing-policy/src/privacy.rs b/crates/siar-routing-policy/src/privacy.rs
+index 8245fe9..bb38406 100644
+--- a/crates/siar-routing-policy/src/privacy.rs
++++ b/crates/siar-routing-policy/src/privacy.rs
+@@ -204,9 +204,11 @@ mod tests {
+                 store_and_forward: false,
+                 metered,
+                 roaming: crate::types::RoamingState::Unknown,
++                requires_foreground: false,
+             },
+             health: RouteHealth::Healthy,
+             underlay: None,
++            state: crate::acquisition::CandidateState::Active,
+         }
+     }
+ 
+diff --git a/crates/siar-routing-policy/src/quality.rs b/crates/siar-routing-policy/src/quality.rs
+index 6d4bd75..b1d3dc1 100644
+--- a/crates/siar-routing-policy/src/quality.rs
++++ b/crates/siar-routing-policy/src/quality.rs
+@@ -82,9 +82,11 @@ mod tests {
+                 store_and_forward: false,
+                 metered: crate::types::MeteredState::Unknown,
+                 roaming: crate::types::RoamingState::Unknown,
++                requires_foreground: false,
+             },
+             health: RouteHealth::Healthy,
+             underlay: None,
++            state: crate::acquisition::CandidateState::Active,
+         };
+ 
+         let signal = quality_signal_for(&candidate);
+diff --git a/crates/siar-routing-policy/src/scoring.rs b/crates/siar-routing-policy/src/scoring.rs
+index 6bc2d24..cbc4b22 100644
+--- a/crates/siar-routing-policy/src/scoring.rs
++++ b/crates/siar-routing-policy/src/scoring.rs
+@@ -3,6 +3,7 @@
+ 
+ use crate::candidate::PathCandidate;
+ use crate::metrics::{CongestionState, EnergyCost, NetworkCost, StabilityScore};
++use crate::platform::DeviceState;
+ use crate::policy::PolicyWeights;
+ use crate::requirements::DeliveryRequirements;
+ use crate::setup::{effective_setup_cost, SetupCost};
+@@ -25,10 +26,14 @@ pub struct RouteScoreDelta(pub f64);
+ /// (§34-35) and existing-connection preference (§45) to work — this
+ /// crate has no live connection pool of its own to introspect (see its
+ /// top doc comment on scope), so `current_path` is supplied by
+-/// whatever caller does have one.
++/// whatever caller does have one. `device` (§85, this round) is the
++/// same idea applied to battery/thermal/foreground state — optional,
++/// and `None` changes nothing (see [`crate::discovery::discovery_permitted`]
++/// for the one place it's actually read).
+ #[derive(Debug, Clone, Copy, Default)]
+ pub struct RoutingContext {
+     pub current_path: Option<PathId>,
++    pub device: Option<DeviceState>,
+ }
+ 
+ /// §26.
+@@ -287,7 +292,8 @@ impl PathScorer for DefaultScorer {
+             + w.recent_success * recent_success
+             + w.setup_cost * setup_cost_suitability
+             + w.existing_connection * existing_connection
+-            + w.congestion * congestion_suitability;
++            + w.congestion * congestion_suitability
++            + w.candidate_state * crate::acquisition::candidate_state_unit(candidate.state);
+ 
+         RouteScore(total)
+     }
+@@ -318,9 +324,11 @@ mod tests {
+                 store_and_forward: false,
+                 metered: crate::types::MeteredState::Unknown,
+                 roaming: crate::types::RoamingState::Unknown,
++                requires_foreground: false,
+             },
+             health,
+             underlay: None,
++            state: crate::acquisition::CandidateState::Active,
+         }
+     }
+ 
+diff --git a/crates/siar-routing-policy/src/security.rs b/crates/siar-routing-policy/src/security.rs
+index 4f6a9ea..921de5c 100644
+--- a/crates/siar-routing-policy/src/security.rs
++++ b/crates/siar-routing-policy/src/security.rs
+@@ -145,9 +145,11 @@ mod tests {
+                 store_and_forward: false,
+                 metered: crate::types::MeteredState::Unknown,
+                 roaming: crate::types::RoamingState::Unknown,
++                requires_foreground: false,
+             },
+             health: RouteHealth::Healthy,
+             underlay: None,
++            state: crate::acquisition::CandidateState::Active,
+         }
+     }
+ 
+diff --git a/crates/siar-routing-policy/src/types.rs b/crates/siar-routing-policy/src/types.rs
+index 9b04a3c..86c8912 100644
+--- a/crates/siar-routing-policy/src/types.rs
++++ b/crates/siar-routing-policy/src/types.rs
+@@ -80,6 +80,9 @@ pub struct PathCapabilities {
+     pub store_and_forward: bool,
+     pub metered: MeteredState,
+     pub roaming: RoamingState,
++    /// §86 "Background Restrictions" — see [`crate::acquisition`]'s own
++    /// doc comment for how this is actually enforced.
++    pub requires_foreground: bool,
+ }
+ 
+ /// §14. "Health is derived from: recent failures, timeouts, connection
+-- 
+2.43.0
+
