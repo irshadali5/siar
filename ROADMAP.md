@@ -323,11 +323,63 @@ before it. Zero regressions in `siar-dtn-bundle` (37/37),
 `siar-identity-multidevice` (251/251), `siar-protocol-ext` (115/115).
 Next for spec 03: §97 onward.
 
+**2026-09-10 update (round 9):** §97-104 done, ~113→~121/200. New
+`explain.rs`: `RouteReason` transcribed exactly from §97's own code
+block, now a real `RoutePlan::reason` field computed by a first-
+match-wins heuristic (`infer_reason`) — honestly documented as
+"excellent for debugging" classification, not a precise decomposition
+of the weighted-sum score. `RouteMetricEvent`/`metric_events_for`
+(§98): event classification only; this crate keeps no counters of its
+own, so "average route setup latency"/"queue delay"/"retry count" have
+no equivalent here at all (documented as out of reach, not silently
+dropped — those are timing measurements this crate has no clock to
+take). §99 needed no code: `RouteMetricEvent` structurally cannot
+carry peer identity, an IP, a contact graph, or a location, since it
+has no field of any kind — "privacy by construction" rather than by
+filtering, and `RouteDiagnostics` (round 8) already had the same
+property, now called out explicitly. `RouteHint`/`hint_from_plan`/
+`revalidate_hint` (§100/§101) — the real teeth is `revalidate_hint`:
+"never assume persisted route is still valid" as an actual check
+against current candidates, not just a comment.
+
+§102 "Suspend/Resume" and §103 "Process Death" both turned out to
+already be fully satisfied by earlier rounds' work — §102's four
+bullet points map exactly onto `RouteCache::invalidate_all` + a fresh
+`plan_route` call + `RetryPolicy` + `DiscoveryBudget`'s own cooldown;
+§103 is satisfied by `RoutePlan` simply never having derived
+`Serialize`/`Deserialize` in the first place, now documented as a
+deliberate property rather than an unremarked one. Zero new code for
+either — the "check whether this is already covered before writing
+something new" habit (round 6 onward) paid off twice in one round.
+
+`RoutePlan` gained two more real fields for §104:
+`created_at_millis`/`valid_until_millis`, with the validity window
+derived from `RoutingPolicy::hysteresis.minimum_hold_millis` (already
+existed, representing "how long to trust this decision") rather than
+inventing a new duration. This required changing `plan_route`'s
+signature again — a new `now_millis` parameter, meaning all 13 call
+sites across `plan.rs` and `resilience.rs` needed the same mechanical
+fix as round 7's `device` parameter, plus the three new
+`RoutePlan`-literal-construction sites (`cache.rs`, `dispatch.rs`,
+four in `explain.rs`'s own tests) needed the three new fields added.
+
+130/130 tests (up from 119), clippy clean, fmt clean, doc-warning-free
+on the first check for once. No `DeliveryRequirements` fields touched
+this round, so no downstream `siar-dtn-bundle` fix was needed — still
+confirmed via the full workspace check rather than assumed. Zero
+regressions in `siar-dtn-bundle` (37/37), `siar-identity-multidevice`
+(251/251), `siar-protocol-ext` (115/115). Next for spec 03: §105
+onward (Path Authorization, Extension Capability Integration, Device
+Capability Integration — §105-107, a natural "authorization
+composition" cluster: §105 is explicitly an umbrella check over
+device-active/identity-trusted/operation-authorized/extension-
+supported, three of which already exist from earlier rounds).
+
 | # | Crate | State |
 |---|---|---|
 | 01 | siar-protocol-ext | ✅ **108/108 — spec complete** (final round: §91-92 reconciled, §93-95 error codes/health/recovery, §96-99 scheduler contract/storage/metrics/capability isolation, §100-105 reconciled with notes, §106 honest 16-item Definition of Done self-audit — 4 genuine gaps named, §107-108 reconciled) |
 | 02 | siar-identity-multidevice | ✅ **204/204 — spec complete** (final round, 2026-09-05: §190-204 — algorithm agility/downgrade protection utilities kept deliberately minimal per spec's own "avoid needless abstraction" caution; a root-key backup envelope that structurally cannot carry plaintext key material; backup-import validation run before any local state is touched; identity-reset/account-deletion presentations with required disclaimer fields; a guarded organization-offboarding state machine that operates only on organization-scoped device ids, never a personal AccountId; multi-tenant-safe composite keys; migration-fixture round-trip tests (honestly incomplete pending §125); and an itemized 21-item Definition-of-Done self-audit — **19/21 fully done, 2 honestly `PartiallyDone`** (no-UI-shipped confirmation prompt; property/integration tests exist but no real fuzz harness). Also fixed a genuinely broken intra-doc link left over from an earlier round, dropping this crate's doc-warning count from 4 to 3. 6 new modules (`algorithm_agility.rs`, `root_key_backup.rs`, `identity_lifecycle.rs`, `migration_fixtures.rs`, `definition_of_done.rs`) plus a `namespace.rs` extension, 20 new tests, 251/251 total, clippy clean, zero regressions. Across all 11 rounds this session: 137 new tests written, zero regressions in siar-routing-policy/siar-crypto at any point, every round compiled+tested+clippy+fmt+doc-checked for real against the actual uploaded Cargo.lock with rustc 1.91.1. Real, named, still-open gaps carried forward into future work: §125 schema versioning absent from DeviceCertificate/DeviceDirectory; §164 no cargo-fuzz harness; §191 full cross-version migration tests blocked on §125; `storage::IdentityStore`/`transaction`/all four `client_api` traits have zero real call sites anywhere in this workspace yet; `RootTrustCacheEntry`/`VerifiedContact` overlap not consolidated; §107/§91 have no real BLE/Wi-Fi/NFC transport wiring.) |
-| 03 | siar-routing-policy | ✅ ~113/200 (round 8, 2026-09-08: §91-96 — new `EscalationStage`/`escalation_stage_of` (§91) built entirely from existing round 2/6/7 types, `timeout_millis_for_stage` (§92), `HedgePolicy`/`hedge_policy_for` (§93) wired into a genuinely new `RouteStrategy::Hedged` that `plan_route` can now actually produce, `RouteDiagnostics`/`diagnose` (§95); §94 closed via a doc-comment extension, §96 explicitly deferred by the spec itself to "Part 18"; a real integration-test failure caught and fixed mid-round (round 6/7's metered/roaming hard constraints blocking a hedge test's own candidates until their capabilities were set correctly); rounds 2-7 covered §43-90 — see this crate's own lib.rs/round notes for what's genuinely covered vs merely accounted-for) |
+| 03 | siar-routing-policy | ✅ ~121/200 (round 9, 2026-09-10: §97-104 — new `RouteReason` (§97, now a real `RoutePlan::reason` field), `RouteMetricEvent`/`metric_events_for` (§98, event classification only, no counters — this crate keeps no history), §99 satisfied by construction (nothing in that enum *could* carry peer identity/IP/location); `RouteHint`/`hint_from_plan`/`revalidate_hint` (§100/§101); §102 turned out to already be fully covered by composing existing pieces (cache invalidation + fresh plan_route + RetryPolicy + DiscoveryBudget's cooldown), §103 likewise already true by design (`RoutePlan` deliberately has no `Serialize` derive); `RoutePlan` gained real `created_at_millis`/`valid_until_millis` fields (§104), the latter derived from the policy's own hysteresis window rather than an invented duration; `plan_route`'s signature changed again (new `now_millis` param, all 13 call sites fixed); rounds 2-8 covered §43-96 — see this crate's own lib.rs/round notes for what's genuinely covered vs merely accounted-for) |
 | 04 | siar-event-log | 🟡 ~10/95 (Phase 2 SQLite blocker below is now STALE — see Tier 3 update) |
 | 05 | siar-blob-manifest | ✅ ~23/210 (+ metadata_encryption.rs) |
 | 06 | siar-dtn-bundle | ✅ ~50/192 |
@@ -461,9 +513,9 @@ only genuine device/emulator/hardware-codec behavior does.
 Spec 01 (`siar-protocol-ext`) is complete (108/108). Spec 02
 (`siar-identity-multidevice`) is now ALSO complete (204/204) as of
 2026-09-05. Spec 03 (`siar-routing-policy`) is in progress, ~80/200 as
-of 2026-09-08 (round 8, §91-96) — the next crate in this project's
+of 2026-09-10 (round 9, §97-104) — the next crate in this project's
 explicit priority order ("work through the 9 Tier 0 core specs first,
-one by one"), continuing with §97 onward. Note there is a real, documented unresolved
+one by one"), continuing with §105 onward. Note there is a real, documented unresolved
 reconciliation question between `siar-routing` (pre-existing,
 next.md-era) and `siar-routing-policy` (this spec's own crate) — see
 that crate's own `lib.rs` for the current state of that question
