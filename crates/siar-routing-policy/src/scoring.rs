@@ -260,6 +260,7 @@ mod tests {
                 metered: false,
             },
             health,
+            underlay: None,
         }
     }
 
