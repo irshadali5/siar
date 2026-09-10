@@ -4,9 +4,15 @@ Source spec: `sys-arch/03-transport-routing-policy-engine-architecture.md` — 2
 
 ## Implementation status
 
-**86/200 (43%) sections.**
+**92/200 (46%) sections.**
 
-Partial — Round 1 (§1–§42), Round 2 (§43–§56), Round 3 (§57–§62), and Round 4 (§63–§68) complete (71/71 unit tests).
+Partial — Round 1 (§1–§42), Round 2 (§43–§56), Round 3 (§57–§62), Round 4 (§63–§68), and Round 5 (§69–§74) complete (82/82 unit tests).
+
+### Round 5 (§69–§74) Summary (2026-09-08)
+- **§69 & §70 (Route Planning for Messaging & Message Routing Workflow)**: Verified through comprehensive integration tests covering interactive messages, low-power preferences, emergency profiles, and fallback paths.
+- **§71 (Message Retry Strategy & Quality Signal)**: Implemented `PathQualitySignal` (`Good`, `Degraded`, `Failed`) in `quality.rs` projected from `PathMetrics` for media/retry adaptation.
+- **§72 (Ephemeral Message Routing & Deduplication)**: Documented stable operation ID deduplication in `descriptor.rs` and verified in route planning tests.
+- **§73 & §74 (Offline Routing, File Transfers, Path Diversity & Underlay Grouping)**: Implemented `UnderlayId`, `are_diverse`, `group_by_underlay`, and `most_diverse_fallback` in `diversity.rs`; wired into `plan_route`'s redundant-strategy replica selection so redundant copies prefer physically diverse underlays.
 
 ### Round 4 (§63–§68) Summary (2026-09-08)
 - **§63–§65 (Queue Architecture, Weighted Fair Scheduling, Backpressure)**: Formally documented in `dispatch.rs` via `siar-protocol-ext`'s `FairScheduler` and `BoundedQueue` integration.
@@ -45,4 +51,4 @@ Partial — Round 1 (§1–§42), Round 2 (§43–§56), Round 3 (§57–§62), 
 
 
 ## Note
-Detail above reflects implementation through Round 4 (§63–§68) completed on 2026-09-08. Next target: §69 onward.
+Detail above reflects implementation through Round 5 (§69–§74) completed on 2026-09-08. Next target: §75 onward.
