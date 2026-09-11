@@ -252,17 +252,26 @@
 //!   real fields: `RoutePlan::created_at_millis`/`valid_until_millis`,
 //!   the latter derived from `RoutingPolicy::hysteresis.minimum_hold_millis`
 //!   rather than a new invented duration.
-//! - **Everything from roughly §105 onward that isn't listed above** —
-//!   §105-107 (Path Authorization, Extension Capability Integration,
-//!   Device Capability Integration) and beyond, multi-device route
-//!   aggregation and group/broadcast routing (§171-175), storage-cost
-//!   awareness (§176-178), and the remainder
+//! - [`authorization`] — §105 "Path Authorization" (`authorize_path`,
+//!   composing the four checks the spec lists — see that module's own
+//!   doc comment for why three of the four were already real one
+//!   layer down and only "extension supported" is new code), §106
+//!   "Extension Capability Integration" (the new
+//!   `siar-protocol-ext::peer::PeerCapabilities` check itself, plus
+//!   `descriptor::OperationDescriptor::required_extension` to carry
+//!   the fact an operation needs one), §107 "Device Capability
+//!   Integration" (`select_devices_with_capability`, and a new
+//!   `siar_identity_multidevice::DeviceCapabilitySet::REALTIME_MEDIA`
+//!   bit that §107's own "phone supports video, headless relay does
+//!   not" example needed and didn't have before this round).
+//! - **Everything from roughly §108 onward that isn't listed above** —
+//!   §108-116's deeper policy-layering/security/privacy composition,
+//!   multi-device route aggregation and group/broadcast routing
+//!   (§171-175), storage-cost awareness (§176-178), and the remainder
 //!   of this 200-section document not named above. §55 "Mesh
 //!   Forwarding"'s richer candidate representation (next hop, route
 //!   utility, hop budget, relay trust policy) also remains
-//!   unimplemented — see [`privacy`]'s own doc comment. §108-116's
-//!   deeper security/privacy layering beyond
-//!   §48/§49's basic version here is likewise untouched. This is a
+//!   unimplemented — see [`privacy`]'s own doc comment. This is a
 //!   genuinely small slice of a very large spec — see §198 "Definition
 //!   of Done" in the source document for the full bar this crate does
 //!   not yet clear.
@@ -281,6 +290,7 @@
 //! `siar_crypto::device_cert` system, for the same reason.
 
 pub mod acquisition;
+pub mod authorization;
 pub mod cache;
 pub mod candidate;
 pub mod descriptor;
