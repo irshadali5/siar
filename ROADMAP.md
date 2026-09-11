@@ -375,11 +375,146 @@ composition" cluster: §105 is explicitly an umbrella check over
 device-active/identity-trusted/operation-authorized/extension-
 supported, three of which already exist from earlier rounds).
 
+**2026-09-11 update (round 10):** §105-107 done, ~121→~127/200. New
+`authorization.rs`: `authorize_path()` composes §105's own four-item
+list — confirming the round-9 prediction, three of the four were
+already real one layer down (device-active+identity-trusted =
+`security::authorize_candidate`; operation-authorized = a direct
+capability-bit check against the device's own certificate, the
+structural slice of `siar-identity-multidevice`'s existing
+`DeviceAuthorizationDecision::combine` that's actually this crate's
+job — the other two inputs that function combines are explicitly
+out of scope per its own doc comment, so `authorize_path` doesn't
+call `combine` itself). Only "extension supported" (§106) was
+genuinely new code: checks a candidate's peer against
+`siar-protocol-ext`'s `PeerCapabilities` (real negotiated-extension
+record), with no capability record for a peer treated as "not
+supported," never "unknown, so allow." `OperationDescriptor` gained
+`required_extension: Option<ProtocolId>` (§106) — zero existing call
+sites, so no downstream fixes needed. §107 "Device Capability
+Integration" is deliberately a separate function,
+`select_devices_with_capability()`, not another `authorize_path` —
+it's device-*selection* (§107's own "phone supports video, headless
+relay does not" example), one step upstream of authorizing a single
+already-built candidate. That example needed a capability bit that
+didn't exist yet: added `DeviceCapabilitySet::REALTIME_MEDIA` to
+`siar-identity-multidevice` rather than a parallel type in this
+crate, so both checks read the same certificate field.
+
+9 new tests, including one transcribed directly from §106's own
+worked example ("files/1 required, remote only supports messaging →
+path invalid"). 139/139 total, clippy clean, fmt clean (4 minor
+line-wrap fixes via `cargo fmt`), doc-warning-free for this round's
+own files (3 pre-existing warnings elsewhere in
+`siar-identity-multidevice`, untouched). No `DeliveryRequirements`
+changes, so no downstream `siar-dtn-bundle` fix needed. Zero
+regressions: `siar-dtn-bundle` (37/37), `siar-identity-multidevice`
+(251/251), `siar-protocol-ext` (115/115) — confirmed via full
+workspace check (apps/* excluded from a scratch copy of the workspace
+manifest for sandbox verification only, since this upload's tarball
+didn't include `apps/`; the delivered files don't touch that list).
+Next for spec 03 (superseded by round 11 below): §108 onward.
+
+**2026-09-11 update (round 11):** §108-115 done, ~127→~135/200. New
+`decision.rs`: `decide_route()` composes §108's own five-layer stack
+(system→application→user→operation→network context) end to end for
+the first time — each layer already existed piecemeal since round 2,
+but nothing before this round ran them in that order from one place.
+`SystemPolicy`/`PolicyLayers` (§108/109, new): "never exceed hard size
+limit" and "never route to revoked device" are real checks (the
+latter reuses `security::eliminate_untrusted_candidates`, composed
+not reimplemented); "never send unencrypted private message" has no
+checkable equivalent — no plaintext/ciphertext field exists to
+inspect. `ApplicationPolicy` (§110, new) is deliberately small: two of
+its three worked examples were already operation-level
+`DeliveryRequirements` fields (`allow_dtn`/`allow_relay`); only "must
+not use unknown relay peers" needed a new field
+(`ApplicationPolicy::allow_relay`). §111/§112 needed zero new code —
+`PrivacyPolicy`/`DeliveryRequirements` already fully covered both. §113
+"Policy Conflict"'s own point ("not silent policy violation") is why
+`decide_route` checks each layer separately and returns as soon as one
+empties a previously non-empty list, so §115's reason can name *which*
+layer — tested against §113's exact worked example (large file + no
+metered + only metered path exists → `Deferred(WaitingForUnmetered)`).
+`RouteDecisionResult` (§114, all 4 variants) and `DeferredReason`
+(§115, all 6 variants) both transcribed exactly; every `DeferredReason`
+variant wired to a real condition, not left inert (`BatteryPolicy`
+reuses `discovery::discovery_permitted`'s existing `battery_saver`
+gate; `BackgroundRestriction` reuses `acquisition::eliminate_background_restricted`).
+
+11 new tests, 150/150 total. Clippy needed two real fixes:
+`RouteDecisionResult`'s `large_enum_variant` (kept `Routed(RoutePlan)`
+un-boxed with a justified `#[allow]`, since §114's own code block
+spells it exactly that way) and a `needless_option_as_deref` on the
+discovery-budget branch. Fmt clean after `cargo fmt`, one broken
+intra-doc link fixed, doc build clean otherwise. Zero regressions in
+`siar-dtn-bundle`/`siar-identity-multidevice`/`siar-protocol-ext`
+(unchanged counts — this round touches no dependency crate).
+
+Next for spec 03 (superseded by round 12 below): §116 onward.
+
+**2026-09-11 update (round 12):** §116-120 done, ~135→~140/200. New
+`ui_state.rs`: `RouteUiState`/`ui_state_for()` (§116) — a deliberate
+many-to-one collapse of `RouteDecisionResult`/`DeferredReason` down
+to 5 neutral states, matching §116's own "do not expose raw transport
+errors to normal users." Two inferred (not spec-dictated) choices
+named honestly in that module's doc comment: `CarriedByNearbyPeer`
+fires specifically for a DTN-strategy/DTN-transport plan, and
+`Rejected`/`Unreachable` both collapse to `WaitingForConnection` since
+§116's own five-item list reads as in-flight states, not a
+terminal-failure one. New `config.rs`: `RoutingConfig` (§117,
+transcribed field-for-field — 5 of its 7 fields turned out to already
+have a more specific existing type: `retry::RetryPolicy`,
+`policy::HysteresisPolicy`, and the same bool shape
+`DeliveryRequirements`'s own `allow_relay`/`allow_bluetooth`/`allow_dtn`
+already use) plus `validate()`'s one real startup check (an inverted
+retry-backoff range — everything else is either a plain bool or
+already validated at construction via `Ratio::new`'s clamp). §118 "No
+Global Singleton" needed zero new code — verified by grep, not
+assumed: no `static`/`lazy_static!`/`once_cell`/`thread_local!`
+anywhere in this crate's `src/`, ever. New `engine.rs`: `RoutingEngine`
+trait (§119, native async-fn-in-trait syntax — no new runtime
+dependency added, since nothing else in this crate touches async)
+with `RouteRequest`/`RouteDecision`/`RouteResultReport`/`RouteOutcome`,
+plus a full worked implementation (`TestEngine`, holding a
+`TrustedAccountStore`/`RoutingPolicy`/`DiscoveryBudget` behind a
+`Mutex` since `plan` takes `&self`) and a from-scratch ~15-line
+`block_on` executor in that module's own tests (no async
+dev-dependency to reach for). §120 "Transport Manager API" is the one
+section this round with **no code** — its trait names three types
+(`ResolvedDestination`/`TransportSession`/`TransportError`) that
+belong to whichever crate owns real sockets (`siar-transport`), not
+this dependency-free one — named as a real, deliberate gap per the
+spec's own "Routing does not own low-level sockets."
+
+11 new tests (3 config + 6 ui_state + 2 engine), 161/161 total.
+Clippy needed three real fixes along the way: `async_fn_in_trait` on
+`RoutingEngine` (silenced with a justified `#[allow]`, since adding a
+`Send` bound would be adding something the spec's own signature
+doesn't ask for), a `doc_lazy_continuation` formatting issue in that
+same doc comment, plus the usual first-draft unused-import/unused-mut
+catches. Fmt clean after `cargo fmt`, two broken intra-doc links fixed
+(unqualified paths), doc build clean otherwise. Zero regressions:
+`siar-dtn-bundle` (37/37), `siar-identity-multidevice` (251/251),
+`siar-protocol-ext` (115/115) — unchanged, this round touched no
+dependency crate.
+
+Next for spec 03: §121 "Feedback Loop" (`RouteResultReport`/
+`RouteOutcome` already exist from this round, but "metrics update /
+health update" genuinely needs caller-owned history state this crate
+has consistently kept out of scope since round 9), §122 "Avoid ML
+Initially" (likely zero-code architectural guidance), §123
+"Deterministic Scoring" (looks substantially already true —
+`plan_route`'s tie-break-by-`path_id` and `RetryPolicy`'s own doc
+comment already cite it — worth a property test proving it rather
+than new machinery), then §124-127 (Simulated Routing Tests, Policy
+Property Tests, Chaos Tests, Failover Test) — a test-writing cluster.
+
 | # | Crate | State |
 |---|---|---|
 | 01 | siar-protocol-ext | ✅ **108/108 — spec complete** (final round: §91-92 reconciled, §93-95 error codes/health/recovery, §96-99 scheduler contract/storage/metrics/capability isolation, §100-105 reconciled with notes, §106 honest 16-item Definition of Done self-audit — 4 genuine gaps named, §107-108 reconciled) |
 | 02 | siar-identity-multidevice | ✅ **204/204 — spec complete** (final round, 2026-09-05: §190-204 — algorithm agility/downgrade protection utilities kept deliberately minimal per spec's own "avoid needless abstraction" caution; a root-key backup envelope that structurally cannot carry plaintext key material; backup-import validation run before any local state is touched; identity-reset/account-deletion presentations with required disclaimer fields; a guarded organization-offboarding state machine that operates only on organization-scoped device ids, never a personal AccountId; multi-tenant-safe composite keys; migration-fixture round-trip tests (honestly incomplete pending §125); and an itemized 21-item Definition-of-Done self-audit — **19/21 fully done, 2 honestly `PartiallyDone`** (no-UI-shipped confirmation prompt; property/integration tests exist but no real fuzz harness). Also fixed a genuinely broken intra-doc link left over from an earlier round, dropping this crate's doc-warning count from 4 to 3. 6 new modules (`algorithm_agility.rs`, `root_key_backup.rs`, `identity_lifecycle.rs`, `migration_fixtures.rs`, `definition_of_done.rs`) plus a `namespace.rs` extension, 20 new tests, 251/251 total, clippy clean, zero regressions. Across all 11 rounds this session: 137 new tests written, zero regressions in siar-routing-policy/siar-crypto at any point, every round compiled+tested+clippy+fmt+doc-checked for real against the actual uploaded Cargo.lock with rustc 1.91.1. Real, named, still-open gaps carried forward into future work: §125 schema versioning absent from DeviceCertificate/DeviceDirectory; §164 no cargo-fuzz harness; §191 full cross-version migration tests blocked on §125; `storage::IdentityStore`/`transaction`/all four `client_api` traits have zero real call sites anywhere in this workspace yet; `RootTrustCacheEntry`/`VerifiedContact` overlap not consolidated; §107/§91 have no real BLE/Wi-Fi/NFC transport wiring.) |
-| 03 | siar-routing-policy | ✅ ~121/200 (round 9, 2026-09-10: §97-104 — new `RouteReason` (§97, now a real `RoutePlan::reason` field), `RouteMetricEvent`/`metric_events_for` (§98, event classification only, no counters — this crate keeps no history), §99 satisfied by construction (nothing in that enum *could* carry peer identity/IP/location); `RouteHint`/`hint_from_plan`/`revalidate_hint` (§100/§101); §102 turned out to already be fully covered by composing existing pieces (cache invalidation + fresh plan_route + RetryPolicy + DiscoveryBudget's cooldown), §103 likewise already true by design (`RoutePlan` deliberately has no `Serialize` derive); `RoutePlan` gained real `created_at_millis`/`valid_until_millis` fields (§104), the latter derived from the policy's own hysteresis window rather than an invented duration; `plan_route`'s signature changed again (new `now_millis` param, all 13 call sites fixed); rounds 2-8 covered §43-96 — see this crate's own lib.rs/round notes for what's genuinely covered vs merely accounted-for) |
+| 03 | siar-routing-policy | ✅ ~140/200 (round 12, 2026-09-11: §116-120 — new `ui_state.rs`: `RouteUiState`/`ui_state_for()` (§116, a deliberate many-to-one collapse of `RouteDecisionResult`/`DeferredReason` down to 5 neutral states, per the spec's own "do not expose raw transport errors"); new `config.rs`: `RoutingConfig` (§117, transcribed field-for-field — 5 of 7 fields reuse an existing type outright) + `validate()`'s one real startup check (inverted retry-backoff range); §118 "No Global Singleton" needed zero new code (grep-verified: no `static`/`lazy_static!`/`once_cell`/`thread_local!` anywhere in this crate, ever); new `engine.rs`: `RoutingEngine` trait (§119, native async-fn-in-trait, no new runtime dependency) + a full worked implementation and a from-scratch ~15-line executor in its own tests (no async dev-dependency to reach for); §120 "Transport Manager API" is a named, deliberate gap — its trait's 3 types belong to whichever crate owns real sockets, not this dependency-free one; round 11 covered §108-115, round 10 covered §105-107, rounds 2-9 covered §43-104 — see this crate's own lib.rs/round notes for what's genuinely covered vs merely accounted-for) |
 | 04 | siar-event-log | 🟡 ~10/95 (Phase 2 SQLite blocker below is now STALE — see Tier 3 update) |
 | 05 | siar-blob-manifest | ✅ ~23/210 (+ metadata_encryption.rs) |
 | 06 | siar-dtn-bundle | ✅ ~50/192 |
