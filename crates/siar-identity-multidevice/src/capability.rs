@@ -26,6 +26,14 @@ impl DeviceCapabilitySet {
     pub const ROTATE_ACCOUNT_STATE: Self = Self(1 << 5);
     pub const SYNC_HISTORY: Self = Self(1 << 6);
     pub const RELAY: Self = Self(1 << 7);
+    /// Part 03 §107 "Device Capability Integration"'s own worked
+    /// example — "phone supports video, headless relay does not" —
+    /// named a per-device capability this set had no bit for yet.
+    /// Extending here rather than inventing a parallel type in
+    /// `siar-routing-policy` keeps §107's device-capability check
+    /// reading the exact same certificate field every other
+    /// capability check already reads.
+    pub const REALTIME_MEDIA: Self = Self(1 << 8);
 
     pub const NONE: Self = Self(0);
     pub const ALL: Self = Self(
@@ -36,7 +44,8 @@ impl DeviceCapabilitySet {
             | Self::MANAGE_GROUPS.0
             | Self::ROTATE_ACCOUNT_STATE.0
             | Self::SYNC_HISTORY.0
-            | Self::RELAY.0,
+            | Self::RELAY.0
+            | Self::REALTIME_MEDIA.0,
     );
 
     pub fn union(self, other: Self) -> Self {
