@@ -4,9 +4,14 @@ Source spec: `sys-arch/03-transport-routing-policy-engine-architecture.md` — 2
 
 ## Implementation status
 
-**121/200 (61%) sections.**
+**127/200 (64%) sections.**
 
-Partial — Round 1 (§1–§42), Round 2 (§43–§56), Round 3 (§57–§62), Round 4 (§63–§68), Round 5 (§69–§74), Round 6 (§75–§84), Round 7 (§85–§90), Round 8 (§91–§96), and Round 9 (§97–§104) complete (130/130 unit tests).
+Partial — Round 1 (§1–§42), Round 2 (§43–§56), Round 3 (§57–§62), Round 4 (§63–§68), Round 5 (§69–§74), Round 6 (§75–§84), Round 7 (§85–§90), Round 8 (§91–§96), Round 9 (§97–§104), and Round 10 (§105–§107) complete (139/139 unit tests).
+
+### Round 10 (§105–§107) Summary (2026-09-11)
+- **§105 (Path Authorization)**: Implemented `authorize_path` and `eliminate_paths_lacking_authorization` in `authorization.rs` composing the spec's four checks: device active & identity trusted (`security::authorize_candidate`), operation authorized (`DeviceCapabilitySet::contains`), and extension supported (`PeerCapabilities::supports`). Implemented `PathAuthorization` witness struct.
+- **§106 (Extension Capability Integration)**: Added `required_extension: Option<ProtocolId>` to `OperationDescriptor`; added peer capability check with conservative failure default (missing capability record treated as unsupported); added `RoutingError::ExtensionNotSupported`.
+- **§107 (Device Capability Integration)**: Implemented `select_devices_with_capability` for pre-candidate device selection from a resolved device list; added `DeviceCapabilitySet::REALTIME_MEDIA` to `siar-identity-multidevice`; added `RoutingError::OperationNotAuthorized`.
 
 ### Round 9 (§97–§104) Summary (2026-09-10)
 - **§97 (Route Decision Explainability)**: Implemented `RouteReason` and `infer_reason` in `explain.rs`; added `reason: RouteReason` to `RoutePlan`.
