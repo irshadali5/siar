@@ -264,11 +264,27 @@
 //!   `siar_identity_multidevice::DeviceCapabilitySet::REALTIME_MEDIA`
 //!   bit that §107's own "phone supports video, headless relay does
 //!   not" example needed and didn't have before this round).
-//! - **Everything from roughly §108 onward that isn't listed above** —
-//!   §108-116's deeper policy-layering/security/privacy composition,
-//!   multi-device route aggregation and group/broadcast routing
-//!   (§171-175), storage-cost awareness (§176-178), and the remainder
-//!   of this 200-section document not named above. §55 "Mesh
+//! - [`decision`] — §108 "Policy Layering" (`PolicyLayers`, a real
+//!   type for the spec's own five-layer diagram), §109 "System
+//!   Policy" (`SystemPolicy`), §110 "Application Policy"
+//!   (`ApplicationPolicy` — the one example of its three with no
+//!   existing home; see that module's own doc comment for why the
+//!   other two were already `DeliveryRequirements` fields), §111
+//!   "User Policy" and §112 "Operation Policy" (both already fully
+//!   covered by [`privacy::PrivacyPolicy`] and
+//!   [`requirements::DeliveryRequirements`] respectively — zero new
+//!   code for either), §113 "Policy Conflict" (`decide_route`'s own
+//!   layer-by-layer elimination order, tested against the spec's
+//!   exact large-file/no-metered/only-metered-path-exists example),
+//!   §114 "Policy Result Types" (`RouteDecisionResult`, transcribed
+//!   with its four variants named exactly as listed), §115 "Deferred
+//!   Reasons" (`DeferredReason`'s six variants, each wired to a real
+//!   condition rather than left inert).
+//! - **Everything from roughly §116 onward that isn't listed above** —
+//!   §116-170's deeper security/privacy composition beyond §48/§49's
+//!   basic version, multi-device route aggregation and group/broadcast
+//!   routing (§171-175), storage-cost awareness (§176-178), and the
+//!   remainder of this 200-section document not named above. §55 "Mesh
 //!   Forwarding"'s richer candidate representation (next hop, route
 //!   utility, hop budget, relay trust policy) also remains
 //!   unimplemented — see [`privacy`]'s own doc comment. This is a
@@ -293,6 +309,7 @@ pub mod acquisition;
 pub mod authorization;
 pub mod cache;
 pub mod candidate;
+pub mod decision;
 pub mod descriptor;
 pub mod discovery;
 pub mod dispatch;
