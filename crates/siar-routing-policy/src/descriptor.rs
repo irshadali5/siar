@@ -16,6 +16,7 @@ use uuid::Uuid;
 
 use crate::requirements::DeliveryRequirements;
 use crate::types::Destination;
+use siar_protocol_ext::identifier::ProtocolId;
 
 /// §58's own field — a newtype for the same reason [`crate::types::PathId`]
 /// already is one (see that type's own doc comment): an `OperationId`
@@ -88,6 +89,17 @@ pub struct OperationDescriptor {
     pub requirements: DeliveryRequirements,
     pub estimated_size: ByteCount,
     pub content_class: ContentClass,
+    /// §106 "Extension Capability Integration"'s own worked example,
+    /// read as a fact about the *operation* rather than about any one
+    /// candidate path — "files/1 required" is true of a file-transfer
+    /// operation regardless of which peer or transport ends up
+    /// carrying it. `None` for the common case (messaging/control
+    /// traffic that needs no protocol extension at all, i.e. most of
+    /// §59's [`ContentClass`] variants); see
+    /// [`crate::authorization::authorize_path`] for where this is
+    /// actually checked against a specific peer's negotiated
+    /// capabilities.
+    pub required_extension: Option<ProtocolId>,
 }
 
 #[cfg(test)]
