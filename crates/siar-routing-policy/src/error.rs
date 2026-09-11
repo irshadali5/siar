@@ -18,4 +18,15 @@ pub enum RoutingError {
     /// since" identically (see [`crate::security`]'s own doc comment).
     #[error("device is not a currently-trusted member of this account")]
     UnauthorizedDevice,
+    /// §105 item 3: the device passed identity/trust but its own
+    /// certificate doesn't carry the capability this operation
+    /// requires — see [`crate::authorization::authorize_path`].
+    #[error("device lacks the capability this operation requires")]
+    OperationNotAuthorized,
+    /// §105 item 4 / §106: no evidence the remote peer negotiated the
+    /// protocol extension this operation requires — either no
+    /// capability record was supplied for this peer at all, or one
+    /// was and it doesn't include this extension.
+    #[error("remote peer does not support the required protocol extension")]
+    ExtensionNotSupported,
 }
