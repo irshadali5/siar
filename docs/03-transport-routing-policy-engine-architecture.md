@@ -4,9 +4,17 @@ Source spec: `sys-arch/03-transport-routing-policy-engine-architecture.md` — 2
 
 ## Implementation status
 
-**127/200 (64%) sections.**
+**135/200 (68%) sections.**
 
-Partial — Round 1 (§1–§42), Round 2 (§43–§56), Round 3 (§57–§62), Round 4 (§63–§68), Round 5 (§69–§74), Round 6 (§75–§84), Round 7 (§85–§90), Round 8 (§91–§96), Round 9 (§97–§104), and Round 10 (§105–§107) complete (139/139 unit tests).
+Partial — Round 1 (§1–§42), Round 2 (§43–§56), Round 3 (§57–§62), Round 4 (§63–§68), Round 5 (§69–§74), Round 6 (§75–§84), Round 7 (§85–§90), Round 8 (§91–§96), Round 9 (§97–§104), Round 10 (§105–§107), and Round 11 (§108–§115) complete (150/150 unit tests).
+
+### Round 11 (§108–§115) Summary (2026-09-11)
+- **§108 (Policy Layering)**: Implemented `PolicyLayers` bundling system, application, and user policy layers; implemented `decide_route` running the five-layer stack (system → application → user → operation → network context) in sequential order.
+- **§109 (System Policy)**: Implemented `SystemPolicy` enforcing hard operation size limit (`max_operation_bytes`) and untrusted device elimination (`security::eliminate_untrusted_candidates`).
+- **§110 (Application Policy)**: Implemented `ApplicationPolicy` providing application-level relay control (`allow_relay`).
+- **§111 & §112 (User Policy & Operation Policy)**: Integrated `PrivacyPolicy` and `DeliveryRequirements` into the layered decision pipeline.
+- **§113 (Policy Conflict)**: Designed layer-by-layer evaluation short-circuiting on the specific conflicting policy layer; verified §113 worked example ("large file + no metered + only metered path exists -> DeferredByPolicy").
+- **§114 & §115 (Policy Result Types & Deferred Reasons)**: Implemented `RouteDecisionResult` (`Routed`, `Deferred`, `Rejected`, `Unreachable`), `RejectReason`, and `DeferredReason` (`WaitingForUnmetered`, `WaitingForPeer`, `WaitingForWifi`, `BatteryPolicy`, `BackgroundRestriction`, `NoSuitablePathYet`).
 
 ### Round 10 (§105–§107) Summary (2026-09-11)
 - **§105 (Path Authorization)**: Implemented `authorize_path` and `eliminate_paths_lacking_authorization` in `authorization.rs` composing the spec's four checks: device active & identity trusted (`security::authorize_candidate`), operation authorized (`DeviceCapabilitySet::contains`), and extension supported (`PeerCapabilities::supports`). Implemented `PathAuthorization` witness struct.
