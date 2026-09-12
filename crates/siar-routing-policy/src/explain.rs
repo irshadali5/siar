@@ -21,6 +21,28 @@ pub enum RouteReason {
     DtnOnlyAvailable,
 }
 
+impl RouteReason {
+    /// §157 "Developer Diagnostics"'s own worked example ("Reason:
+    /// existing session + low RTT") wants a short human-readable
+    /// phrase, not the bare enum variant name. This doesn't try to
+    /// reproduce that exact combined phrase — `infer_reason`'s own
+    /// doc comment is explicit that this is a first-match-wins single
+    /// reason, not a decomposition that could ever say "X + Y" — each
+    /// variant gets its own honest, single-cause description instead.
+    pub fn description(&self) -> &'static str {
+        match self {
+            RouteReason::ExistingHealthyConnection => "existing healthy connection",
+            RouteReason::LowestLatency => "lowest latency",
+            RouteReason::HighestBandwidth => "highest bandwidth",
+            RouteReason::PolicyPreferred => "policy preferred",
+            RouteReason::DirectPreferred => "direct connection preferred",
+            RouteReason::RelayFallback => "relay fallback",
+            RouteReason::EmergencyRedundancy => "emergency redundancy",
+            RouteReason::DtnOnlyAvailable => "only a delay-tolerant path is available",
+        }
+    }
+}
+
 fn is_direct_transport(t: TransportKind) -> bool {
     !matches!(t, TransportKind::IrohRelay | TransportKind::Dtn)
 }
@@ -252,6 +274,7 @@ mod tests {
             reason: RouteReason::PolicyPreferred,
             created_at_millis: 0,
             valid_until_millis: 0,
+            primary_score: crate::scoring::RouteScore(0.0),
         };
         let previous = PathId::new(); // definitely different from the fresh primary above
         let events = metric_events_for(&plan, Some(previous));
@@ -270,6 +293,7 @@ mod tests {
             reason: RouteReason::PolicyPreferred,
             created_at_millis: 0,
             valid_until_millis: 0,
+            primary_score: crate::scoring::RouteScore(0.0),
         };
         assert!(metric_events_for(&plan, None).contains(&RouteMetricEvent::DtnFallback));
     }
@@ -285,6 +309,7 @@ mod tests {
             reason: RouteReason::PolicyPreferred,
             created_at_millis: 0,
             valid_until_millis: 0,
+            primary_score: crate::scoring::RouteScore(0.0),
         };
         assert_eq!(hint_from_plan(&direct_plan, 1_000).recent_gateway, None);
 
@@ -299,6 +324,7 @@ mod tests {
             reason: RouteReason::PolicyPreferred,
             created_at_millis: 0,
             valid_until_millis: 0,
+            primary_score: crate::scoring::RouteScore(0.0),
         };
         assert_eq!(
             hint_from_plan(&relay_plan, 1_000).recent_gateway,
