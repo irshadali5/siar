@@ -499,22 +499,236 @@ catches. Fmt clean after `cargo fmt`, two broken intra-doc links fixed
 `siar-protocol-ext` (115/115) — unchanged, this round touched no
 dependency crate.
 
-Next for spec 03: §121 "Feedback Loop" (`RouteResultReport`/
-`RouteOutcome` already exist from this round, but "metrics update /
-health update" genuinely needs caller-owned history state this crate
-has consistently kept out of scope since round 9), §122 "Avoid ML
-Initially" (likely zero-code architectural guidance), §123
-"Deterministic Scoring" (looks substantially already true —
-`plan_route`'s tie-break-by-`path_id` and `RetryPolicy`'s own doc
-comment already cite it — worth a property test proving it rather
-than new machinery), then §124-127 (Simulated Routing Tests, Policy
-Property Tests, Chaos Tests, Failover Test) — a test-writing cluster.
+Next for spec 03 (superseded by round 13 below): §121 "Feedback Loop"
+onward.
+
+**2026-09-11 update (round 13):** §121-127 done, ~140→~148/200. New
+`engine::health_after_outcome()` (§121) — a pure single-sample health
+transition (`RouteHealth` × `RouteOutcome` → `RouteHealth`), wired
+into `TestEngine::report_result` against a real per-path `HashMap`;
+deliberately keeps no history itself, since the "metrics update" step
+before it in the spec's diagram needs history this crate has kept out
+of scope since round 9's `RouteMetricEvent`. §122 "Avoid ML Initially"
+needed zero new code (verified: no ML dependency, ever). §123
+"Deterministic Scoring" got property tests at three layers
+(`scoring::score()`, `plan::plan_route`, `decision::decide_route` —
+each called twice with identical inputs, same output asserted) rather
+than new production code, since the property was already true by
+construction. §124 "Simulated Routing Tests" transcribed the spec's
+exact Path A/Path B numbers (10ms/1Mbps/metered vs.
+50ms/100Mbps/unmetered) into `plan.rs`, surfacing two real
+test-writing lessons along the way: `interactive_message()` leaves
+`max_latency_millis: None`, under which RTT scores as neutral
+regardless of its actual value, and the latency-suitability curve
+itself only penalizes RTT *exceeding* the deadline rather than
+rewarding being well under it — both fixed in the test, not the
+production code (which was already correct; the test's assumptions
+were wrong). §125 "Policy Property Tests" — all four transcribed, and
+the fourth ("expired operation never routed") **surfaced a real,
+previously-unnoticed production gap**: `decide_route` had no way to
+know when an operation was created, so nothing ever actually enforced
+expiry at the routing-decision level. Fixed properly: new
+`OperationDescriptor::created_at_millis` field, new
+`RejectReason::OperationExpired`, and a new Step 0 check in
+`decide_route` — not merely a test working around a known limitation.
+§126 "Chaos Tests" — a 20-round WiFi-flap simulation in `plan.rs`
+proving `switch_threshold` stickiness absorbs measurement jitter (≤1
+switch across 19 opportunities where a naive top-score policy would
+switch on every one); the spec's other two named chaos properties
+("no infinite retry loop," "bounded queues") already had dedicated
+tests from earlier rounds and needed nothing new. §127 "Failover
+Test" — an end-to-end proof of the spec's exact scenario in
+`plan.rs`, with one test-writing bug caught (wrong assumption about
+which transport wins a tied-metrics scoring pass by default — fixed);
+its "operation resumes if semantics allow" second half is documented
+as a statement about a layer above this crate, since `plan_route` has
+no concept of "resume" to test.
+
+14 new tests, 175/175 total — not a clean first pass: three genuine
+bugs in this round's own test code were caught and fixed along the
+way (detailed above), none in production logic except the §125
+expiry gap itself, which was a real, previously-shipped gap this
+round's own test-writing caught and then fixed at the source. Clippy
+clean on the first pass this round. Fmt clean after `cargo fmt`, doc
+build clean. Zero regressions: `siar-dtn-bundle` (37/37),
+`siar-identity-multidevice` (251/251), `siar-protocol-ext` (115/115)
+— unchanged.
+
+Next for spec 03 (superseded by round 14 below): §128 onward.
+
+**2026-09-12 update (round 14):** §128-139 done, ~148→~157/200. §128
+"File Resume Integration" and §129 "Messaging Retry Integration"
+needed zero code — both are pure boundary statements ("do not make
+routing understand file chunk state," "routing does not create
+duplicate message semantics") this crate already satisfies by never
+having a chunk-state or message-ID concept anywhere in it. New
+`engine::RouteChangeEvent` (§130) — the reporting half only
+(`NewPath`/`QualityUpdate`); the call/media-layer actions the spec
+pairs with it ("rebind, renegotiate, adapt bitrate") stay a layer this
+crate reports to, not performs. New `risk.rs`: `handle_security_event()`
+(§131 — of the spec's own three actions, "invalidate route cache" is
+real, calling `RouteCache::invalidate` directly; "remove candidate"
+and "emit security-relevant event" come back as data since this crate
+has no persistent candidate registry or event bus; "authentication
+failure" and "revoked device" turned out to already be the same
+`RouteFailureClass` variant, so one trigger condition, not two);
+`PathPenalty` (§132, transcribed with the spec's own two fields —
+`until` as a timestamp structurally prevents permanent blacklisting,
+not a caller's discipline); `PeerAbuseStatus`/`eliminate_abusive_peers()`
+(§133, deliberately no `RateLimited` variant — that's
+`fairness::RoundRobinFairQueue`'s job at the dispatch layer, not a
+routing-elimination concern; tested adversarially with an
+excellent-metrics-but-abusive peer, matching round 13's §125 property
+style). New `scope.rs`: `RouteScope` (§137, transcribed exactly:
+`Any`/`InternetOnly`/`LocalOnly`/`NearbyOnly`) plus
+`transport_allowed_in_scope()`/`eliminate_out_of_scope_candidates()`
+covering §134-136's three named transport lists — named rather than
+silently reconciled: §134's "Local-Only" list includes `Dtn`; §136's
+otherwise-identical "Nearby-Only" list doesn't, and both are tested
+explicitly to lock that asymmetry in. §138 "Emergency Override" —
+new `privacy::effective_privacy_policy()` plus a new
+`PrivacyPolicy::emergency_override_enabled` field, wired into
+`decide_route`'s existing user-policy step with no new parameter
+needed (`descriptor.requirements.priority` was already available);
+both of the spec's own guard conditions (Critical priority AND
+explicit opt-in) are checked, not just priority, and proven
+end-to-end both ways. §139 "User Consent" needed zero new code —
+`PrivacyPolicy` already **is** "the resulting policy" routing
+consumes, per the spec's own last line.
+
+17 new tests (6 risk + 5 scope + 2 privacy + 2 decision + 2 engine),
+192/192 total — compiled clean and passed clean on the first try this
+round, no test-writing bugs unlike round 13. Clippy needed one real
+fix (`needless_lifetimes`), fmt needed the usual line-wrap pass, and
+doc build needed two broken intra-doc links fixed (wrong struct name
+— `fairness::RoundRobinFairQueue`, not `PerTransportDispatchQueue`).
+Zero regressions: `siar-dtn-bundle` (37/37),
+`siar-identity-multidevice` (251/251), `siar-protocol-ext` (115/115)
+— unchanged, this round touched no dependency crate.
+
+Next for spec 03 (superseded by round 15 below): §140 onward.
+
+**2026-09-12 update (round 15):** §140-150 done, ~157→~168/200. §140
+"Bandwidth Reservation"/§141 "Traffic Shaping" are both explicitly
+forward-looking in the spec's own text ("Future call + file
+coexistence") and kept correspondingly thin: new
+`BandwidthReservation`/`bulk_should_yield_to_reservation()` (Bulk
+yields entirely, not partially, to any active reservation — no
+duration/schedule, since this crate has no clock to track when a
+reservation should end) and `TrafficShapingPolicy` (the spec's own two
+named caps kept as two independently-triggered conditions — Bulk's
+cap only applies "while call active," Background-priority's cap is
+unconditional, matching exactly what the spec states with and without
+a qualifier). §142 "Connection Admission" — new
+`ConnectionAdmission`/`admission_permitted()`, with
+`Priority::Critical` always bypassing the caps, the same
+emergency-bypass shape round 14's §138 override established for a
+different resource; `is_expensive_radio_transport()` reuses
+`setup::static_setup_cost` (§44, unchanged) rather than re-deriving
+"expensive." §143 "Thermal Awareness" — three functions for the
+spec's own three named reductions (multipath, Wi-Fi Direct setup,
+background bulk), all gated on the same `ThermalState::Critical`
+threshold `discovery::discovery_permitted` already established for
+thermal pressure (§90) rather than a second severity line. §144
+"Memory Pressure" — new `MemoryPressure` enum on `DeviceState`;
+`memory_pressure_allows_acquisition()` implements "durable operations
+remain persisted" as an override rather than a separate exception
+path; `recommended_queue_capacity()` is a recommendation, not an
+enforced resize — the caller owns the actual queue; "drop stale
+realtime packets" has no function at all, since that's an action on a
+live packet buffer this crate doesn't hold.
+
+§145-150 "Transport Adapter Contract" through "DTN Adapter" — new
+`adapters.rs`, almost entirely documentation rather than new code:
+§145's own "report" contract is already exactly what `PathCandidate`
+carries, field for field; its "support" contract (connect/close/send)
+is the same kind of gap §120 already named, for the same reason (no
+transport dependency to define a session type against). §146-150 are
+checked field-by-field in that module's own doc comment: Iroh (§146)
+fully covered, and "should not expose Iroh-specific types upward"
+confirmed already true structurally; LAN (§147) mostly covered,
+"interface" named as a genuine gap; Bluetooth (§148) — "do not use
+Bluetooth MAC as identity" confirmed already true structurally
+(`peer: DeviceId` always), "proximity"/"paired state" named as gaps;
+Wi-Fi Direct/Aware (§149) mostly covered, "current group/session"
+named as a gap; DTN (§150) — "replication policy" already covered
+(`dtn_replication_budget`, §56), "uncertain latency" already expressed
+the same way this crate expresses any unmeasured quantity
+(`rtt_millis: None`), "delivery probability" named as a gap needing
+real encounter history this crate has never had access to.
+
+11 new tests, 203/203 total. One real compile error caught before the
+first test run: adding `DeviceState::memory_pressure` broke two
+existing test literals in `decision.rs` that didn't use
+`..Default::default()` — both one-line mechanical fixes. Clippy clean
+on the first pass. Fmt clean after `cargo fmt`, doc build clean on the
+first pass. Zero regressions: `siar-dtn-bundle` (37/37),
+`siar-identity-multidevice` (251/251), `siar-protocol-ext` (115/115)
+— unchanged.
+
+Next for spec 03 (superseded by round 16 below): §151 onward.
+
+**2026-09-12 update (round 16):** §151-159 done, ~168→~178/200. §151
+"Route Probability" — new `probability.rs`: round 15's own
+`adapters.rs` had named "delivery probability" as a gap on the
+grounds that this crate has no encounter history to compute one from,
+but §151 doesn't actually ask for that computation — only somewhere
+to *receive* an estimate from whatever adapter does have the history.
+New `PathMetrics::delivery_likelihood`/`expected_delay_class` fields
+are that place; `route_probability_signal()` reads them without being
+wired into `DefaultScorer`'s weighted formula (a real policy-tuning
+decision this round doesn't make unilaterally). Went back and
+corrected round 15's now-stale `adapters.rs` paragraph to reflect this.
+§152 "Metric Types Must Match Reality," §153 "Scoring Normalization,"
+§154 "Policy Weight Example" all needed zero new code — confirmed by
+inspection that this crate's typed-metrics design, per-factor
+normalized scoring terms, and `PolicyWeights`/`RoutingPolicyProfile`
+already satisfy each. §155 "Integer Score Option" — new
+`PolicyWeights::sum()` + `RouteScore::as_fixed_point()`, normalized
+against the actual weight-sum for a given policy rather than an
+assumed constant, since weights aren't required to sum to 1.0.
+
+§156-158 — new `diagnostics.rs`: `RouteDecisionLog` (§156, "not
+payload content" already true by construction), `DeveloperDiagnostics`
+(§157, transcribes the spec's own worked example field-for-field
+except "Destination: Bob Phone," which has no honest source here —
+documented rather than faked; added `RouteReason::description()` to
+produce the example's "Reason:" line honestly, as a single cause, not
+a fabricated combined phrase), `RouteHistory` (§158, a real
+fixed-capacity ring buffer — "do not retain indefinitely" enforced
+structurally, not by caller discipline). Getting "Score: 8240" required
+a real production change beyond this cluster: `RoutePlan` had no field
+carrying its own winning score before this round — added
+`RoutePlan::primary_score`, which touched 8 construction sites across
+6 files, all fixed. §159 "Telemetry Export" — new `telemetry.rs`:
+`TelemetrySummary` has no identity field anywhere in it to redact in
+the first place, same shape as round 9's `RouteMetricEvent`;
+`summarize_telemetry()` returns `None` for an empty batch rather than
+a misleading `0%`.
+
+13 new tests, 216/216 total. Clippy clean on the first pass. Fmt clean
+after `cargo fmt`. Doc build needed one fix (a broken intra-doc link —
+`DefaultScorer::score` doesn't resolve since `score` is a trait
+method, not inherent; fixed to link `PathScorer::score`). Zero
+regressions: `siar-dtn-bundle` (37/37), `siar-identity-multidevice`
+(251/251), `siar-protocol-ext` (115/115) — unchanged.
+
+Next for spec 03: §160 onward — not yet reviewed against the source
+document. From the section list: §160-163 (worked API examples:
+Text/File/SOS/Video Call — a builder-pattern `RouteRequest` API, good
+candidates for transcribed tests the way §124/§157 were, though
+§162's "allow redundancy" doesn't map to any existing
+`DeliveryRequirements` field and may need a new one), §164-170 (Route
+Result Report/Outcome/Partial Outcome/Cancellation/Graceful Path
+Switch/Make-Before-Break/Break-Before-Make — likely connects to round
+12's `RouteResultReport`/`RouteOutcome` and round 13's failover test).
+Read through before committing to a specific scope.
 
 | # | Crate | State |
 |---|---|---|
 | 01 | siar-protocol-ext | ✅ **108/108 — spec complete** (final round: §91-92 reconciled, §93-95 error codes/health/recovery, §96-99 scheduler contract/storage/metrics/capability isolation, §100-105 reconciled with notes, §106 honest 16-item Definition of Done self-audit — 4 genuine gaps named, §107-108 reconciled) |
 | 02 | siar-identity-multidevice | ✅ **204/204 — spec complete** (final round, 2026-09-05: §190-204 — algorithm agility/downgrade protection utilities kept deliberately minimal per spec's own "avoid needless abstraction" caution; a root-key backup envelope that structurally cannot carry plaintext key material; backup-import validation run before any local state is touched; identity-reset/account-deletion presentations with required disclaimer fields; a guarded organization-offboarding state machine that operates only on organization-scoped device ids, never a personal AccountId; multi-tenant-safe composite keys; migration-fixture round-trip tests (honestly incomplete pending §125); and an itemized 21-item Definition-of-Done self-audit — **19/21 fully done, 2 honestly `PartiallyDone`** (no-UI-shipped confirmation prompt; property/integration tests exist but no real fuzz harness). Also fixed a genuinely broken intra-doc link left over from an earlier round, dropping this crate's doc-warning count from 4 to 3. 6 new modules (`algorithm_agility.rs`, `root_key_backup.rs`, `identity_lifecycle.rs`, `migration_fixtures.rs`, `definition_of_done.rs`) plus a `namespace.rs` extension, 20 new tests, 251/251 total, clippy clean, zero regressions. Across all 11 rounds this session: 137 new tests written, zero regressions in siar-routing-policy/siar-crypto at any point, every round compiled+tested+clippy+fmt+doc-checked for real against the actual uploaded Cargo.lock with rustc 1.91.1. Real, named, still-open gaps carried forward into future work: §125 schema versioning absent from DeviceCertificate/DeviceDirectory; §164 no cargo-fuzz harness; §191 full cross-version migration tests blocked on §125; `storage::IdentityStore`/`transaction`/all four `client_api` traits have zero real call sites anywhere in this workspace yet; `RootTrustCacheEntry`/`VerifiedContact` overlap not consolidated; §107/§91 have no real BLE/Wi-Fi/NFC transport wiring.) |
-| 03 | siar-routing-policy | ✅ ~140/200 (round 12, 2026-09-11: §116-120 — new `ui_state.rs`: `RouteUiState`/`ui_state_for()` (§116, a deliberate many-to-one collapse of `RouteDecisionResult`/`DeferredReason` down to 5 neutral states, per the spec's own "do not expose raw transport errors"); new `config.rs`: `RoutingConfig` (§117, transcribed field-for-field — 5 of 7 fields reuse an existing type outright) + `validate()`'s one real startup check (inverted retry-backoff range); §118 "No Global Singleton" needed zero new code (grep-verified: no `static`/`lazy_static!`/`once_cell`/`thread_local!` anywhere in this crate, ever); new `engine.rs`: `RoutingEngine` trait (§119, native async-fn-in-trait, no new runtime dependency) + a full worked implementation and a from-scratch ~15-line executor in its own tests (no async dev-dependency to reach for); §120 "Transport Manager API" is a named, deliberate gap — its trait's 3 types belong to whichever crate owns real sockets, not this dependency-free one; round 11 covered §108-115, round 10 covered §105-107, rounds 2-9 covered §43-104 — see this crate's own lib.rs/round notes for what's genuinely covered vs merely accounted-for) |
+| 03 | siar-routing-policy | ✅ ~178/200 (round 16, 2026-09-12: §151-159 — new `probability.rs`: `PathMetrics::delivery_likelihood`/`expected_delay_class` + `route_probability_signal()` (§151, closes the *representation* half of round 15's own named DTN gap, not the computation half — corrected round 15's now-stale `adapters.rs` paragraph); §152-154 needed zero new code (typed metrics, normalized per-factor scoring, and `PolicyWeights`/`RoutingPolicyProfile` already satisfy each); `PolicyWeights::sum()` + `RouteScore::as_fixed_point()` (§155, normalized against the actual weight-sum, not an assumed constant); new `diagnostics.rs`: `RouteDecisionLog` (§156), `DeveloperDiagnostics` (§157, transcribes the spec's own worked example minus "Destination: Bob Phone," which has no honest source here; required adding `RoutePlan::primary_score`, an 8-call-site field addition), `RouteHistory` (§158, a real bounded ring buffer); new `telemetry.rs`: `TelemetrySummary` (§159, no identity field anywhere in it to redact — same shape as round 9's `RouteMetricEvent`); round 15 covered §140-150, round 14 covered §128-139, round 13 covered §121-127, round 12 covered §116-120, round 11 covered §108-115, round 10 covered §105-107, rounds 2-9 covered §43-104 — see this crate's own lib.rs/round notes for what's genuinely covered vs merely accounted-for) |
 | 04 | siar-event-log | 🟡 ~10/95 (Phase 2 SQLite blocker below is now STALE — see Tier 3 update) |
 | 05 | siar-blob-manifest | ✅ ~23/210 (+ metadata_encryption.rs) |
 | 06 | siar-dtn-bundle | ✅ ~50/192 |
