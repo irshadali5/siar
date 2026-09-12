@@ -125,6 +125,7 @@ mod tests {
             reason: RouteReason::LowestLatency,
             created_at_millis: 0,
             valid_until_millis: 0,
+            primary_score: crate::scoring::RouteScore(0.0),
         }
     }
 
