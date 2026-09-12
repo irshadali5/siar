@@ -46,6 +46,13 @@ pub struct RoutePlan {
     pub reason: crate::explain::RouteReason,
     pub created_at_millis: u64,
     pub valid_until_millis: u64,
+    /// §157 "Developer Diagnostics"'s own worked example ("Score:
+    /// 8240") needs the winning score somewhere a caller can read it
+    /// back — before this round, `plan_route` computed one internally
+    /// and then threw it away. See [`crate::diagnostics`] for where
+    /// this is actually turned into that worked example's exact
+    /// shape (including the 0..10,000 fixed-point conversion, §155).
+    pub primary_score: crate::scoring::RouteScore,
 }
 
 /// §25's four-step evaluation order, run end to end:
@@ -223,6 +230,7 @@ pub fn plan_route(
         reason,
         created_at_millis: now_millis,
         valid_until_millis: now_millis + policy.hysteresis.minimum_hold_millis,
+        primary_score: best.1,
     })
 }
 
