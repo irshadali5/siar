@@ -4,9 +4,16 @@ Source spec: `sys-arch/03-transport-routing-policy-engine-architecture.md` — 2
 
 ## Implementation status
 
-**168/200 (84%) sections.**
+**178/200 (89%) sections.**
 
-Partial — Round 1 (§1–§42), Round 2 (§43–§56), Round 3 (§57–§62), Round 4 (§63–§68), Round 5 (§69–§74), Round 6 (§75–§84), Round 7 (§85–§90), Round 8 (§91–§96), Round 9 (§97–§104), Round 10 (§105–§107), Round 11 (§108–§115), Round 12 (§116–§120), Round 13 (§121–§127), Round 14 (§128–§139), and Round 15 (§140–§150) complete (203/203 unit tests).
+Partial — Round 1 (§1–§42), Round 2 (§43–§56), Round 3 (§57–§62), Round 4 (§63–§68), Round 5 (§69–§74), Round 6 (§75–§84), Round 7 (§85–§90), Round 8 (§91–§96), Round 9 (§97–§104), Round 10 (§105–§107), Round 11 (§108–§115), Round 12 (§116–§120), Round 13 (§121–§127), Round 14 (§128–§139), Round 15 (§140–§150), and Round 16 (§151–§159) complete (216/216 unit tests).
+
+### Round 16 (§151–§159) Summary (2026-09-12)
+- **§151 (Route Probability)**: Added `delivery_likelihood` and `expected_delay_class` (`ExpectedDelayClass`) to `PathMetrics` in `metrics.rs` as the typed reception fields for DTN/mesh adapters, avoiding fabricated RTTs. Added `route_probability_signal` in `probability.rs`.
+- **§152–§154 (Metric Types, Scoring Normalization, Policy Weights)**: Verified standing design adherence — typed metric categories preserved independently, normalized per-factor suitability terms, and profile-driven float isolation.
+- **§155 (Integer Score Option)**: Implemented `PolicyWeights::sum()` in `policy.rs` and `RouteScore::as_fixed_point()` in `scoring.rs`, normalizing scores against actual policy weight sums into the `0..10_000` integer range for deterministic cross-platform portability.
+- **§156–§158 (Diagnostics & History Cluster)**: Implemented `diagnostics.rs` with `RouteDecisionLog` (payload-free decision records), `DeveloperDiagnostics` (transcribing the spec's worked example for transport, score, fallback, and `RouteReason::description`), and `RouteHistory` (fixed-capacity ring buffer evicting oldest entries to guarantee bounded retention). Added `primary_score` to `RoutePlan`.
+- **§159 (Telemetry Export)**: Implemented `telemetry.rs` with `TelemetrySummary` and `summarize_telemetry`, aggregating route success rate, direct/relay ratio, and failover rate with zero identity fields by construction.
 
 ### Round 15 (§140–§150) Summary (2026-09-12)
 - **§140 (Bandwidth Reservation)**: Implemented `BandwidthReservation` and `bulk_should_yield_to_reservation` in `resource_pressure.rs`, ensuring Bulk transfers yield unconditionally to active realtime audio/video reservations.
