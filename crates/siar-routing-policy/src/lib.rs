@@ -280,11 +280,39 @@
 //!   with its four variants named exactly as listed), §115 "Deferred
 //!   Reasons" (`DeferredReason`'s six variants, each wired to a real
 //!   condition rather than left inert).
-//! - **Everything from roughly §116 onward that isn't listed above** —
-//!   §116-170's deeper security/privacy composition beyond §48/§49's
-//!   basic version, multi-device route aggregation and group/broadcast
-//!   routing (§171-175), storage-cost awareness (§176-178), and the
-//!   remainder of this 200-section document not named above. §55 "Mesh
+//! - [`ui_state`] — §116 "UI-Friendly State" (`RouteUiState`,
+//!   `ui_state_for` — a genuine many-to-one collapse of
+//!   `RouteDecisionResult`/`DeferredReason` down to five neutral
+//!   states; see that module's own doc comment for the two inferred
+//!   collapsing choices it makes).
+//! - [`config`] — §117 "Route Policy Configuration" (`RoutingConfig`,
+//!   transcribed field-for-field; five of its seven fields reuse an
+//!   existing type outright — see that module's own doc comment —
+//!   plus `validate()`'s one real startup check).
+//! - §118 "No Global Singleton" needed no new code at all: this
+//!   crate has never had a `static`/`lazy_static!`/`once_cell`/
+//!   `thread_local!` anywhere in `src/` (verified by grep, not
+//!   assumed) — every function takes every piece of state it needs
+//!   as an explicit parameter, which is what "each `CommunicationRuntime`
+//!   owns its routing engine" actually requires structurally. [`engine`]'s
+//!   own `TestEngine` (in that module's tests) is a worked example of
+//!   one caller owning one engine instance with its own
+//!   `TrustedAccountStore`/`RoutingPolicy`/`DiscoveryBudget`.
+//! - [`engine`] — §119 "Routing Engine API" (`RoutingEngine` trait,
+//!   `RouteRequest`/`RouteDecision`/`RouteResultReport`/`RouteOutcome`,
+//!   plus a real implementation and a from-scratch minimal executor
+//!   in that module's own tests, since this crate has no async
+//!   runtime dependency to reach for). §120 "Transport Manager API"
+//!   is the one section this round with no code — see [`engine`]'s
+//!   own doc comment for why: its trait names three types
+//!   (`ResolvedDestination`/`TransportSession`/`TransportError`) that
+//!   belong to whichever crate owns actual sockets, not this one.
+//! - **Everything from roughly §121 onward that isn't listed above** —
+//!   §121-170's feedback-loop/testing-strategy/security-and-privacy
+//!   composition beyond §48/§49's basic version, multi-device route
+//!   aggregation and group/broadcast routing (§171-175), storage-cost
+//!   awareness (§176-178), and the remainder of this 200-section
+//!   document not named above. §55 "Mesh
 //!   Forwarding"'s richer candidate representation (next hop, route
 //!   utility, hop budget, relay trust policy) also remains
 //!   unimplemented — see [`privacy`]'s own doc comment. This is a
@@ -309,11 +337,13 @@ pub mod acquisition;
 pub mod authorization;
 pub mod cache;
 pub mod candidate;
+pub mod config;
 pub mod decision;
 pub mod descriptor;
 pub mod discovery;
 pub mod dispatch;
 pub mod diversity;
+pub mod engine;
 pub mod error;
 pub mod estimate;
 pub mod explain;
@@ -334,6 +364,7 @@ pub mod security;
 pub mod setup;
 pub mod stability;
 pub mod types;
+pub mod ui_state;
 
 pub use cache::RouteCache;
 pub use candidate::{PathCandidate, TransportEndpoint};
