@@ -855,6 +855,7 @@ mod tests {
             battery_saver: Some(true),
             thermal_state: None,
             foreground: None,
+            memory_pressure: None,
         };
         let mut budget = DiscoveryBudget::for_priority(Priority::Normal);
         let balanced = RoutingPolicyProfile::Balanced.policy();
@@ -903,6 +904,7 @@ mod tests {
             battery_saver: None,
             thermal_state: None,
             foreground: Some(false),
+            memory_pressure: None,
         };
         let balanced = RoutingPolicyProfile::Balanced.policy();
         let scorer = DefaultScorer {
