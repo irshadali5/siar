@@ -4,9 +4,16 @@ Source spec: `sys-arch/03-transport-routing-policy-engine-architecture.md` — 2
 
 ## Implementation status
 
-**135/200 (68%) sections.**
+**140/200 (70%) sections.**
 
-Partial — Round 1 (§1–§42), Round 2 (§43–§56), Round 3 (§57–§62), Round 4 (§63–§68), Round 5 (§69–§74), Round 6 (§75–§84), Round 7 (§85–§90), Round 8 (§91–§96), Round 9 (§97–§104), Round 10 (§105–§107), and Round 11 (§108–§115) complete (150/150 unit tests).
+Partial — Round 1 (§1–§42), Round 2 (§43–§56), Round 3 (§57–§62), Round 4 (§63–§68), Round 5 (§69–§74), Round 6 (§75–§84), Round 7 (§85–§90), Round 8 (§91–§96), Round 9 (§97–§104), Round 10 (§105–§107), Round 11 (§108–§115), and Round 12 (§116–§120) complete (161/161 unit tests).
+
+### Round 12 (§116–§120) Summary (2026-09-11)
+- **§116 (UI-Friendly State)**: Implemented `RouteUiState` (`Sending`, `WaitingForConnection`, `WaitingForWiFi`, `CarriedByNearbyPeer`, `Delivered`) and `ui_state_for` in `ui_state.rs`, providing a many-to-one collapse of internal decision states to prevent exposing raw transport errors to normal users.
+- **§117 (Route Policy Configuration)**: Implemented `RoutingConfig` in `config.rs`, reusing existing types (`RetryPolicy`, `HysteresisPolicy`, boolean gates for relay/bluetooth/dtn/multipath, direct preference default); implemented startup validation (`validate()`) catching inverted retry backoff ranges.
+- **§118 (No Global Singleton)**: Verified zero singleton or static state across the crate; routing engine instances are owned explicitly by caller/runtime.
+- **§119 (Routing Engine API)**: Implemented native async `RoutingEngine` trait in `engine.rs` with `plan` and `report_result`; implemented `RouteRequest`, `RouteDecision` alias, `RouteResultReport`, and `RouteOutcome` (reusing `RouteFailureClass`); implemented and tested `TestEngine` with a minimal zero-dependency executor.
+- **§120 (Transport Manager API)**: Documented architectural boundary — deliberately omitted socket-owning traits/types belonging to lower-level transport crates.
 
 ### Round 11 (§108–§115) Summary (2026-09-11)
 - **§108 (Policy Layering)**: Implemented `PolicyLayers` bundling system, application, and user policy layers; implemented `decide_route` running the five-layer stack (system → application → user → operation → network context) in sequential order.
