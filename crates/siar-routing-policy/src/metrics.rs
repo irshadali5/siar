@@ -150,6 +150,14 @@ pub struct PathMetrics {
     pub pool_state: Option<ConnectionPoolState>,
     pub retransmission_rate: Option<Ratio>,
     pub congestion_state: Option<CongestionState>,
+    /// §151 "Route Probability" — see [`crate::probability`] for the
+    /// full reasoning; this is the typed "delivery likelihood"
+    /// signal an adapter that has no real RTT (DTN/mesh) reports
+    /// instead of a fabricated one.
+    pub delivery_likelihood: Option<Ratio>,
+    /// §151's other named signal, "expected delay class" —
+    /// [`crate::probability::ExpectedDelayClass`].
+    pub expected_delay_class: Option<crate::probability::ExpectedDelayClass>,
 }
 
 impl PathMetrics {
@@ -171,6 +179,8 @@ impl PathMetrics {
             pool_state: None,
             retransmission_rate: None,
             congestion_state: None,
+            delivery_likelihood: None,
+            expected_delay_class: None,
         }
     }
 }
