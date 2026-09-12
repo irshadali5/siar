@@ -486,4 +486,27 @@ mod tests {
         let high_score = scorer.score(&high_retransmission, &req, &context);
         assert!(low_score.0 > high_score.0);
     }
+
+    /// §123 "Deterministic Scoring": "given the same policy, metrics,
+    /// and context, the routing decision should be reproducible."
+    /// `DefaultScorer::score` is an ordinary pure function — no
+    /// clock, no RNG, no shared mutable state — so this is really a
+    /// regression guard against a future change accidentally
+    /// introducing one of those, not a property in doubt today.
+    #[test]
+    fn spec_123_scoring_the_same_candidate_twice_produces_the_same_score() {
+        let req = DeliveryRequirements::interactive_message();
+        let policy = RoutingPolicyProfile::Balanced.policy();
+        let scorer = DefaultScorer {
+            weights: policy.weights,
+        };
+        let context = RoutingContext::default();
+        let mut candidate = candidate(TransportKind::IrohDirect, RouteHealth::Healthy, false);
+        candidate.metrics.rtt_millis = Some(37);
+        candidate.metrics.congestion_state = Some(CongestionState::Congested);
+
+        let first = scorer.score(&candidate, &req, &context);
+        let second = scorer.score(&candidate, &req, &context);
+        assert_eq!(first, second);
+    }
 }
