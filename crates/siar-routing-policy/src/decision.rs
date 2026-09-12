@@ -153,9 +153,14 @@ pub struct PolicyLayers<'a> {
 }
 
 /// §114's `RejectReason` — permanent, §108's "cannot be overridden."
-/// Deliberately a small, closed set: every variant corresponds to one
-/// of [`SystemPolicy`]'s own two checkable clauses (§109), nothing
-/// from a lower layer belongs here, since a lower-layer failure is by
+/// Deliberately a small, closed set: two variants correspond to
+/// [`SystemPolicy`]'s own two checkable clauses (§109); the third,
+/// `OperationExpired`, was added this round for §125's own "expired
+/// operation never routed" property — an expired operation is
+/// permanent in exactly the same sense as the other two (no candidate
+/// list, however good, changes the answer), which is what puts it
+/// here rather than in [`DeferredReason`]. Nothing from a lower layer
+/// belongs here otherwise, since a lower-layer failure is by
 /// definition something a caller *could* change (a toggle, a
 /// different operation, waiting for network context to improve) —
 /// that's exactly what makes it `Deferred` instead.
@@ -163,6 +168,10 @@ pub struct PolicyLayers<'a> {
 pub enum RejectReason {
     ExceedsHardSizeLimit,
     UnauthorizedDevice,
+    /// §125 "Policy Property Tests"'s own "expired operation never
+    /// routed." Checked before anything else in
+    /// [`decide_route`] — see that function's own doc comment.
+    OperationExpired,
 }
 
 /// §115, transcribed exactly, in the order listed. See
@@ -222,6 +231,12 @@ fn deferred_reason_for_user_policy(policy: &PrivacyPolicy) -> DeferredReason {
 /// everything then ask what's left," is what actually lets §115's
 /// reasons be specific.
 ///
+/// 0. §125's own "expired operation never routed":
+///    `descriptor.requirements.has_expired(descriptor.created_at_millis,
+///    now_millis)` → immediate [`RejectReason::OperationExpired`],
+///    before even step 1's empty-candidates check — an expired
+///    operation is rejected the same way with zero candidates or a
+///    thousand.
 /// 1. Empty `candidates` to begin with: [`DeferredReason::WaitingForPeer`]
 ///    if `descriptor.requirements.allow_dtn` (worth waiting — a DTN
 ///    carrier could still show up), else [`RouteDecisionResult::Unreachable`]
@@ -246,7 +261,11 @@ fn deferred_reason_for_user_policy(policy: &PrivacyPolicy) -> DeferredReason {
 ///    emptying here is [`DeferredReason::NoSuitablePathYet`] — this
 ///    check covers several independent clauses at once (metered,
 ///    roaming, allow_dtn/relay/bluetooth, min bandwidth, health), none
-///    of which §115 names individually.
+///    of which §115 names individually. §125's own "realtime
+///    operation never uses DTN" property is enforced here, by the
+///    same `allow_dtn` clause that excludes DTN for every other
+///    non-DTN-allowing operation — not a separate realtime-specific
+///    check.
 /// 6. **Network context**, discovery half (§90): only runs when
 ///    `discovery_budget` is `Some` and every remaining candidate is
 ///    [`crate::acquisition::CandidateState::RequiresDiscovery`] — a
@@ -262,7 +281,7 @@ fn deferred_reason_for_user_policy(policy: &PrivacyPolicy) -> DeferredReason {
 /// 7. **Network context**, foreground half (§86):
 ///    [`crate::acquisition::eliminate_background_restricted`];
 ///    emptying here is [`DeferredReason::BackgroundRestriction`].
-/// 8. Whatever survives all seven steps goes to
+/// 8. Whatever survives all seven elimination steps goes to
 ///    [`crate::plan::plan_route`] for scoring/stickiness/final plan —
 ///    `Ok` is [`RouteDecisionResult::Routed`]; the `Err` case is a
 ///    defensive fallback ([`DeferredReason::NoSuitablePathYet`]) that
@@ -282,6 +301,14 @@ pub fn decide_route(
     discovery_budget: Option<&mut DiscoveryBudget>,
     now_millis: u64,
 ) -> RouteDecisionResult {
+    // Step 0: §125's own "expired operation never routed."
+    if descriptor
+        .requirements
+        .has_expired(descriptor.created_at_millis, now_millis)
+    {
+        return RouteDecisionResult::Rejected(RejectReason::OperationExpired);
+    }
+
     // Step 1.
     if candidates.is_empty() {
         return if descriptor.requirements.allow_dtn {
@@ -460,6 +487,7 @@ mod tests {
             estimated_size: ByteCount(estimated_size),
             content_class: ContentClass::File,
             required_extension: None,
+            created_at_millis: 0,
         }
     }
 
@@ -923,5 +951,270 @@ mod tests {
             0,
         );
         assert!(matches!(result, RouteDecisionResult::Routed(_)));
+    }
+
+    /// §125 "Policy Property Tests", transcribed as four separate
+    /// properties rather than one combined test — each is its own
+    /// worked example in the spec and deserves its own failure
+    /// message if it regresses.
+    #[test]
+    fn spec_125_a_revoked_device_is_never_selected_even_when_it_scores_far_better() {
+        let (store, account, trusted_device) = trusted_store_with_one_device();
+        let descriptor = descriptor_for(
+            Destination::Account(account),
+            DeliveryRequirements::interactive_message(),
+            10,
+        );
+        let layers = PolicyLayers {
+            system: &no_size_limit(),
+            application: &ApplicationPolicy::default(),
+            user: &PrivacyPolicy::default(),
+        };
+        // The untrusted candidate has excellent metrics; the trusted
+        // one is merely present. A scorer that ignored trust would
+        // pick the untrusted one every time.
+        let mut untrusted = candidate(
+            TransportKind::IrohDirect,
+            DeviceId::new(),
+            MeteredState::Unmetered,
+        );
+        untrusted.metrics.rtt_millis = Some(1);
+        let trusted = candidate(
+            TransportKind::IrohDirect,
+            trusted_device,
+            MeteredState::Unmetered,
+        );
+        let candidates = vec![untrusted, trusted];
+        let balanced = RoutingPolicyProfile::Balanced.policy();
+        let scorer = DefaultScorer {
+            weights: balanced.weights,
+        };
+        let result = decide_route(
+            &candidates,
+            &descriptor,
+            &layers,
+            account,
+            &store,
+            &balanced,
+            &scorer,
+            None,
+            None,
+            None,
+            0,
+        );
+        match result {
+            RouteDecisionResult::Routed(plan) => assert_eq!(plan.primary.peer, trusted_device),
+            other => panic!("expected a routed plan onto the trusted device, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn spec_125_a_forbidden_metered_path_is_never_selected_even_when_it_scores_far_better() {
+        let (store, account, device) = trusted_store_with_one_device();
+        let mut req = DeliveryRequirements::interactive_message();
+        req.allow_metered = false;
+        let descriptor = descriptor_for(Destination::Account(account), req, 10);
+        let layers = PolicyLayers {
+            system: &no_size_limit(),
+            application: &ApplicationPolicy::default(),
+            user: &PrivacyPolicy::default(),
+        };
+        let unmetered_device = device;
+        let mut metered = candidate(
+            TransportKind::IrohDirect,
+            DeviceId::new(),
+            MeteredState::Metered,
+        );
+        metered.metrics.rtt_millis = Some(1); // scores far better on latency
+        let unmetered = candidate(
+            TransportKind::IrohDirect,
+            unmetered_device,
+            MeteredState::Unmetered,
+        );
+        let candidates = vec![metered, unmetered];
+        let balanced = RoutingPolicyProfile::Balanced.policy();
+        let scorer = DefaultScorer {
+            weights: balanced.weights,
+        };
+        let result = decide_route(
+            &candidates,
+            &descriptor,
+            &layers,
+            account,
+            &store,
+            &balanced,
+            &scorer,
+            None,
+            None,
+            None,
+            0,
+        );
+        match result {
+            RouteDecisionResult::Routed(plan) => {
+                assert_eq!(plan.primary.capabilities.metered, MeteredState::Unmetered)
+            }
+            other => panic!("expected a routed plan onto the unmetered device, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn spec_125_a_realtime_operation_never_uses_dtn_even_if_dtn_claims_realtime_capability() {
+        let (store, account, device) = trusted_store_with_one_device();
+        let descriptor = descriptor_for(
+            Destination::Account(account),
+            DeliveryRequirements::realtime_media(), // allow_dtn: false
+            10,
+        );
+        let layers = PolicyLayers {
+            system: &no_size_limit(),
+            application: &ApplicationPolicy::default(),
+            user: &PrivacyPolicy::default(),
+        };
+        // Adversarial: even a DTN candidate that (incorrectly) claims
+        // realtime capability must still be excluded — this proves
+        // it's `allow_dtn`, not the capability flag, doing the work.
+        let mut dtn = candidate(TransportKind::Dtn, DeviceId::new(), MeteredState::Unmetered);
+        dtn.capabilities.realtime_media = true;
+        let realtime = candidate(TransportKind::IrohDirect, device, MeteredState::Unmetered);
+        let mut realtime = realtime;
+        realtime.capabilities.realtime_media = true;
+        let candidates = vec![dtn, realtime];
+        let balanced = RoutingPolicyProfile::Balanced.policy();
+        let scorer = DefaultScorer {
+            weights: balanced.weights,
+        };
+        let result = decide_route(
+            &candidates,
+            &descriptor,
+            &layers,
+            account,
+            &store,
+            &balanced,
+            &scorer,
+            None,
+            None,
+            None,
+            0,
+        );
+        match result {
+            RouteDecisionResult::Routed(plan) => {
+                assert_ne!(plan.primary.transport, TransportKind::Dtn);
+                for fallback in &plan.fallbacks {
+                    assert_ne!(fallback.transport, TransportKind::Dtn);
+                }
+            }
+            other => panic!("expected a routed plan avoiding DTN entirely, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn spec_125_an_expired_operation_is_never_routed_regardless_of_how_good_the_candidates_are() {
+        let (store, account, device) = trusted_store_with_one_device();
+        let mut requirements = DeliveryRequirements::interactive_message();
+        requirements.expiry_millis = Some(5_000);
+        let descriptor = OperationDescriptor {
+            operation_id: OperationId::new(),
+            destination: Destination::Account(account),
+            requirements,
+            estimated_size: ByteCount(10),
+            content_class: ContentClass::Text,
+            required_extension: None,
+            created_at_millis: 1_000,
+        };
+        let layers = PolicyLayers {
+            system: &no_size_limit(),
+            application: &ApplicationPolicy::default(),
+            user: &PrivacyPolicy::default(),
+        };
+        let candidates = vec![candidate(
+            TransportKind::IrohDirect,
+            device,
+            MeteredState::Unmetered,
+        )];
+        let balanced = RoutingPolicyProfile::Balanced.policy();
+        let scorer = DefaultScorer {
+            weights: balanced.weights,
+        };
+        // now_millis = 6_000 is exactly 5_000ms after created_at (1_000) —
+        // requirements.rs's own has_expired test treats that boundary
+        // as expired.
+        let result = decide_route(
+            &candidates,
+            &descriptor,
+            &layers,
+            account,
+            &store,
+            &balanced,
+            &scorer,
+            None,
+            None,
+            None,
+            6_000,
+        );
+        assert!(matches!(
+            result,
+            RouteDecisionResult::Rejected(RejectReason::OperationExpired)
+        ));
+    }
+
+    /// §123 "Deterministic Scoring": "given the same policy, metrics,
+    /// and context, the routing decision should be reproducible."
+    /// Calling `decide_route` twice with byte-for-byte identical
+    /// inputs must produce the same primary path both times — this
+    /// is the top-of-stack version of the property; see
+    /// `scoring.rs`'s and `plan.rs`'s own tests for the same property
+    /// checked one layer down.
+    #[test]
+    fn spec_123_decide_route_is_deterministic_given_identical_inputs() {
+        let (store, account, device) = trusted_store_with_one_device();
+        let descriptor = descriptor_for(
+            Destination::Account(account),
+            DeliveryRequirements::interactive_message(),
+            10,
+        );
+        let layers = PolicyLayers {
+            system: &no_size_limit(),
+            application: &ApplicationPolicy::default(),
+            user: &PrivacyPolicy::default(),
+        };
+        // Two different paths to the *same* trusted device (e.g. two
+        // transports), so scoring has a real choice to make rather
+        // than a single-candidate trivial case.
+        let mut a = candidate(TransportKind::IrohDirect, device, MeteredState::Unmetered);
+        a.metrics.rtt_millis = Some(20);
+        let mut b = candidate(TransportKind::LocalLan, device, MeteredState::Unmetered);
+        b.metrics.rtt_millis = Some(80);
+        let candidates = vec![a, b];
+        let balanced = RoutingPolicyProfile::Balanced.policy();
+        let scorer = DefaultScorer {
+            weights: balanced.weights,
+        };
+
+        let run = || {
+            decide_route(
+                &candidates,
+                &descriptor,
+                &layers,
+                account,
+                &store,
+                &balanced,
+                &scorer,
+                None,
+                None,
+                None,
+                0,
+            )
+        };
+
+        let first = run();
+        let second = run();
+        match (first, second) {
+            (RouteDecisionResult::Routed(p1), RouteDecisionResult::Routed(p2)) => {
+                assert_eq!(p1.primary.path_id, p2.primary.path_id);
+                assert_eq!(p1.primary.transport, p2.primary.transport);
+                assert_eq!(p1.strategy, p2.strategy);
+            }
+            other => panic!("expected two routed plans, got {other:?}"),
+        }
     }
 }
