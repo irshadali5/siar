@@ -156,6 +156,26 @@ pub struct RouteResultReport {
     pub outcome: RouteOutcome,
 }
 
+/// §130 "Call Path Change Integration": "Routing reports: new path,
+/// quality update. Call/media engine handles: rebind, renegotiate,
+/// adapt bitrate." Only the reporting half is this crate's to build —
+/// `rebind`/`renegotiate`/`adapt bitrate` are call/media-layer
+/// actions this crate has no media session to perform them on, the
+/// same boundary [`RouteResultReport`]'s own doc comment already
+/// draws for feedback in the other direction. `QualityUpdate` carries
+/// [`crate::metrics::PathMetrics`] rather than a derived score,
+/// leaving "should this trigger a bitrate change" as a call-layer
+/// judgment call this crate doesn't make on its behalf.
+#[derive(Debug, Clone, PartialEq)]
+pub enum RouteChangeEvent {
+    NewPath {
+        primary: PathCandidate,
+    },
+    QualityUpdate {
+        metrics: crate::metrics::PathMetrics,
+    },
+}
+
 /// §119, transcribed with native async-fn-in-trait syntax — see this
 /// module's own doc comment for why that's a faithful transcription
 /// here and not a departure from the spec's own `async fn` signature.
@@ -440,5 +460,31 @@ mod tests {
                 "failure class {class:?} should map straight to Unreachable"
             );
         }
+    }
+
+    /// §130 "Call Path Change Integration" — a construction/matching
+    /// test is genuinely all there is to check here: the type is pure
+    /// data with no logic of its own (see this module's own doc
+    /// comment for why "rebind"/"renegotiate"/"adapt bitrate" aren't
+    /// this crate's to implement).
+    #[test]
+    fn route_change_event_reports_a_new_primary_without_acting_on_it() {
+        let event = RouteChangeEvent::NewPath {
+            primary: candidate(DeviceId::new()),
+        };
+        match event {
+            RouteChangeEvent::NewPath { primary } => {
+                assert_eq!(primary.transport, TransportKind::IrohDirect)
+            }
+            RouteChangeEvent::QualityUpdate { .. } => panic!("expected NewPath"),
+        }
+    }
+
+    #[test]
+    fn route_change_event_can_report_a_quality_update() {
+        let event = RouteChangeEvent::QualityUpdate {
+            metrics: crate::metrics::PathMetrics::unknown(),
+        };
+        assert!(matches!(event, RouteChangeEvent::QualityUpdate { .. }));
     }
 }
