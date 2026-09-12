@@ -93,6 +93,56 @@ pub enum RouteOutcome {
     Failed(RouteFailureClass),
 }
 
+/// §121 "Feedback Loop"'s own "health update" step, made real as a
+/// pure, stateless single-sample transition rather than left as a
+/// diagram arrow. Deliberately does **not** take or return any
+/// history (no failure count, no window, no clock) — that's the
+/// "metrics update" step immediately before it in the spec's own
+/// diagram, and this crate has kept that kind of state out of scope
+/// consistently since round 9's [`crate::explain::RouteMetricEvent`]
+/// (see that type's own doc comment). What's left, after subtracting
+/// history, is exactly this: "given the health this path currently
+/// has, and one new outcome, what's the health right now" — a
+/// caller that *does* keep history is free to feed a whole sequence
+/// of outcomes through this function one at a time, or use its own
+/// history-aware model instead; this one just needs to be honest
+/// about only ever seeing one sample.
+///
+/// `Success` never jumps straight from `Unreachable`/`Suspect`/
+/// `Unknown` to [`crate::types::RouteHealth::Healthy`] in one call —
+/// one success after a failing streak is evidence of recovery, not
+/// proof of it, so it lands on `Degraded` first the same way a real
+/// health tracker would want a little more than a single data point
+/// before fully trusting a path again. From `Degraded`, one more
+/// success is enough to reach `Healthy`; a path that was already
+/// `Healthy` simply stays `Healthy`.
+pub fn health_after_outcome(
+    current: crate::types::RouteHealth,
+    outcome: RouteOutcome,
+) -> crate::types::RouteHealth {
+    use crate::types::RouteHealth;
+    match outcome {
+        RouteOutcome::Success => match current {
+            RouteHealth::Healthy | RouteHealth::Degraded => RouteHealth::Healthy,
+            RouteHealth::Suspect | RouteHealth::Unreachable | RouteHealth::Unknown => {
+                RouteHealth::Degraded
+            }
+        },
+        RouteOutcome::Failed(class) => match class {
+            RouteFailureClass::Temporary => match current {
+                RouteHealth::Healthy => RouteHealth::Degraded,
+                _ => RouteHealth::Suspect,
+            },
+            RouteFailureClass::Unknown => RouteHealth::Suspect,
+            RouteFailureClass::TransportUnavailable
+            | RouteFailureClass::AuthenticationFailure
+            | RouteFailureClass::PolicyDenied
+            | RouteFailureClass::RemoteRejected
+            | RouteFailureClass::Permanent => RouteHealth::Unreachable,
+        },
+    }
+}
+
 /// §119's `RouteResultReport`. `operation_id`/`path_id` identify
 /// *which* plan this is feedback about — the same two ids
 /// [`crate::descriptor::OperationDescriptor`]'s own doc comment
@@ -159,6 +209,14 @@ mod tests {
         system: SystemPolicy,
         application: ApplicationPolicy,
         discovery_budget: Mutex<DiscoveryBudget>,
+        /// Per-path current health, updated by [`health_after_outcome`]
+        /// — the one piece of history this reference engine keeps,
+        /// specifically because it's exactly the single-sample state
+        /// [`health_after_outcome`] itself needs and nothing more (no
+        /// counts, no window). A real engine's actual `PathMetrics`
+        /// store is the natural place this would really live.
+        health_by_path:
+            Mutex<std::collections::HashMap<crate::types::PathId, crate::types::RouteHealth>>,
     }
 
     impl RoutingEngine for TestEngine {
@@ -187,12 +245,21 @@ mod tests {
             ))
         }
 
-        /// No history to update — this reference engine keeps none
-        /// (see this crate's own top doc comment on scope: no clock,
-        /// no history). A real integration's engine is where §121's
-        /// "metrics update / health update" steps would actually
-        /// live.
-        async fn report_result(&self, _report: RouteResultReport) {}
+        /// §121's own "health update" step, wired to a real (if
+        /// minimal) store this time — see [`health_after_outcome`]'s
+        /// own doc comment for why this is the *only* history this
+        /// reference engine keeps.
+        async fn report_result(&self, report: RouteResultReport) {
+            let mut health = self.health_by_path.lock().unwrap();
+            let current = health
+                .get(&report.path_id)
+                .copied()
+                .unwrap_or(crate::types::RouteHealth::Unknown);
+            health.insert(
+                report.path_id,
+                health_after_outcome(current, report.outcome),
+            );
+        }
     }
 
     fn candidate(peer: DeviceId) -> PathCandidate {
@@ -260,6 +327,7 @@ mod tests {
             discovery_budget: Mutex::new(DiscoveryBudget::for_priority(
                 crate::types::Priority::Normal,
             )),
+            health_by_path: Mutex::new(std::collections::HashMap::new()),
         };
         (engine, account, device)
     }
@@ -303,6 +371,7 @@ mod tests {
             estimated_size: ByteCount(10),
             content_class: crate::descriptor::ContentClass::Text,
             required_extension: None,
+            created_at_millis: 0,
         };
         let request = RouteRequest {
             candidates: vec![candidate(device)],
@@ -318,13 +387,58 @@ mod tests {
     }
 
     #[test]
-    fn report_result_accepts_feedback_without_panicking() {
+    fn report_result_updates_the_engines_own_per_path_health() {
         let (engine, _account, _device) = test_engine_with_one_device();
+        let path_id = PathIdType::new();
         let report = RouteResultReport {
             operation_id: OperationId::new(),
-            path_id: PathIdType::new(),
+            path_id,
             outcome: RouteOutcome::Failed(RouteFailureClass::Temporary),
         };
         block_on(engine.report_result(report));
+        // Unknown (no prior record) + Temporary failure → Suspect,
+        // per `health_after_outcome`'s own match arms.
+        assert_eq!(
+            engine.health_by_path.lock().unwrap().get(&path_id).copied(),
+            Some(crate::types::RouteHealth::Suspect)
+        );
+    }
+
+    /// §121's own "health update" step, tested as a set of pure
+    /// transitions rather than only through `TestEngine`'s
+    /// integration above.
+    #[test]
+    fn health_after_outcome_recovers_gradually_not_instantly() {
+        use crate::types::RouteHealth;
+        assert_eq!(
+            health_after_outcome(RouteHealth::Unreachable, RouteOutcome::Success),
+            RouteHealth::Degraded
+        );
+        assert_eq!(
+            health_after_outcome(RouteHealth::Degraded, RouteOutcome::Success),
+            RouteHealth::Healthy
+        );
+        assert_eq!(
+            health_after_outcome(RouteHealth::Healthy, RouteOutcome::Success),
+            RouteHealth::Healthy
+        );
+    }
+
+    #[test]
+    fn health_after_outcome_maps_permanent_style_failures_straight_to_unreachable() {
+        use crate::types::RouteHealth;
+        for class in [
+            RouteFailureClass::TransportUnavailable,
+            RouteFailureClass::AuthenticationFailure,
+            RouteFailureClass::PolicyDenied,
+            RouteFailureClass::RemoteRejected,
+            RouteFailureClass::Permanent,
+        ] {
+            assert_eq!(
+                health_after_outcome(RouteHealth::Healthy, RouteOutcome::Failed(class)),
+                RouteHealth::Unreachable,
+                "failure class {class:?} should map straight to Unreachable"
+            );
+        }
     }
 }
