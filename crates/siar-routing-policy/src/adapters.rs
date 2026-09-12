@@ -104,11 +104,16 @@
 //! [`crate::types::RoamingState::Unknown`] already use for a different
 //! kind of uncertainty — inventing a second, DTN-specific
 //! "uncertainty" type on top of that would just be encoding the same
-//! fact twice. "Delivery probability" has **no equivalent** — an
-//! actual estimate would need real store-and-forward encounter
-//! history this crate has never had access to (same "no clock, no
-//! history" boundary [`crate::explain::RouteMetricEvent`]'s own doc
-//! comment already draws), so nothing here fabricates one. "Detailed
+//! fact twice. "Delivery probability" — **updated since this was first
+//! written**: [`crate::probability`] (§151, a later round) added
+//! [`crate::metrics::PathMetrics::delivery_likelihood`]/
+//! [`crate::metrics::PathMetrics::expected_delay_class`] as the place
+//! an adapter *reports* this from its own encounter history; this
+//! crate still doesn't compute that estimate itself (same "no clock,
+//! no history" boundary [`crate::explain::RouteMetricEvent`]'s own doc
+//! comment already draws) — see [`crate::probability`]'s own doc
+//! comment for the fuller distinction between representation and
+//! computation. "Detailed
 //! peer encounter logic remains in Part 06" is the spec's own
 //! confirmation that this crate isn't where that estimate should live
 //! anyway.
