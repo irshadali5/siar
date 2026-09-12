@@ -4,9 +4,19 @@ Source spec: `sys-arch/03-transport-routing-policy-engine-architecture.md` — 2
 
 ## Implementation status
 
-**148/200 (74%) sections.**
+**157/200 (78%) sections.**
 
-Partial — Round 1 (§1–§42), Round 2 (§43–§56), Round 3 (§57–§62), Round 4 (§63–§68), Round 5 (§69–§74), Round 6 (§75–§84), Round 7 (§85–§90), Round 8 (§91–§96), Round 9 (§97–§104), Round 10 (§105–§107), Round 11 (§108–§115), Round 12 (§116–§120), and Round 13 (§121–§127) complete (175/175 unit tests).
+Partial — Round 1 (§1–§42), Round 2 (§43–§56), Round 3 (§57–§62), Round 4 (§63–§68), Round 5 (§69–§74), Round 6 (§75–§84), Round 7 (§85–§90), Round 8 (§91–§96), Round 9 (§97–§104), Round 10 (§105–§107), Round 11 (§108–§115), Round 12 (§116–§120), Round 13 (§121–§127), and Round 14 (§128–§139) complete (192/192 unit tests).
+
+### Round 14 (§128–§139) Summary (2026-09-12)
+- **§128 & §129 (File Resume & Messaging Retry Integration)**: Documented architectural boundaries — routing coordinates path changes without understanding file chunk state or creating duplicate message semantics.
+- **§130 (Call Path Change Integration)**: Implemented `RouteChangeEvent` (`NewPath` and `QualityUpdate` carrying `PathMetrics`) in `engine.rs` to report path switches and metric changes to higher-level call/media engines without performing media actions.
+- **§131 (Security Event Integration)**: Implemented `handle_security_event` and `SecurityEvent` in `risk.rs`, immediately invalidating the route cache on authentication failure / revoked device, returning event data for caller candidate eviction and telemetry.
+- **§132 (Blacklisting)**: Implemented `PathPenalty` with timestamp-based `until` (guaranteeing penalties expire and transient errors are not permanent) and `eliminate_penalized_paths` in `risk.rs`.
+- **§133 (Peer Abuse)**: Implemented `PeerAbuseStatus` (`Quarantined`, `Blocked`) and pre-scoring filter `eliminate_abusive_peers` in `risk.rs` so high-bandwidth abusive peers never survive to compete on scores.
+- **§134–§137 (Route Scope & Transport Lists)**: Implemented `RouteScope` (`Any`, `InternetOnly`, `LocalOnly`, `NearbyOnly`), `transport_allowed_in_scope`, and `eliminate_out_of_scope_candidates` in `scope.rs`. Accurately captured spec asymmetry where `LocalOnly` includes `Dtn` while `NearbyOnly` excludes it.
+- **§138 (Emergency Override)**: Added `emergency_override_enabled` to `PrivacyPolicy` and `effective_privacy_policy` in `privacy.rs`. Evaluated within `decide_route` Step 4: lifts `avoid_relay` only when both `Priority::Critical` and explicit user opt-in are present.
+- **§139 (User Consent)**: Preserved boundary — `PrivacyPolicy` is the concrete policy ingested by routing, while user consent collection is an application/UI layer responsibility.
 
 ### Round 13 (§121–§127) Summary (2026-09-12)
 - **§121 (Feedback Loop)**: Implemented `health_after_outcome` in `engine.rs` as a pure, stateless single-sample transition updating route health from execution outcomes. Added per-path health tracking in `TestEngine::report_result` with gradual recovery (`Unreachable`/`Suspect` -> `Degraded` -> `Healthy`) and immediate transition to `RouteHealth::Unreachable` on permanent failure classes.
