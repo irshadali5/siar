@@ -254,9 +254,14 @@ fn deferred_reason_for_user_policy(policy: &PrivacyPolicy) -> DeferredReason {
 ///    false` eliminates [`TransportKind::IrohRelay`]/[`TransportKind::MeshRelay`]
 ///    candidates; emptying the list here has no single better-fitting
 ///    §115 reason, so it's [`DeferredReason::NoSuitablePathYet`].
-/// 4. **User** (§111): [`crate::privacy::eliminate_privacy_violations`];
-///    emptying here uses a fixed priority order over which flag is
-///    set (see that logic's own comment, right above [`decide_route`]).
+/// 4. **User** (§111): [`crate::privacy::eliminate_privacy_violations`],
+///    against [`crate::privacy::effective_privacy_policy`]'s output
+///    rather than `layers.user` directly — §138 "Emergency Override"
+///    lives here, lifting `avoid_relay` specifically when both the
+///    operation is `Priority::Critical` and the user explicitly
+///    opted in; emptying here uses a fixed priority order over which
+///    flag is set (see that logic's own comment, right above
+///    [`decide_route`]).
 /// 5. **Operation** (§112): [`crate::scoring::eliminate_hard_constraint_violations`];
 ///    emptying here is [`DeferredReason::NoSuitablePathYet`] — this
 ///    check covers several independent clauses at once (metered,
@@ -345,12 +350,19 @@ pub fn decide_route(
         return RouteDecisionResult::Deferred(DeferredReason::NoSuitablePathYet);
     }
 
-    // Step 4: user policy.
+    // Step 4: user policy. §138's emergency override is applied here,
+    // before elimination — not a separate step — so it's exactly
+    // `avoid_relay` (and only `avoid_relay`) that's affected, and
+    // only for this one decision, never mutating `layers.user` itself.
     let after_application_owned: Vec<PathCandidate> =
         after_application.into_iter().cloned().collect();
-    let after_user = eliminate_privacy_violations(&after_application_owned, layers.user);
+    let effective_user_policy =
+        crate::privacy::effective_privacy_policy(layers.user, descriptor.requirements.priority);
+    let after_user = eliminate_privacy_violations(&after_application_owned, &effective_user_policy);
     if after_user.is_empty() {
-        return RouteDecisionResult::Deferred(deferred_reason_for_user_policy(layers.user));
+        return RouteDecisionResult::Deferred(deferred_reason_for_user_policy(
+            &effective_user_policy,
+        ));
     }
 
     // Step 5: operation policy (hard constraints).
@@ -1216,5 +1228,97 @@ mod tests {
             }
             other => panic!("expected two routed plans, got {other:?}"),
         }
+    }
+
+    /// §138 "Emergency Override", proved through the full
+    /// `decide_route` stack, not just `effective_privacy_policy` in
+    /// isolation: a critical operation with the user's explicit
+    /// opt-in reaches the relay candidate that a plain `avoid_relay`
+    /// policy would otherwise eliminate.
+    #[test]
+    fn spec_138_a_critical_operation_with_explicit_opt_in_reaches_a_relay_only_candidate() {
+        let (store, account, device) = trusted_store_with_one_device();
+        let mut req = DeliveryRequirements::interactive_message();
+        req.priority = crate::types::Priority::Critical;
+        let descriptor = descriptor_for(Destination::Account(account), req, 10);
+        let user_policy = PrivacyPolicy {
+            avoid_relay: true,
+            emergency_override_enabled: true,
+            ..Default::default()
+        };
+        let layers = PolicyLayers {
+            system: &no_size_limit(),
+            application: &ApplicationPolicy::default(),
+            user: &user_policy,
+        };
+        let candidates = vec![candidate(
+            TransportKind::IrohRelay,
+            device,
+            MeteredState::Unmetered,
+        )];
+        let balanced = RoutingPolicyProfile::Balanced.policy();
+        let scorer = DefaultScorer {
+            weights: balanced.weights,
+        };
+
+        let result = decide_route(
+            &candidates,
+            &descriptor,
+            &layers,
+            account,
+            &store,
+            &balanced,
+            &scorer,
+            None,
+            None,
+            None,
+            0,
+        );
+        assert!(matches!(result, RouteDecisionResult::Routed(_)));
+    }
+
+    #[test]
+    fn spec_138_without_explicit_opt_in_a_critical_operation_still_respects_avoid_relay() {
+        let (store, account, device) = trusted_store_with_one_device();
+        let mut req = DeliveryRequirements::interactive_message();
+        req.priority = crate::types::Priority::Critical;
+        let descriptor = descriptor_for(Destination::Account(account), req, 10);
+        let user_policy = PrivacyPolicy {
+            avoid_relay: true,
+            emergency_override_enabled: false,
+            ..Default::default()
+        };
+        let layers = PolicyLayers {
+            system: &no_size_limit(),
+            application: &ApplicationPolicy::default(),
+            user: &user_policy,
+        };
+        let candidates = vec![candidate(
+            TransportKind::IrohRelay,
+            device,
+            MeteredState::Unmetered,
+        )];
+        let balanced = RoutingPolicyProfile::Balanced.policy();
+        let scorer = DefaultScorer {
+            weights: balanced.weights,
+        };
+
+        let result = decide_route(
+            &candidates,
+            &descriptor,
+            &layers,
+            account,
+            &store,
+            &balanced,
+            &scorer,
+            None,
+            None,
+            None,
+            0,
+        );
+        assert!(matches!(
+            result,
+            RouteDecisionResult::Deferred(DeferredReason::NoSuitablePathYet)
+        ));
     }
 }
