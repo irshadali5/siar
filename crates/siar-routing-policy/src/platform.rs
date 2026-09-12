@@ -60,4 +60,7 @@ pub struct DeviceState {
     pub battery_saver: Option<bool>,
     pub thermal_state: Option<ThermalState>,
     pub foreground: Option<bool>,
+    /// §144 "Memory Pressure", added this round — see
+    /// [`crate::resource_pressure`] for the behavior wired to it.
+    pub memory_pressure: Option<crate::resource_pressure::MemoryPressure>,
 }
