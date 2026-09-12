@@ -397,9 +397,41 @@
 //!   product-level consent settings" it names are an onboarding/UI
 //!   concern that produces a `PrivacyPolicy`, not something this
 //!   crate collects itself.
-//! - **Everything from roughly §140 onward that isn't listed above** —
-//!   §140-170's admission-control/transport-adapter/scoring-detail/
-//!   telemetry/API-example/route-outcome sections, multi-device route
+//! - [`resource_pressure`] — §140 "Bandwidth Reservation"
+//!   (`BandwidthReservation`/`bulk_should_yield_to_reservation`, kept
+//!   deliberately thin per the spec's own "future coexistence"
+//!   framing), §141 "Traffic Shaping" (`TrafficShapingPolicy`, the
+//!   spec's own two named caps — Bulk-during-a-call and
+//!   Background-priority — kept as two independently-triggered
+//!   conditions, not one), §142 "Connection Admission"
+//!   (`ConnectionAdmission`/`admission_permitted`, with the same
+//!   `Priority::Critical`-always-bypasses shape §138's emergency
+//!   override established for a different resource),
+//!   §143 "Thermal Awareness" (three named reductions — multipath,
+//!   Wi-Fi Direct setup, background bulk — all gated on the same
+//!   `ThermalState::Critical` threshold [`discovery::discovery_permitted`]
+//!   already established rather than a second severity line), §144
+//!   "Memory Pressure" (`MemoryPressure` on
+//!   [`platform::DeviceState`], `memory_pressure_allows_acquisition`
+//!   honoring "durable operations remain persisted" as an override
+//!   rather than an exception, `recommended_queue_capacity`). None of
+//!   these five perform the actual resource action (shaping traffic,
+//!   dropping a packet) — each computes the decision; see that
+//!   module's own doc comment.
+//! - [`adapters`] — §145 "Transport Adapter Contract" through §150
+//!   "DTN Adapter," almost entirely documentation rather than new
+//!   code: §145's own "report" contract is already exactly what
+//!   [`candidate::PathCandidate`] carries, field for field, and its
+//!   "support" contract (connect/close/send) is the same kind of gap
+//!   §120 already named for the same reason. §146-150's own per-field
+//!   lists are checked one by one in that module's own doc comment —
+//!   most already have a home; the genuine gaps (Bluetooth
+//!   proximity/paired state, Wi-Fi group/session, LAN interface, DTN
+//!   delivery probability) are named rather than faked with a field
+//!   that wouldn't actually mean anything yet.
+//! - **Everything from roughly §151 onward that isn't listed above** —
+//!   §151-170's route-probability/scoring-detail/telemetry/API-example/
+//!   route-outcome/path-switch sections, multi-device route
 //!   aggregation and group/broadcast routing (§171-175), storage-cost
 //!   awareness (§176-178), and the remainder of this 200-section
 //!   document not named above. §55 "Mesh
@@ -424,6 +456,7 @@
 //! `siar_crypto::device_cert` system, for the same reason.
 
 pub mod acquisition;
+pub mod adapters;
 pub mod authorization;
 pub mod cache;
 pub mod candidate;
@@ -448,6 +481,7 @@ pub mod quality;
 pub mod requirements;
 pub mod resilience;
 pub mod resolve;
+pub mod resource_pressure;
 pub mod retry;
 pub mod risk;
 pub mod scope;
