@@ -89,6 +89,17 @@ pub struct OperationDescriptor {
     pub requirements: DeliveryRequirements,
     pub estimated_size: ByteCount,
     pub content_class: ContentClass,
+    /// §125 "Policy Property Tests"'s own "expired operation never
+    /// routed" — checkable at all only once something records *when*
+    /// the operation was created. `requirements.expiry_millis` (§6)
+    /// is a duration; this is the timestamp that duration counts from
+    /// — see [`crate::decision::decide_route`] for where the two are
+    /// actually combined via
+    /// [`DeliveryRequirements::has_expired`]. Named separately from
+    /// `requirements` itself since it's a fact about *this instance*
+    /// of the operation, not the delivery-requirements profile a
+    /// caller reuses across many operations.
+    pub created_at_millis: u64,
     /// §106 "Extension Capability Integration"'s own worked example,
     /// read as a fact about the *operation* rather than about any one
     /// candidate path — "files/1 required" is true of a file-transfer
