@@ -4,9 +4,18 @@ Source spec: `sys-arch/03-transport-routing-policy-engine-architecture.md` — 2
 
 ## Implementation status
 
-**140/200 (70%) sections.**
+**148/200 (74%) sections.**
 
-Partial — Round 1 (§1–§42), Round 2 (§43–§56), Round 3 (§57–§62), Round 4 (§63–§68), Round 5 (§69–§74), Round 6 (§75–§84), Round 7 (§85–§90), Round 8 (§91–§96), Round 9 (§97–§104), Round 10 (§105–§107), Round 11 (§108–§115), and Round 12 (§116–§120) complete (161/161 unit tests).
+Partial — Round 1 (§1–§42), Round 2 (§43–§56), Round 3 (§57–§62), Round 4 (§63–§68), Round 5 (§69–§74), Round 6 (§75–§84), Round 7 (§85–§90), Round 8 (§91–§96), Round 9 (§97–§104), Round 10 (§105–§107), Round 11 (§108–§115), Round 12 (§116–§120), and Round 13 (§121–§127) complete (175/175 unit tests).
+
+### Round 13 (§121–§127) Summary (2026-09-12)
+- **§121 (Feedback Loop)**: Implemented `health_after_outcome` in `engine.rs` as a pure, stateless single-sample transition updating route health from execution outcomes. Added per-path health tracking in `TestEngine::report_result` with gradual recovery (`Unreachable`/`Suspect` -> `Degraded` -> `Healthy`) and immediate transition to `RouteHealth::Unreachable` on permanent failure classes.
+- **§122 (Avoid ML Initially)**: Preserved deterministic weighted-sum routing without ML crates or runtime stochastic dependencies.
+- **§123 (Deterministic Scoring)**: Added property tests verifying reproducibility across three distinct architectural layers (`scoring::score`, `plan::plan_route`, `decision::decide_route`) given identical inputs.
+- **§124 (Simulated Routing Tests)**: Transcribed spec's exact scenario numbers (Path A: 10ms/1Mbps/metered vs Path B: 50ms/100Mbps/unmetered), proving interactive messages select based on policy while bulk transfers unconditionally require Path B due to hard constraints.
+- **§125 (Policy Property Tests)**: Verified all 4 core policy invariants (revoked device exclusion, forbidden metered exclusion, realtime DTN exclusion, expired operation rejection). Added `created_at_millis` to `OperationDescriptor` and `RejectReason::OperationExpired` to `decide_route` Step 0.
+- **§126 (Chaos Tests)**: Implemented Wi-Fi flapping test in `plan.rs` simulating 20 consecutive jitter rounds, verifying hysteresis stickiness prevents route storms.
+- **§127 (Failover Test)**: Implemented failover simulation proving degraded/unreachable primary immediately fails over to a healthy fallback candidate.
 
 ### Round 12 (§116–§120) Summary (2026-09-11)
 - **§116 (UI-Friendly State)**: Implemented `RouteUiState` (`Sending`, `WaitingForConnection`, `WaitingForWiFi`, `CarriedByNearbyPeer`, `Delivered`) and `ui_state_for` in `ui_state.rs`, providing a many-to-one collapse of internal decision states to prevent exposing raw transport errors to normal users.
