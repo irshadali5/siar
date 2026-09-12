@@ -426,12 +426,43 @@
 //!   §120 already named for the same reason. §146-150's own per-field
 //!   lists are checked one by one in that module's own doc comment —
 //!   most already have a home; the genuine gaps (Bluetooth
-//!   proximity/paired state, Wi-Fi group/session, LAN interface, DTN
-//!   delivery probability) are named rather than faked with a field
-//!   that wouldn't actually mean anything yet.
-//! - **Everything from roughly §151 onward that isn't listed above** —
-//!   §151-170's route-probability/scoring-detail/telemetry/API-example/
-//!   route-outcome/path-switch sections, multi-device route
+//!   proximity/paired state, Wi-Fi group/session, LAN interface) are
+//!   named rather than faked with a field that wouldn't actually mean
+//!   anything yet. ("DTN delivery probability," also named a gap when
+//!   this bullet was first written, got its representation half
+//!   filled in by [`probability`] below — see that module's own doc
+//!   comment.)
+//! - [`probability`] — §151 "Route Probability"
+//!   (`PathMetrics::delivery_likelihood`/`expected_delay_class`, the
+//!   place an adapter with real encounter history reports an estimate
+//!   this crate still doesn't compute itself), §152 "Metric Types
+//!   Must Match Reality" and §153 "Scoring Normalization" (both
+//!   already true by this crate's standing design — typed metric
+//!   fields, normalized per-factor suitability terms — zero new
+//!   code), §154 "Policy Weight Example" ([`policy::PolicyWeights`]
+//!   already the real superset of the spec's own simplified 5-term
+//!   example).
+//! - [`scoring::RouteScore::as_fixed_point`] — §155 "Integer Score
+//!   Option," normalized against [`policy::PolicyWeights::sum`]
+//!   rather than an assumed constant, since that struct's own weights
+//!   aren't required to sum to 1.0.
+//! - [`diagnostics`] — §156 "Route Decision Logging"
+//!   (`RouteDecisionLog`), §157 "Developer Diagnostics"
+//!   (`DeveloperDiagnostics`, transcribing the spec's own worked
+//!   example field-for-field except "Destination: Bob Phone," which
+//!   has no honest source here — see that module's own doc comment;
+//!   [`explain::RouteReason::description`] added specifically to
+//!   produce the example's "Reason:" line), §158 "Route History"
+//!   (`RouteHistory`, a real bounded ring buffer — "do not retain
+//!   indefinitely" enforced structurally by its own `push`, not by a
+//!   caller's discipline).
+//! - [`telemetry`] — §159 "Telemetry Export" (`TelemetrySummary`,
+//!   with no identity field anywhere in it to redact in the first
+//!   place — the same "can't leak what it has no field for" shape
+//!   §99's `RouteMetricEvent` already established).
+//! - **Everything from roughly §160 onward that isn't listed above** —
+//!   §160-170's worked-API-example/route-outcome/path-switch
+//!   sections, multi-device route
 //!   aggregation and group/broadcast routing (§171-175), storage-cost
 //!   awareness (§176-178), and the remainder of this 200-section
 //!   document not named above. §55 "Mesh
@@ -463,6 +494,7 @@ pub mod candidate;
 pub mod config;
 pub mod decision;
 pub mod descriptor;
+pub mod diagnostics;
 pub mod discovery;
 pub mod dispatch;
 pub mod diversity;
@@ -477,6 +509,7 @@ pub mod plan;
 pub mod platform;
 pub mod policy;
 pub mod privacy;
+pub mod probability;
 pub mod quality;
 pub mod requirements;
 pub mod resilience;
@@ -489,6 +522,7 @@ pub mod scoring;
 pub mod security;
 pub mod setup;
 pub mod stability;
+pub mod telemetry;
 pub mod types;
 pub mod ui_state;
 
