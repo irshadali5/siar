@@ -359,9 +359,47 @@
 //!   is a statement about a layer above this one; `plan_route` has no
 //!   concept of "resume," so nothing here could honestly test that
 //!   part.
-//! - **Everything from roughly §128 onward that isn't listed above** —
-//!   §128-170's remaining security-and-privacy composition beyond
-//!   §48/§49's basic version, multi-device route
+//! - §128 "File Resume Integration" and §129 "Messaging Retry
+//!   Integration" needed no code — both are pure boundary statements
+//!   ("do not make routing understand file chunk state," "routing
+//!   does not create duplicate message semantics") that this crate
+//!   already respects by never having a chunk-state or message-ID
+//!   concept anywhere in it.
+//! - [`engine::RouteChangeEvent`] — §130 "Call Path Change
+//!   Integration"'s reporting half (`NewPath`/`QualityUpdate`); the
+//!   call/media-layer actions the spec's own text pairs with it
+//!   ("rebind, renegotiate, adapt bitrate") are, like
+//!   [`engine::RouteResultReport`]'s feedback direction, a layer this
+//!   crate reports to rather than performs.
+//! - [`risk`] — §131 "Security Event Integration"
+//!   (`handle_security_event`, real cache invalidation plus data a
+//!   caller uses to remove the candidate and emit its own event),
+//!   §132 "Blacklisting" (`PathPenalty`, transcribed with the spec's
+//!   own two fields), §133 "Peer Abuse" (`PeerAbuseStatus`,
+//!   deliberately without a "rate limit" variant — see that module's
+//!   own doc comment for why that one stays
+//!   [`fairness::RoundRobinFairQueue`]'s job instead).
+//! - [`scope`] — §134-136's three named transport-list modes plus
+//!   §137's `RouteScope` enum tying them together; that module's own
+//!   doc comment names the one place §134 and §136 disagree (`Dtn`)
+//!   rather than silently reconciling it.
+//! - §138 "Emergency Override" —
+//!   [`privacy::effective_privacy_policy`], checked inside
+//!   [`decision::decide_route`]'s own user-policy step: lifts
+//!   `avoid_relay` specifically, and only when both
+//!   `Priority::Critical` and the user's own explicit opt-in
+//!   (`PrivacyPolicy::emergency_override_enabled`) are true — proved
+//!   both ways (with and without the opt-in) at the full
+//!   `decide_route` level, not just in isolation.
+//! - §139 "User Consent" needed no new code:
+//!   [`privacy::PrivacyPolicy`] already **is** "the resulting policy"
+//!   routing consumes, per the spec's own last line — the "explicit
+//!   product-level consent settings" it names are an onboarding/UI
+//!   concern that produces a `PrivacyPolicy`, not something this
+//!   crate collects itself.
+//! - **Everything from roughly §140 onward that isn't listed above** —
+//!   §140-170's admission-control/transport-adapter/scoring-detail/
+//!   telemetry/API-example/route-outcome sections, multi-device route
 //!   aggregation and group/broadcast routing (§171-175), storage-cost
 //!   awareness (§176-178), and the remainder of this 200-section
 //!   document not named above. §55 "Mesh
@@ -411,6 +449,8 @@ pub mod requirements;
 pub mod resilience;
 pub mod resolve;
 pub mod retry;
+pub mod risk;
+pub mod scope;
 pub mod scoring;
 pub mod security;
 pub mod setup;
