@@ -307,9 +307,61 @@
 //!   own doc comment for why: its trait names three types
 //!   (`ResolvedDestination`/`TransportSession`/`TransportError`) that
 //!   belong to whichever crate owns actual sockets, not this one.
-//! - **Everything from roughly §121 onward that isn't listed above** —
-//!   §121-170's feedback-loop/testing-strategy/security-and-privacy
-//!   composition beyond §48/§49's basic version, multi-device route
+//! - [`engine::health_after_outcome`] — §121 "Feedback Loop"'s own
+//!   "health update" step, real as a pure single-sample transition;
+//!   the "metrics update" step immediately before it in the spec's
+//!   own diagram needs history this crate has kept out of scope since
+//!   round 9 (see that function's own doc comment).
+//! - §122 "Avoid ML Initially" needed no new code: this crate has
+//!   never depended on anything ML-shaped (no such crate in
+//!   `Cargo.toml`, ever) and [`scoring::DefaultScorer`] is, and has
+//!   always been, an ordinary deterministic weighted sum.
+//! - §123 "Deterministic Scoring" — no new production code either;
+//!   this round added property tests at three layers proving what
+//!   was already true by construction (no RNG, no clock reads inside
+//!   scoring itself): [`scoring`]'s own `score()`, [`plan::plan_route`],
+//!   and [`decision::decide_route`] each have a test calling the same
+//!   function twice with identical inputs and asserting identical
+//!   output.
+//! - §124 "Simulated Routing Tests" — [`plan`]'s own test module now
+//!   has the spec's exact worked example transcribed with its exact
+//!   numbers (Path A: 10ms/1Mbps/metered, Path B: 50ms/100Mbps/
+//!   unmetered), covering both of its outcomes: text message
+//!   genuinely depends on policy (proven both ways), large file
+//!   always lands on B regardless of policy (a hard constraint, not
+//!   a preference).
+//! - §125 "Policy Property Tests" — all four transcribed as tests in
+//!   [`decision`]: revoked device never selected, forbidden metered
+//!   path never selected, realtime operation never uses DTN (tested
+//!   adversarially: even a DTN candidate that falsely claims realtime
+//!   capability is still excluded), and expired operation never
+//!   routed. That fourth one **surfaced a real, previously-unnoticed
+//!   gap** — `decide_route` had no way to know when an operation was
+//!   created at all, so nothing before this round actually enforced
+//!   it; fixed by adding
+//!   [`descriptor::OperationDescriptor::created_at_millis`] and a
+//!   `RejectReason::OperationExpired` check, not merely a test
+//!   confirming something already worked.
+//! - §126 "Chaos Tests" — [`plan`]'s own
+//!   `spec_126_wifi_flapping_does_not_cause_a_route_storm` simulates
+//!   20 re-plans with a narrowly alternating "which path looks
+//!   slightly better" measurement and asserts stickiness absorbs
+//!   nearly all of it. This crate's other two named chaos properties
+//!   ("no infinite retry loop," "bounded queues") already had
+//!   dedicated tests from earlier rounds — see that test's own doc
+//!   comment for exactly which ones — so nothing new was needed for
+//!   those two.
+//! - §127 "Failover Test" — [`plan`]'s own
+//!   `spec_127_a_failed_primary_fails_over_to_a_healthy_fallback`
+//!   proves the spec's exact scenario end to end. Its second half —
+//!   "operation resumes if semantics allow... routing only
+//!   coordinates path change, feature layer owns semantic resume" —
+//!   is a statement about a layer above this one; `plan_route` has no
+//!   concept of "resume," so nothing here could honestly test that
+//!   part.
+//! - **Everything from roughly §128 onward that isn't listed above** —
+//!   §128-170's remaining security-and-privacy composition beyond
+//!   §48/§49's basic version, multi-device route
 //!   aggregation and group/broadcast routing (§171-175), storage-cost
 //!   awareness (§176-178), and the remainder of this 200-section
 //!   document not named above. §55 "Mesh
