@@ -46,6 +46,13 @@ pub struct PrivacyPolicy {
     pub avoid_metered: bool,
     pub nearby_only: bool,
     pub internet_only: bool,
+    /// §138 "Emergency Override": the user's own opt-in, checked by
+    /// [`effective_privacy_policy`] — *not* a flag routing sets for
+    /// itself. Defaults `false`, so an application that never
+    /// surfaces this setting to the user gets the same behavior as
+    /// before this field existed: `avoid_relay` always holds, even
+    /// for a `Priority::Critical` operation.
+    pub emergency_override_enabled: bool,
 }
 
 fn is_nearby_transport(t: TransportKind) -> bool {
@@ -87,6 +94,31 @@ pub fn passes_privacy_policy(candidate: &PathCandidate, policy: &PrivacyPolicy) 
         return false;
     }
     true
+}
+
+/// §138 "Emergency Override": "may override user preference to avoid
+/// relay, only if the user explicitly enabled such emergency
+/// behavior... do not silently violate user privacy choices." Both
+/// conditions are checked, not just the priority: a `Critical`
+/// operation with `emergency_override_enabled: false` still respects
+/// `avoid_relay` exactly as written — the "explicitly enabled" half
+/// is what keeps this from being routing quietly deciding an
+/// emergency justifies overriding privacy on the user's behalf. Only
+/// `avoid_relay` is overridden — `avoid_metered`/`nearby_only`/
+/// `internet_only` are untouched, since the spec's own text names
+/// relay specifically and nothing else.
+pub fn effective_privacy_policy(
+    policy: &PrivacyPolicy,
+    priority: crate::types::Priority,
+) -> PrivacyPolicy {
+    if policy.emergency_override_enabled && priority == crate::types::Priority::Critical {
+        PrivacyPolicy {
+            avoid_relay: false,
+            ..*policy
+        }
+    } else {
+        *policy
+    }
 }
 
 /// §49 applied to a whole list — same composable shape as
@@ -352,5 +384,48 @@ mod tests {
             direct_preference_bonus(TransportKind::IrohDirect, &policy),
             1.0
         );
+    }
+
+    /// §138 "Emergency Override", both of its own guard conditions.
+    #[test]
+    fn spec_138_emergency_override_requires_both_explicit_opt_in_and_critical_priority() {
+        let opted_in = PrivacyPolicy {
+            avoid_relay: true,
+            emergency_override_enabled: true,
+            ..Default::default()
+        };
+        assert!(
+            !effective_privacy_policy(&opted_in, crate::types::Priority::Critical).avoid_relay,
+            "opted in + critical should lift avoid_relay"
+        );
+        assert!(
+            effective_privacy_policy(&opted_in, crate::types::Priority::Normal).avoid_relay,
+            "opted in but not critical must still respect avoid_relay"
+        );
+
+        let not_opted_in = PrivacyPolicy {
+            avoid_relay: true,
+            emergency_override_enabled: false,
+            ..Default::default()
+        };
+        assert!(
+            effective_privacy_policy(&not_opted_in, crate::types::Priority::Critical).avoid_relay,
+            "critical alone, without explicit opt-in, must never override — no silent privacy violation"
+        );
+    }
+
+    #[test]
+    fn spec_138_the_override_touches_only_avoid_relay() {
+        let policy = PrivacyPolicy {
+            avoid_relay: true,
+            avoid_metered: true,
+            nearby_only: true,
+            emergency_override_enabled: true,
+            ..Default::default()
+        };
+        let effective = effective_privacy_policy(&policy, crate::types::Priority::Critical);
+        assert!(!effective.avoid_relay);
+        assert!(effective.avoid_metered);
+        assert!(effective.nearby_only);
     }
 }
