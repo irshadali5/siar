@@ -45,6 +45,28 @@ pub struct PolicyWeights {
     pub candidate_state: f64,
 }
 
+impl PolicyWeights {
+    /// §155 "Integer Score Option" needs a denominator to normalize
+    /// against — this struct's own doc comment already establishes
+    /// that weights aren't required to sum to 1.0, so
+    /// [`crate::scoring::RouteScore::as_fixed_point`] has to compute
+    /// the actual maximum a given weight configuration could produce
+    /// rather than assuming one.
+    pub fn sum(&self) -> f64 {
+        self.reachability
+            + self.latency
+            + self.bandwidth
+            + self.stability
+            + self.energy
+            + self.cost
+            + self.recent_success
+            + self.setup_cost
+            + self.existing_connection
+            + self.congestion
+            + self.candidate_state
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct HysteresisPolicy {
     pub switch_threshold: RouteScoreDelta,
