@@ -213,6 +213,7 @@ mod tests {
             reason: crate::explain::RouteReason::PolicyPreferred,
             created_at_millis: 0,
             valid_until_millis: 0,
+            primary_score: crate::scoring::RouteScore(0.0),
         }
     }
 
