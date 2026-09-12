@@ -4,9 +4,17 @@ Source spec: `sys-arch/03-transport-routing-policy-engine-architecture.md` — 2
 
 ## Implementation status
 
-**157/200 (78%) sections.**
+**168/200 (84%) sections.**
 
-Partial — Round 1 (§1–§42), Round 2 (§43–§56), Round 3 (§57–§62), Round 4 (§63–§68), Round 5 (§69–§74), Round 6 (§75–§84), Round 7 (§85–§90), Round 8 (§91–§96), Round 9 (§97–§104), Round 10 (§105–§107), Round 11 (§108–§115), Round 12 (§116–§120), Round 13 (§121–§127), and Round 14 (§128–§139) complete (192/192 unit tests).
+Partial — Round 1 (§1–§42), Round 2 (§43–§56), Round 3 (§57–§62), Round 4 (§63–§68), Round 5 (§69–§74), Round 6 (§75–§84), Round 7 (§85–§90), Round 8 (§91–§96), Round 9 (§97–§104), Round 10 (§105–§107), Round 11 (§108–§115), Round 12 (§116–§120), Round 13 (§121–§127), Round 14 (§128–§139), and Round 15 (§140–§150) complete (203/203 unit tests).
+
+### Round 15 (§140–§150) Summary (2026-09-12)
+- **§140 (Bandwidth Reservation)**: Implemented `BandwidthReservation` and `bulk_should_yield_to_reservation` in `resource_pressure.rs`, ensuring Bulk transfers yield unconditionally to active realtime audio/video reservations.
+- **§141 (Traffic Shaping)**: Implemented `TrafficShapingPolicy` and `effective_traffic_cap` in `resource_pressure.rs`, enforcing bulk bitrate caps during active calls and background priority caps unconditionally.
+- **§142 (Connection Admission)**: Implemented `ConnectionAdmission` and `admission_permitted` in `resource_pressure.rs`, enforcing max total sessions and expensive radio limits while guaranteeing `Priority::Critical` always bypasses admission limits.
+- **§143 (Thermal Awareness)**: Implemented `thermal_allows_multipath`, `thermal_allows_transport_setup`, and `thermal_allows_background_bulk` in `resource_pressure.rs`, throttling multi-radio, Wi-Fi Direct setup, and background bulk traffic under `ThermalState::Critical`.
+- **§144 (Memory Pressure)**: Added `MemoryPressure` (`Normal`, `Elevated`, `Critical`) to `DeviceState` in `platform.rs`. Implemented `memory_pressure_allows_acquisition` (pausing non-durable bulk while preserving durable transfers) and `recommended_queue_capacity` (scaling queue depth based on memory pressure).
+- **§145–§150 (Transport Adapter Contracts)**: Added comprehensive architectural specification in `adapters.rs`, verifying `PathCandidate` fulfills report contracts, confirming zero Iroh-specific API leakage, enforcing `DeviceId` identity over MACs for Bluetooth, and formally documenting transport-layer boundaries for NIC interfaces, BT paired states, Wi-Fi groups, and DTN delivery probability.
 
 ### Round 14 (§128–§139) Summary (2026-09-12)
 - **§128 & §129 (File Resume & Messaging Retry Integration)**: Documented architectural boundaries — routing coordinates path changes without understanding file chunk state or creating duplicate message semantics.
