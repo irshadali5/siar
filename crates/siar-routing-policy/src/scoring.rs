@@ -18,6 +18,36 @@ use crate::types::{DeliveryClass, MeteredState, PathId, RoamingState, RouteHealt
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct RouteScore(pub f64);
 
+impl RouteScore {
+    /// §155 "Integer Score Option": "for deterministic portability,
+    /// use fixed-point/integer score... 0..10_000... avoid floating
+    /// point if reproducibility matters." Named as an *option* in the
+    /// spec's own section title, not a replacement — this crate's
+    /// existing `f64` scoring already reproduces exactly given
+    /// identical inputs (§123, proved by property test), so this
+    /// isn't fixing a real non-determinism; it's a second
+    /// representation for a caller that specifically needs a stable
+    /// integer for serialization, cross-language comparison, or
+    /// display (§157's own worked example, "Score: 8240", is exactly
+    /// this range).
+    ///
+    /// Normalizes against `weights`'s own maximum possible sum (per
+    /// [`crate::policy::PolicyWeights::sum`]) rather than an assumed
+    /// constant — that struct's own doc comment is explicit that
+    /// weights aren't required to sum to 1.0, so a fixed denominator
+    /// would silently misscale any profile whose weights don't happen
+    /// to match it. A `weights` with all-zero terms (nothing to
+    /// compare against) returns `0` rather than dividing by zero.
+    pub fn as_fixed_point(&self, weights: &crate::policy::PolicyWeights) -> u16 {
+        let max = weights.sum();
+        if max <= 0.0 {
+            return 0;
+        }
+        let normalized = (self.0 / max).clamp(0.0, 1.0);
+        (normalized * 10_000.0).round() as u16
+    }
+}
+
 /// §35's `switch_threshold` field type.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct RouteScoreDelta(pub f64);
@@ -508,5 +538,51 @@ mod tests {
         let first = scorer.score(&candidate, &req, &context);
         let second = scorer.score(&candidate, &req, &context);
         assert_eq!(first, second);
+    }
+
+    /// §155 "Integer Score Option": worked-example proof that a
+    /// maximal score lands at the top of `0..10_000`, not merely
+    /// "some plausible number."
+    #[test]
+    fn spec_155_a_maximal_score_lands_at_the_top_of_the_fixed_point_range() {
+        let weights = crate::policy::PolicyWeights {
+            reachability: 1.0,
+            latency: 1.0,
+            bandwidth: 1.0,
+            stability: 1.0,
+            energy: 1.0,
+            cost: 1.0,
+            recent_success: 1.0,
+            setup_cost: 1.0,
+            existing_connection: 1.0,
+            congestion: 1.0,
+            candidate_state: 1.0,
+        };
+        let max_possible = RouteScore(weights.sum());
+        assert_eq!(max_possible.as_fixed_point(&weights), 10_000);
+    }
+
+    #[test]
+    fn spec_155_a_zero_score_lands_at_the_bottom_of_the_fixed_point_range() {
+        let weights = RoutingPolicyProfile::Balanced.policy().weights;
+        assert_eq!(RouteScore(0.0).as_fixed_point(&weights), 0);
+    }
+
+    #[test]
+    fn as_fixed_point_never_divides_by_zero_for_an_all_zero_weight_set() {
+        let weights = crate::policy::PolicyWeights {
+            reachability: 0.0,
+            latency: 0.0,
+            bandwidth: 0.0,
+            stability: 0.0,
+            energy: 0.0,
+            cost: 0.0,
+            recent_success: 0.0,
+            setup_cost: 0.0,
+            existing_connection: 0.0,
+            congestion: 0.0,
+            candidate_state: 0.0,
+        };
+        assert_eq!(RouteScore(5.0).as_fixed_point(&weights), 0);
     }
 }
